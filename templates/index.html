@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tea Party - AI角色聊天室</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+</head>
+<body>
+    <!-- WebGL Canvas Background -->
+    <canvas id="liquidGlassCanvas" class="liquid-glass-bg"></canvas>
+    
+    <!-- Main App Container -->
+    <div class="app-container">
+        <!-- Header -->
+        <header class="glass-header">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-comments"></i>
+                    <span>AI Tea Party</span>
+                </div>
+                <div class="header-controls">
+                    <button class="glass-btn" id="apiConfigBtn" title="API配置">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <button class="glass-btn" id="roomSettingsBtn" title="聊天室设置">
+                        <i class="fas fa-door-open"></i>
+                    </button>
+                    <div class="connection-status">
+                        <span id="connectionStatus" class="status-indicator">
+                            <i class="fas fa-circle"></i>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-layout">
+            <!-- Sidebar -->
+            <aside class="glass-sidebar">
+                <div class="sidebar-section">
+                    <h3 class="section-title">
+                        <i class="fas fa-users"></i>
+                        角色管理
+                    </h3>
+                    <div class="character-grid" id="characterGrid">
+                        <!-- Characters will be dynamically added here -->
+                    </div>
+                    <button class="glass-btn add-character-btn" id="addCharacterBtn">
+                        <i class="fas fa-plus"></i>
+                        添加角色
+                    </button>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3 class="section-title">
+                        <i class="fas fa-comments"></i>
+                        聊天控制
+                    </h3>
+                    <div class="control-buttons">
+                        <button class="glass-btn control-btn" id="startAutoChat">
+                            <i class="fas fa-play"></i>
+                            自动聊天
+                        </button>
+                        <button class="glass-btn control-btn" id="stopAutoChat">
+                            <i class="fas fa-stop"></i>
+                            停止聊天
+                        </button>
+                        <button class="glass-btn control-btn" id="clearChat">
+                            <i class="fas fa-trash"></i>
+                            清空消息
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Chat Area -->
+            <section class="chat-area">
+                <div class="chat-container glass-panel">
+                    <div class="chat-header">
+                        <h2 id="roomTitle">AI Tea Party 聊天室</h2>
+                        <div class="room-info">
+                            <span id="roomStatus" class="room-badge">准备就绪</span>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-messages" id="chatMessages">
+                        <!-- Messages will be dynamically added here -->
+                    </div>
+                    
+                    <div class="chat-input-area">
+                        <div class="input-container">
+                            <select id="characterSelect" class="glass-select">
+                                <option value="">选择角色发言</option>
+                            </select>
+                            <input type="text" id="messageInput" class="glass-input" placeholder="输入消息...">
+                            <button id="sendMessage" class="glass-btn send-btn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal: Add Character -->
+    <div class="modal-overlay" id="addCharacterModal">
+        <div class="glass-modal">
+            <div class="modal-header">
+                <h3>添加AI角色</h3>
+                <button class="close-btn" data-close="addCharacterModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="addCharacterForm">
+                    <div class="form-group">
+                        <label for="characterName">角色名称</label>
+                        <input type="text" id="characterName" class="glass-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="characterPersonality">性格特点</label>
+                        <textarea id="characterPersonality" class="glass-textarea" rows="3" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="characterBackground">背景故事</label>
+                        <textarea id="characterBackground" class="glass-textarea" rows="3" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="characterStyle">说话风格（可选）</label>
+                        <input type="text" id="characterStyle" class="glass-input">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="glass-btn secondary" data-close="addCharacterModal">取消</button>
+                <button class="glass-btn primary" id="saveCharacter">保存角色</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: API Configuration -->
+    <div class="modal-overlay" id="apiConfigModal">
+        <div class="glass-modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-key"></i> API配置</h3>
+                <button class="close-btn" data-close="apiConfigModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="apiConfigForm">
+                    <div class="form-group">
+                        <label for="apiProvider">API提供商</label>
+                        <select id="apiProvider" class="glass-select" required>
+                            <option value="">请选择...</option>
+                            <option value="deepseek_chat">DeepSeek Chat</option>
+                            <option value="deepseek_reasoner">DeepSeek Reasoner</option>
+                            <option value="gemini_25_flash">Gemini 2.5 Flash</option>
+                            <option value="gemini_25_pro">Gemini 2.5 Pro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="apiKey">API密钥</label>
+                        <div class="input-group">
+                            <input type="password" id="apiKey" class="glass-input" required>
+                            <button type="button" class="glass-btn" id="toggleApiKey">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <small class="help-text" id="apiKeyHelp">请输入您的API密钥</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="apiModel">模型（可选）</label>
+                        <select id="apiModel" class="glass-select">
+                            <option value="">使用默认模型</option>
+                        </select>
+                        <small class="help-text">留空将使用该提供商的默认模型</small>
+                    </div>
+                    <div class="info-box">
+                        <i class="fas fa-info-circle"></i>
+                        <span>配置将立即生效，无需重启应用。您的API密钥仅在本次会话中有效。</span>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="glass-btn secondary" data-close="apiConfigModal">取消</button>
+                <button class="glass-btn outline" id="testApiConnection">测试连接</button>
+                <button class="glass-btn primary" id="saveApiConfig">保存配置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Room Settings -->
+    <div class="modal-overlay" id="roomSettingsModal">
+        <div class="glass-modal">
+            <div class="modal-header">
+                <h3>聊天室设置</h3>
+                <button class="close-btn" data-close="roomSettingsModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="roomSettingsForm">
+                    <div class="form-group">
+                        <label for="editRoomName">聊天室名称</label>
+                        <input type="text" id="editRoomName" class="glass-input">
+                    </div>
+                    <div class="form-group">
+                        <label for="editRoomDescription">描述</label>
+                        <textarea id="editRoomDescription" class="glass-textarea" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="editStealthMode" class="glass-checkbox">
+                            <label for="editStealthMode">
+                                <i class="fas fa-user-secret"></i> 隐身模式
+                                <small>开启后，AI无法察觉用户存在</small>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group" id="editUserDescriptionGroup">
+                        <label for="editUserDescription">用户自我描述</label>
+                        <textarea id="editUserDescription" class="glass-textarea" rows="2"></textarea>
+                        <small class="help-text">AI会根据您的描述调整对话风格</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="glass-btn secondary" data-close="roomSettingsModal">取消</button>
+                <button class="glass-btn primary" id="saveRoomSettings">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div class="notification-container" id="notificationContainer">
+        <!-- Notifications will be dynamically added here -->
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/webgl-liquid-glass.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
