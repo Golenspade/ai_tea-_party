@@ -1,6 +1,7 @@
 import os
 import logging
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
@@ -102,6 +103,20 @@ logger = logging.getLogger(__name__)
 
 # 创建FastAPI应用
 app = FastAPI(title="AI Tea Party", description="AI角色聊天室")
+
+# 配置CORS以支持Next.js前端
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",  # Next.js dev server
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",  # Original frontend
+        "http://127.0.0.1:8000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 静态文件和模板
 app.mount("/static", StaticFiles(directory="static"), name="static")

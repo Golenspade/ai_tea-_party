@@ -12,6 +12,7 @@
 - 🔑 **多API支持**: 支持OpenAI、DeepSeek V3/R1、Google Gemini等多个AI API
 - 🛠️ **动态配置**: 前端界面直接配置API密钥，无需重启应用
 - ⚡ **智能切换**: 支持不同AI模型的实时切换
+- 🎨 **现代UI**: 使用 Next.js + shadcn/ui 构建的现代化前端界面
 
 ## 快速开始
 
@@ -48,8 +49,12 @@ ai_tea_party/
 ├── main.py              # 主应用入口
 ├── models/              # 数据模型
 ├── services/            # 业务逻辑服务
-├── static/              # 静态文件
-├── templates/           # HTML模板
+├── static/              # 静态文件 (原版前端)
+├── templates/           # HTML模板 (原版前端)
+├── frontend/            # Next.js + shadcn/ui 现代前端
+│   ├── app/            # Next.js App Router
+│   ├── components/     # React组件 (shadcn/ui)
+│   └── lib/            # 工具函数
 ├── requirements.txt     # Python依赖
 └── .env                 # 环境配置
 ```
@@ -99,7 +104,14 @@ python start.py
    ```
 
 4. **访问应用**
-   在浏览器中打开 `http://localhost:8000`
+   - 原版前端: `http://localhost:8000`
+   - 现代前端 (shadcn/ui): 先启动 Next.js 开发服务器
+     ```bash
+     cd frontend
+     npm install
+     npm run dev
+     ```
+     然后访问 `http://localhost:3000`
 
 ### 添加预设角色
 
