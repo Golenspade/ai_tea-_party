@@ -15,6 +15,8 @@ from services.ai_service import APIProvider
 from models.character import Character, Message, ChatRoom
 from services.chat_service import chat_service
 from services.ai_service import ai_service
+from utils.config_loader import config_loader
+from utils.env_watcher import env_watcher
 
 # WebSocket管理器
 class WebSocketManager:
@@ -109,7 +111,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",  # Next.js dev server
+        "http://localhost:3001",  # Next.js dev server (alternate port)
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
         "http://localhost:8000",  # Original frontend
         "http://127.0.0.1:8000",
     ],
@@ -153,14 +157,30 @@ class UpdateRoomRequest(BaseModel):
 class GenerateRequest(BaseModel):
     character_id: str
 
-# 初始化默认聊天室
-default_room = chat_service.create_chat_room("AI Tea Party 聊天室")
-# 使用固定的房间ID以便前端访问
-default_room.id = "default"
-chat_service.chat_rooms["default"] = default_room
-# 删除原来的UUID房间
-if default_room.id != "default":
-    del chat_service.chat_rooms[default_room.id]
+# 初始化聊天室
+# 尝试从 config.json 加载预设配置
+if config_loader.load_config():
+    logger.info("正在从 config.json 加载预设聊天室和角色...")
+    rooms = config_loader.initialize_rooms()
+    if rooms:
+        logger.info(f"成功加载 {len(rooms)} 个预设聊天室")
+        # 确保 default 房间存在
+        if "default" not in chat_service.chat_rooms:
+            logger.warning("config.json 中没有 default 房间，创建默认房间")
+            default_room = chat_service.create_chat_room("AI Tea Party 聊天室")
+            default_room.id = "default"
+            chat_service.chat_rooms["default"] = default_room
+    else:
+        logger.warning("未能从 config.json 加载聊天室，创建默认房间")
+        default_room = chat_service.create_chat_room("AI Tea Party 聊天室")
+        default_room.id = "default"
+        chat_service.chat_rooms["default"] = default_room
+else:
+    logger.info("未找到 config.json，创建默认聊天室")
+    default_room = chat_service.create_chat_room("AI Tea Party 聊天室")
+    default_room.id = "default"
+    chat_service.chat_rooms["default"] = default_room
+
 DEFAULT_ROOM_ID = "default"
 
 # WebSocket消息回调
@@ -559,10 +579,24 @@ if __name__ == "__main__":
     # 检查AI服务配置
     if not ai_service.is_configured():
         logger.warning("AI服务未配置，请在.env文件中设置DEEPSEEK_API_KEY或GEMINI_API_KEY")
-    
+
+    # 设置 .env 热重载回调
+    def on_env_reload():
+        """当 .env 文件更新时重新加载 AI 配置"""
+        logger.info("🔄 检测到 .env 变化，正在重新加载 AI 配置...")
+        ai_service._load_default_config()
+        if ai_service.is_configured():
+            logger.info(f"✅ AI 配置已更新: {ai_service.get_current_config()}")
+        else:
+            logger.warning("⚠️  AI 服务未配置")
+
+    # 启动 .env 热重载
+    env_watcher.add_callback(on_env_reload)
+    env_watcher.start()
+
     # 启动服务器
     host = os.getenv("HOST", "localhost")
-    port = int(os.getenv("PORT", 8000))
-    
+    port = int(os.getenv("PORT", 3004))
+
     logger.info(f"启动AI Tea Party服务器: http://{host}:{port}")
     uvicorn.run(app, host=host, port=port)

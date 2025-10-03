@@ -95,7 +95,7 @@ export default function Home() {
 
   // WebSocket connection
   useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:8000/ws/default`);
+    const ws = new WebSocket(`ws://localhost:3004/ws/default`);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -143,7 +143,7 @@ export default function Home() {
 
   const fetchCharacters = async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/rooms/default/characters");
+      const response = await fetch("http://localhost:3004/api/rooms/default/characters");
       const data = await response.json();
       setCharacters(data);
     } catch (error) {
@@ -153,7 +153,7 @@ export default function Home() {
 
   const handleAddCharacter = async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/rooms/default/characters", {
+      const response = await fetch("http://localhost:3004/api/rooms/default/characters", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(characterForm),
@@ -176,7 +176,7 @@ export default function Home() {
 
   const handleDeleteCharacter = async (id: string) => {
     try {
-      await fetch(`http://localhost:8000/api/rooms/default/characters/${id}`, {
+      await fetch(`http://localhost:3004/api/rooms/default/characters/${id}`, {
         method: "DELETE",
       });
       fetchCharacters();
@@ -189,7 +189,7 @@ export default function Home() {
     if (!messageInput.trim() || !selectedCharacter) return;
 
     try {
-      const response = await fetch("http://localhost:8000/api/rooms/default/messages", {
+      const response = await fetch("http://localhost:3004/api/rooms/default/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -208,7 +208,7 @@ export default function Home() {
 
   const handleAISpeech = async (characterId: string) => {
     try {
-      const response = await fetch("http://localhost:8000/api/rooms/default/generate", {
+      const response = await fetch("http://localhost:3004/api/rooms/default/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ character_id: characterId }),
@@ -224,7 +224,7 @@ export default function Home() {
 
   const handleStartAutoChat = async () => {
     try {
-      await fetch("http://localhost:8000/api/rooms/default/auto-chat/start", {
+      await fetch("http://localhost:3004/api/rooms/default/auto-chat/start", {
         method: "POST",
       });
       setIsAutoChat(true);
@@ -235,7 +235,7 @@ export default function Home() {
 
   const handleStopAutoChat = async () => {
     try {
-      await fetch("http://localhost:8000/api/rooms/default/auto-chat/stop", {
+      await fetch("http://localhost:3004/api/rooms/default/auto-chat/stop", {
         method: "POST",
       });
       setIsAutoChat(false);
@@ -250,7 +250,7 @@ export default function Home() {
 
   const handleSaveApiConfig = async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/config", {
+      const response = await fetch("http://localhost:3004/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -307,14 +307,14 @@ export default function Home() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>API Configuration</DialogTitle>
+                  <DialogTitle>API 配置</DialogTitle>
                   <DialogDescription>
-                    Configure your AI API settings
+                    配置您的 AI API 设置
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="provider">API Provider</Label>
+                    <Label htmlFor="provider">API 提供商</Label>
                     <Select
                       value={apiForm.provider}
                       onValueChange={(value) =>
@@ -322,7 +322,7 @@ export default function Home() {
                       }
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select provider..." />
+                        <SelectValue placeholder="选择提供商..." />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="deepseek_chat">
@@ -341,7 +341,7 @@ export default function Home() {
                     </Select>
                   </div>
                   <div>
-                    <Label htmlFor="apiKey">API Key</Label>
+                    <Label htmlFor="apiKey">API 密钥</Label>
                     <Input
                       id="apiKey"
                       type="password"
@@ -352,27 +352,27 @@ export default function Home() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="model">Model (Optional)</Label>
+                    <Label htmlFor="model">模型（可选）</Label>
                     <Input
                       id="model"
                       value={apiForm.model}
                       onChange={(e) =>
                         setApiForm({ ...apiForm, model: e.target.value })
                       }
-                      placeholder="Leave empty for default"
+                      placeholder="留空使用默认模型"
                     />
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setApiConfigOpen(false)}>
-                    Cancel
+                    取消
                   </Button>
-                  <Button onClick={handleSaveApiConfig}>Save</Button>
+                  <Button onClick={handleSaveApiConfig}>保存</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
             <Badge variant={isConnected ? "default" : "destructive"}>
-              {isConnected ? "Connected" : "Disconnected"}
+              {isConnected ? "已连接" : "未连接"}
             </Badge>
           </div>
         </div>
@@ -387,7 +387,7 @@ export default function Home() {
             <div>
               <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Characters
+                角色管理
               </h2>
               <ScrollArea className="h-[300px]">
                 <div className="space-y-2">
@@ -435,19 +435,19 @@ export default function Home() {
                 <DialogTrigger asChild>
                   <Button className="w-full mt-3" variant="outline">
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Character
+                    添加角色
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Add AI Character</DialogTitle>
+                    <DialogTitle>添加 AI 角色</DialogTitle>
                     <DialogDescription>
-                      Create a new AI character for the chatroom
+                      为聊天室创建一个新的 AI 角色
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="name">Character Name</Label>
+                      <Label htmlFor="name">角色名称</Label>
                       <Input
                         id="name"
                         value={characterForm.name}
@@ -460,7 +460,7 @@ export default function Home() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="personality">Personality</Label>
+                      <Label htmlFor="personality">性格特点</Label>
                       <Textarea
                         id="personality"
                         value={characterForm.personality}
@@ -473,7 +473,7 @@ export default function Home() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="background">Background</Label>
+                      <Label htmlFor="background">背景故事</Label>
                       <Textarea
                         id="background"
                         value={characterForm.background}
@@ -487,7 +487,7 @@ export default function Home() {
                     </div>
                     <div>
                       <Label htmlFor="speaking_style">
-                        Speaking Style (Optional)
+                        说话风格（可选）
                       </Label>
                       <Input
                         id="speaking_style"
@@ -506,9 +506,9 @@ export default function Home() {
                       variant="outline"
                       onClick={() => setAddCharacterOpen(false)}
                     >
-                      Cancel
+                      取消
                     </Button>
-                    <Button onClick={handleAddCharacter}>Save</Button>
+                    <Button onClick={handleAddCharacter}>保存</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
@@ -518,7 +518,7 @@ export default function Home() {
 
             {/* Chat Controls */}
             <div>
-              <h2 className="text-lg font-semibold mb-3">Chat Controls</h2>
+              <h2 className="text-lg font-semibold mb-3">聊天控制</h2>
               <div className="space-y-2">
                 {!isAutoChat ? (
                   <Button
@@ -527,7 +527,7 @@ export default function Home() {
                     variant="default"
                   >
                     <Play className="h-4 w-4 mr-2" />
-                    Start Auto Chat
+                    开始自动聊天
                   </Button>
                 ) : (
                   <Button
@@ -536,7 +536,7 @@ export default function Home() {
                     variant="destructive"
                   >
                     <Square className="h-4 w-4 mr-2" />
-                    Stop Auto Chat
+                    停止自动聊天
                   </Button>
                 )}
                 <Button
@@ -545,7 +545,7 @@ export default function Home() {
                   variant="outline"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Clear Messages
+                  清空消息
                 </Button>
               </div>
             </div>
@@ -557,9 +557,9 @@ export default function Home() {
           <Card className="flex-1 m-4 flex flex-col">
             <CardHeader className="border-b">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">AI Tea Party Chatroom</h2>
+                <h2 className="text-xl font-semibold">AI 茶话会聊天室</h2>
                 <Badge variant={isAutoChat ? "default" : "secondary"}>
-                  {isAutoChat ? "Auto Chat Active" : "Ready"}
+                  {isAutoChat ? "自动聊天中" : "就绪"}
                 </Badge>
               </div>
             </CardHeader>
@@ -604,7 +604,7 @@ export default function Home() {
               <div className="flex gap-2">
                 <Select value={selectedCharacter} onValueChange={setSelectedCharacter}>
                   <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Select character..." />
+                    <SelectValue placeholder="选择角色..." />
                   </SelectTrigger>
                   <SelectContent>
                     {characters.map((character) => (
@@ -615,7 +615,7 @@ export default function Home() {
                   </SelectContent>
                 </Select>
                 <Input
-                  placeholder="Type a message..."
+                  placeholder="输入消息..."
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
