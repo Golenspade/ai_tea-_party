@@ -32,7 +32,7 @@
 ## 🚀 快速开始
 
 ### 环境要求
-- Python 3.10+ (推荐 3.12 或 3.13)
+- Python 3.10+ (推荐 3.12 或 3.14)
 - Node.js 18+
 - 现代浏览器
 
@@ -263,7 +263,7 @@ AUTO_CHAT_INTERVAL=5
 - **WebSocket** - 实时双向通信
 - **OpenAI SDK** - DeepSeek API 集成
 - **Google Generative AI** - Gemini API 集成
-- **Python 3.13** - 最新 Python 版本支持
+- **Python 3.14** - 最新 Python 版本支持
 
 ### 前端
 - **Next.js 15** - React 服务端渲染框架

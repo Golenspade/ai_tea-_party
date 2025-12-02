@@ -18,7 +18,7 @@
 ### 🚀 技术升级
 - React 19 + Next.js 15
 - TypeScript 全面支持
-- Python 3.13 兼容
+- Python 3.14 兼容
 - 实时 WebSocket 通信
 
 ## 服务端口
@@ -48,7 +48,7 @@ cd frontend && npm run dev
 ## 技术栈
 
 ### 后端
-- Python 3.13
+- Python 3.14
 - FastAPI 0.118+
 - WebSocket
 - OpenAI SDK (DeepSeek API)
@@ -82,7 +82,7 @@ PORT=3004
 每个聊天室都有 3-4 个精心设计的 AI 角色。
 
 ## 兼容性
-- Python: 3.10+（推荐 3.12 或 3.13）
+- Python: 3.10+（推荐 3.12 或 3.14）
 - Node.js: 18+
 - 现代浏览器（Chrome、Firefox、Safari、Edge）
 

@@ -52,7 +52,7 @@
 #### 依赖更新
 - ⬆️ **Python 依赖**
   - 更新为灵活的版本约束（`>=` 替代 `==`）
-  - 兼容 Python 3.13
+  - 兼容 Python 3.14
   - 更新 pydantic, openai, uvicorn 等核心库
 
 - 📚 **前端依赖**
