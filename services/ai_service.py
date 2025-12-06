@@ -1,6 +1,6 @@
 import openai
 import os
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, AsyncGenerator, Union
 import asyncio
 import logging
 import time
@@ -212,6 +212,64 @@ class AIService:
             logger.error(f"生成AI回复时出错: {e}")
             return None
 
+    async def stream_response(
+        self,
+        character: Character,
+        conversation_history: List[Message],
+        max_tokens: int = 1000
+    ) -> AsyncGenerator[str, None]:
+        """
+        为指定角色流式生成回复，逐片返回文本
+        """
+        if not self.current_config:
+            error_msg = "AI服务未配置，请先在设置中配置API密钥"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        # 更新角色记忆系统
+        self._update_character_memory(conversation_history)
+
+        provider = self.current_config.provider
+
+        if provider in [APIProvider.DEEPSEEK_CHAT, APIProvider.DEEPSEEK_REASONER]:
+            async for chunk in self._stream_deepseek_response(
+                character, conversation_history, max_tokens
+            ):
+                yield chunk
+        elif provider in [APIProvider.GEMINI_25_FLASH, APIProvider.GEMINI_25_PRO]:
+            # 当前SDK未使用流式接口，退化为单次完整响应
+            response = await self._generate_gemini_25_response(
+                character, conversation_history, max_tokens
+            )
+            if response:
+                yield response
+        else:
+            logger.error(f"不支持的API提供商: {provider}")
+
+    def _build_deepseek_messages(
+        self, character: Character, conversation_history: List[Message]
+    ) -> List[Dict[str, str]]:
+        """构建 DeepSeek 兼容的对话消息列表"""
+        enhanced_system_prompt = self._build_enhanced_system_prompt(
+            character, conversation_history
+        )
+
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": enhanced_system_prompt}
+        ]
+
+        recent_messages = conversation_history[-25:] if conversation_history else []
+        for msg in recent_messages:
+            if msg.is_system:
+                continue
+
+            role = "assistant" if msg.character_id == character.id else "user"
+            content = msg.content if msg.character_id == character.id else f"[{msg.character_name}]: {msg.content}"
+
+            messages.append({"role": role, "content": content})
+
+        return messages
+
     def _update_character_memory(self, conversation_history: List[Message]):
         """更新角色记忆系统"""
         # 分析最近的消息，更新角色特征
@@ -240,32 +298,7 @@ class AIService:
             logger.error("DeepSeek客户端未初始化")
             return None
 
-        # 构建增强的系统提示，包含角色记忆
-        enhanced_system_prompt = self._build_enhanced_system_prompt(character, conversation_history)
-
-        # 构建对话消息
-        messages = [
-            {"role": "system", "content": enhanced_system_prompt}
-        ]
-
-        # 添加对话历史 - 保留更多上下文
-        recent_messages = conversation_history[-25:] if conversation_history else []
-        
-        for msg in recent_messages:
-            if not msg.is_system:
-                # 根据角色关系确定消息角色
-                role = "assistant" if msg.character_id == character.id else "user"
-                
-                # 改进消息内容格式，包含角色信息
-                if msg.character_id == character.id:
-                    content = msg.content
-                else:
-                    content = f"[{msg.character_name}]: {msg.content}"
-
-                messages.append({
-                    "role": role,
-                    "content": content
-                })
+        messages = self._build_deepseek_messages(character, conversation_history)
 
         # 调用DeepSeek API
         try:
@@ -296,6 +329,65 @@ class AIService:
             return None
 
         return None
+
+    async def _stream_deepseek_response(
+        self,
+        character: Character,
+        conversation_history: List[Message],
+        max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        """使用DeepSeek API流式生成回复"""
+        if not self.deepseek_client:
+            logger.error("DeepSeek客户端未初始化")
+            return
+
+        if not self.current_config or not self.current_config.model:
+            logger.error("DeepSeek配置无效")
+            return
+
+        messages = self._build_deepseek_messages(character, conversation_history)
+
+        try:
+            stream = await self.deepseek_client.chat.completions.create(
+                model=self.current_config.model,
+                messages=messages,  # type: ignore
+                max_tokens=max_tokens,
+                temperature=0.8,
+                presence_penalty=0.6,
+                frequency_penalty=0.3,
+                stream=True,
+            )
+
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if not delta or delta.content is None:
+                    continue
+
+                text = self._extract_text_from_delta(delta.content)
+                if text:
+                    yield text
+
+        except Exception as e:
+            logger.error(f"DeepSeek 流式API调用失败: {e}")
+
+    @staticmethod
+    def _extract_text_from_delta(content: Union[str, List[Any]]) -> str:
+        """提取流式 delta 内容中的文本"""
+        if isinstance(content, str):
+            return content
+
+        parts: List[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                # 处理可能的富文本结构，尽量提取 text 字段
+                text = item.get("text") if isinstance(item.get("text"), str) else ""
+                if text:
+                    parts.append(text)
+        return "".join(parts)
 
     async def _generate_gemini_25_response(
         self,

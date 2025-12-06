@@ -35,6 +35,7 @@
 - Python 3.10+ (推荐 3.12 或 3.14)
 - Node.js 18+
 - 现代浏览器
+- uv（Python 包管理器，https://docs.astral.sh/uv/）
 
 ### 1. 克隆仓库
 
@@ -43,15 +44,11 @@ git clone https://github.com/Golenspade/ai_tea-_party.git
 cd ai_tea-_party
 ```
 
-### 2. 安装后端依赖
+### 2. 安装后端依赖（使用 uv）
 
 ```bash
-# 创建虚拟环境（推荐）
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 安装依赖
-pip install -r requirements.txt
+# 安装后端依赖并创建 .venv
+uv sync
 ```
 
 ### 3. 配置 API 密钥
@@ -87,7 +84,7 @@ npm install
 
 **后端（终端1）：**
 ```bash
-python main.py
+uv run python main.py
 ```
 
 **前端（终端2）：**
@@ -323,7 +320,7 @@ AUTO_CHAT_INTERVAL=5
 
 ### 后端无法启动
 1. 检查 Python 版本：`python --version`（需要 3.10+）
-2. 重新安装依赖：`pip install -r requirements.txt`
+2. 重新安装依赖：`uv sync`
 3. 检查端口占用：`lsof -i :3004`
 
 ### 前端无法启动

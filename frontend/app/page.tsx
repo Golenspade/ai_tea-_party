@@ -106,16 +106,31 @@ export default function Home() {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === "message") {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: data.data.id,
-            character_id: data.data.character_id,
-            character_name: data.data.character_name,
-            content: data.data.content,
-            timestamp: data.data.timestamp,
-          },
-        ]);
+        setMessages((prev) => {
+          const exists = prev.find((msg) => msg.id === data.data.id);
+          if (exists) {
+            return prev.map((msg) =>
+              msg.id === data.data.id
+                ? {
+                    ...msg,
+                    content: data.data.content,
+                    timestamp: data.data.timestamp,
+                  }
+                : msg
+            );
+          }
+
+          return [
+            ...prev,
+            {
+              id: data.data.id,
+              character_id: data.data.character_id,
+              character_name: data.data.character_name,
+              content: data.data.content,
+              timestamp: data.data.timestamp,
+            },
+          ];
+        });
       } else if (data.type === "character_update") {
         fetchCharacters();
       } else if (data.type === "room_status") {
@@ -207,8 +222,20 @@ export default function Home() {
   };
 
   const handleAISpeech = async (characterId: string) => {
+    const targetCharacter = characters.find((c) => c.id === characterId);
+    const tempId = `stream-${Date.now()}`;
+    const placeholderMessage: Message = {
+      id: tempId,
+      character_id: characterId,
+      character_name: targetCharacter?.name || "AI",
+      content: "",
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, placeholderMessage]);
+
     try {
-      const response = await fetch("http://localhost:3004/api/rooms/default/generate", {
+      const response = await fetch("http://localhost:3004/api/rooms/default/generate/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ character_id: characterId }),
@@ -216,9 +243,79 @@ export default function Home() {
 
       if (!response.ok) {
         console.error("Failed to generate AI message");
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+        return;
+      }
+
+      if (!response.body) {
+        console.error("Streaming not supported by the browser");
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+
+        events.forEach((event) => {
+          const line = event.trim();
+          if (!line.startsWith("data:")) return;
+          const payload = line.replace(/^data:\s*/, "");
+          if (!payload) return;
+
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.type === "chunk" && parsed.content) {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === tempId
+                    ? { ...msg, content: (msg.content || "") + parsed.content }
+                    : msg
+                )
+              );
+            } else if (parsed.type === "end") {
+              setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+            } else if (parsed.type === "error") {
+              setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+            }
+          } catch (err) {
+            console.error("Failed to parse stream chunk", err);
+          }
+        });
+
+        if (done) {
+          break;
+        }
+      }
+
+      if (buffer.trim()) {
+        const remainingEvents = buffer.split("\n\n");
+        remainingEvents.forEach((event) => {
+          const line = event.trim();
+          if (!line.startsWith("data:")) return;
+          const payload = line.replace(/^data:\s*/, "");
+          if (!payload) return;
+
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.type === "end" || parsed.type === "error") {
+              setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+            }
+          } catch (err) {
+            // ignore leftover parse errors
+          }
+        });
       }
     } catch (error) {
       console.error("Error generating AI message:", error);
+      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
     }
   };
 

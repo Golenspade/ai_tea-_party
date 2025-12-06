@@ -1,7 +1,7 @@
 import asyncio
 import random
 import logging
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, AsyncGenerator, Dict
 from datetime import datetime
 from models.character import Character, Message, ChatRoom
 from services.ai_service import ai_service
@@ -133,6 +133,54 @@ class ChatService:
             await self.send_message(room_id, character_id, response)
             return response
         return None
+
+    async def stream_ai_response(
+        self, room_id: str, character_id: str
+    ) -> AsyncGenerator[Dict[str, str], None]:
+        """
+        为指定角色流式生成AI回复，逐片返回 token，并在完成后写入历史
+        """
+        room = self.get_chat_room(room_id)
+        if not room:
+            raise ValueError("聊天室不存在")
+
+        character = next((c for c in room.characters if c.id == character_id), None)
+        if not character:
+            raise ValueError("角色不存在")
+
+        messages_for_ai = self._prepare_messages_for_ai(room, character)
+        message = Message(
+            character_id=character_id,
+            character_name=character.name,
+            content=""
+        )
+
+        try:
+            async for chunk in ai_service.stream_response(character, messages_for_ai):
+                message.content += chunk
+                yield {
+                    "type": "chunk",
+                    "content": chunk,
+                    "message_id": message.id,
+                    "character_id": character.id,
+                    "character_name": character.name,
+                }
+        except Exception as e:
+            logger.error(f"流式生成失败: {e}")
+            yield {
+                "type": "error",
+                "message": "生成失败，请重试",
+                "message_id": message.id,
+                "character_id": character.id,
+            }
+            return
+
+        # 最终落库并广播完整消息
+        if message.content.strip():
+            room.add_message(message)
+            await self.notify_message_callbacks(room_id, message)
+
+        yield {"type": "end", "message_id": message.id}
 
     def _prepare_messages_for_ai(self, room: ChatRoom, character: Character) -> List[Message]:
         """根据聊天室设置准备AI使用的消息历史"""

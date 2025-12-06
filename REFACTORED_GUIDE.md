@@ -34,13 +34,13 @@
 ### 1. 安装依赖
 
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
 
 ### 2. 启动服务器
 
 ```bash
-python main.py
+uv run python main.py
 ```
 
 ### 3. 访问应用

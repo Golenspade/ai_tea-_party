@@ -27,8 +27,8 @@
 
 ## 快速开始
 ```bash
-# 安装 Python 依赖
-pip install -r requirements.txt
+# 安装 Python 依赖（使用 uv）
+uv sync
 
 # 安装前端依赖
 cd frontend && npm install
@@ -37,7 +37,7 @@ cd frontend && npm install
 # 编辑 .env 文件，填入你的 API 密钥
 
 # 启动后端
-python main.py
+uv run python main.py
 
 # 启动前端（新终端）
 cd frontend && npm run dev

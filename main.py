@@ -1,10 +1,11 @@
 import os
 import logging
+import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 import uvicorn
@@ -392,6 +393,27 @@ async def generate_response(room_id: str, generate_data: GenerateRequest):
         raise HTTPException(status_code=404, detail="生成回复失败")
     
     return {"message": "回复生成成功", "content": response}
+
+
+@app.post("/api/rooms/{room_id}/generate/stream")
+async def stream_generate_response(room_id: str, generate_data: GenerateRequest):
+    """流式生成AI回复"""
+    if not ai_service.is_configured():
+        raise HTTPException(status_code=400, detail="AI服务未配置，请在设置中配置API密钥（支持DeepSeek或Gemini）")
+
+    room = chat_service.get_chat_room(room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="聊天室不存在")
+
+    character = next((c for c in room.characters if c.id == generate_data.character_id), None)
+    if not character:
+        raise HTTPException(status_code=404, detail="角色不存在")
+
+    async def event_generator():
+        async for event in chat_service.stream_ai_response(room_id, generate_data.character_id):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.post("/api/rooms/{room_id}/auto-chat/start")
 async def start_auto_chat(room_id: str):
