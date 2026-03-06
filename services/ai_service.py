@@ -1,4 +1,3 @@
-import openai
 import os
 from typing import List, Optional, Dict, Any, AsyncGenerator, Union
 import asyncio
@@ -7,9 +6,9 @@ import time
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from models.character import Character, Message
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from enum import Enum
-from openai.types.chat import ChatCompletionMessageParam
 
 # 确保环境变量已加载
 load_dotenv()
@@ -18,11 +17,14 @@ logger = logging.getLogger(__name__)
 
 
 class APIProvider(Enum):
-    """API提供商枚举 - 仅支持四个模型"""
+    """API提供商枚举"""
     DEEPSEEK_CHAT = "deepseek_chat"
     DEEPSEEK_REASONER = "deepseek_reasoner"
     GEMINI_25_FLASH = "gemini_25_flash"
     GEMINI_25_PRO = "gemini_25_pro"
+    GEMINI_3_FLASH = "gemini_3_flash"
+    GEMINI_31_PRO = "gemini_31_pro"
+    GEMINI_31_FLASH_LITE = "gemini_31_flash_lite"
 
 
 class APIConfig:
@@ -38,7 +40,10 @@ class APIConfig:
             APIProvider.DEEPSEEK_CHAT: "deepseek-chat",
             APIProvider.DEEPSEEK_REASONER: "deepseek-reasoner",
             APIProvider.GEMINI_25_FLASH: "gemini-2.5-flash",
-            APIProvider.GEMINI_25_PRO: "gemini-2.5-pro"
+            APIProvider.GEMINI_25_PRO: "gemini-2.5-pro",
+            APIProvider.GEMINI_3_FLASH: "gemini-3-flash-preview",
+            APIProvider.GEMINI_31_PRO: "gemini-3.1-pro-preview",
+            APIProvider.GEMINI_31_FLASH_LITE: "gemini-3.1-flash-lite-preview",
         }
         return model_map.get(self.provider, "deepseek-chat")
 
@@ -48,7 +53,7 @@ class CharacterMemory:
     def __init__(self):
         self.character_profiles = {}  # 存储其他角色的特征
         self.interaction_history = {}  # 存储角色间的互动历史
-        
+
     def update_character_profile(self, character_id: str, name: str, traits: List[str]):
         """更新角色特征档案"""
         self.character_profiles[character_id] = {
@@ -56,24 +61,24 @@ class CharacterMemory:
             "traits": traits,
             "last_updated": datetime.now()
         }
-        
+
     def get_character_context(self, character_id: str) -> str:
         """获取角色的上下文信息"""
         if character_id in self.character_profiles:
             profile = self.character_profiles[character_id]
             return f"{profile['name']}的特征：{', '.join(profile['traits'])}"
         return ""
-        
+
     def analyze_character_from_messages(self, character_id: str, messages: List[Message]) -> List[str]:
         """从消息中分析角色特征"""
         character_messages = [msg for msg in messages if msg.character_id == character_id]
         if not character_messages:
             return []
-            
+
         # 简单的特征分析
         traits = []
         content_text = " ".join([msg.content for msg in character_messages])
-        
+
         # 分析语言风格
         if "哈哈" in content_text or "😄" in content_text:
             traits.append("幽默开朗")
@@ -83,8 +88,24 @@ class CharacterMemory:
             traits.append("健谈")
         else:
             traits.append("简洁")
-            
+
         return traits
+
+
+# 所有使用 Gemini API 的 Provider
+_GEMINI_PROVIDERS = frozenset({
+    APIProvider.GEMINI_25_FLASH,
+    APIProvider.GEMINI_25_PRO,
+    APIProvider.GEMINI_3_FLASH,
+    APIProvider.GEMINI_31_PRO,
+    APIProvider.GEMINI_31_FLASH_LITE,
+})
+
+# 所有使用 DeepSeek API 的 Provider
+_DEEPSEEK_PROVIDERS = frozenset({
+    APIProvider.DEEPSEEK_CHAT,
+    APIProvider.DEEPSEEK_REASONER,
+})
 
 
 class AIService:
@@ -101,7 +122,7 @@ class AIService:
         self.api_status = "unknown"  # unknown, healthy, error
         self.last_error = None
         self.deepseek_client = None
-        self.gemini_client = None
+        self.gemini_client: Optional[genai.Client] = None
 
         # 从环境变量加载默认配置
         self._load_default_config()
@@ -115,7 +136,10 @@ class AIService:
             "deepseek_chat": APIProvider.DEEPSEEK_CHAT,
             "deepseek_reasoner": APIProvider.DEEPSEEK_REASONER,
             "gemini_25_flash": APIProvider.GEMINI_25_FLASH,
-            "gemini_25_pro": APIProvider.GEMINI_25_PRO
+            "gemini_25_pro": APIProvider.GEMINI_25_PRO,
+            "gemini_3_flash": APIProvider.GEMINI_3_FLASH,
+            "gemini_31_pro": APIProvider.GEMINI_31_PRO,
+            "gemini_31_flash_lite": APIProvider.GEMINI_31_FLASH_LITE,
         }
 
         provider = provider_map.get(provider_str, APIProvider.DEEPSEEK_CHAT)
@@ -129,9 +153,9 @@ class AIService:
 
     def _get_api_key_for_provider(self, provider: APIProvider) -> Optional[str]:
         """根据提供商获取API密钥"""
-        if provider in [APIProvider.DEEPSEEK_CHAT, APIProvider.DEEPSEEK_REASONER]:
+        if provider in _DEEPSEEK_PROVIDERS:
             return os.getenv("DEEPSEEK_API_KEY")
-        elif provider in [APIProvider.GEMINI_25_FLASH, APIProvider.GEMINI_25_PRO]:
+        elif provider in _GEMINI_PROVIDERS:
             return os.getenv("GEMINI_API_KEY")
         return None
 
@@ -144,23 +168,23 @@ class AIService:
         api_key = self.current_config.api_key
 
         try:
-            if provider in [APIProvider.DEEPSEEK_CHAT, APIProvider.DEEPSEEK_REASONER]:
-                # DeepSeek API
+            if provider in _DEEPSEEK_PROVIDERS:
+                # DeepSeek API (OpenAI 兼容)
+                import openai
                 self.deepseek_client = openai.AsyncOpenAI(
                     api_key=api_key,
                     base_url="https://api.deepseek.com"
                 )
 
-            elif provider in [APIProvider.GEMINI_25_FLASH, APIProvider.GEMINI_25_PRO]:
-                # Gemini 2.5 API
-                genai.configure(api_key=api_key)
-                self.gemini_client = genai.GenerativeModel(self.current_config.model)
+            elif provider in _GEMINI_PROVIDERS:
+                # Google Gemini API (新版 google-genai SDK)
+                self.gemini_client = genai.Client(api_key=api_key)
 
         except Exception as e:
             logger.error(f"初始化API客户端失败: {e}")
             self.deepseek_client = None
             self.gemini_client = None
-        
+
     def update_config(self, provider: APIProvider, api_key: str, model: Optional[str] = None):
         """动态更新API配置"""
         self.current_config = APIConfig(provider, api_key, model)
@@ -200,10 +224,10 @@ class AIService:
         try:
             provider = self.current_config.provider
 
-            if provider in [APIProvider.DEEPSEEK_CHAT, APIProvider.DEEPSEEK_REASONER]:
+            if provider in _DEEPSEEK_PROVIDERS:
                 return await self._generate_deepseek_response(character, conversation_history, max_tokens)
-            elif provider in [APIProvider.GEMINI_25_FLASH, APIProvider.GEMINI_25_PRO]:
-                return await self._generate_gemini_25_response(character, conversation_history, max_tokens)
+            elif provider in _GEMINI_PROVIDERS:
+                return await self._generate_gemini_response(character, conversation_history, max_tokens)
             else:
                 logger.error(f"不支持的API提供商: {provider}")
                 return None
@@ -231,18 +255,16 @@ class AIService:
 
         provider = self.current_config.provider
 
-        if provider in [APIProvider.DEEPSEEK_CHAT, APIProvider.DEEPSEEK_REASONER]:
+        if provider in _DEEPSEEK_PROVIDERS:
             async for chunk in self._stream_deepseek_response(
                 character, conversation_history, max_tokens
             ):
                 yield chunk
-        elif provider in [APIProvider.GEMINI_25_FLASH, APIProvider.GEMINI_25_PRO]:
-            # 当前SDK未使用流式接口，退化为单次完整响应
-            response = await self._generate_gemini_25_response(
+        elif provider in _GEMINI_PROVIDERS:
+            async for chunk in self._stream_gemini_response(
                 character, conversation_history, max_tokens
-            )
-            if response:
-                yield response
+            ):
+                yield chunk
         else:
             logger.error(f"不支持的API提供商: {provider}")
 
@@ -274,13 +296,13 @@ class AIService:
         """更新角色记忆系统"""
         # 分析最近的消息，更新角色特征
         recent_messages = conversation_history[-20:] if conversation_history else []
-        
+
         # 获取所有活跃角色
         active_characters = set()
         for msg in recent_messages:
             if not msg.is_system:
                 active_characters.add((msg.character_id, msg.character_name))
-        
+
         # 为每个角色分析特征
         for char_id, char_name in active_characters:
             traits = self.character_memory.analyze_character_from_messages(char_id, recent_messages)
@@ -305,7 +327,7 @@ class AIService:
             if not self.current_config or not self.current_config.model:
                 logger.error("DeepSeek配置无效")
                 return None
-                
+
             response = await self.deepseek_client.chat.completions.create(
                 model=self.current_config.model,
                 messages=messages,  # type: ignore
@@ -389,13 +411,13 @@ class AIService:
                     parts.append(text)
         return "".join(parts)
 
-    async def _generate_gemini_25_response(
+    async def _generate_gemini_response(
         self,
         character: Character,
         conversation_history: List[Message],
         max_tokens: int
     ) -> Optional[str]:
-        """使用Gemini 2.5 API生成回复"""
+        """使用 Google Gemini API (google-genai SDK) 生成回复"""
         if not self.gemini_client:
             logger.error("Gemini客户端未初始化")
             return None
@@ -404,19 +426,19 @@ class AIService:
             # 构建增强的提示词
             enhanced_prompt = self._build_enhanced_prompt_for_gemini(character, conversation_history)
 
-            # 使用Gemini API
-            generation_config = genai.GenerationConfig(
+            config = types.GenerateContentConfig(
                 max_output_tokens=max_tokens,
                 temperature=0.8,
             )
-            
-            response = await asyncio.to_thread(
-                self.gemini_client.generate_content,
-                enhanced_prompt,
-                generation_config=generation_config
+
+            # 使用新版 google-genai SDK 异步调用
+            response = await self.gemini_client.aio.models.generate_content(
+                model=self.current_config.model,
+                contents=enhanced_prompt,
+                config=config,
             )
 
-            if hasattr(response, 'text') and response.text:
+            if response and response.text:
                 content = response.text.strip()
                 # 清理回复内容
                 if content.startswith(f"{character.name}:"):
@@ -424,21 +446,51 @@ class AIService:
                 return content
 
         except Exception as e:
-            logger.error(f"Gemini 2.5 API调用失败: {e}")
+            logger.error(f"Gemini API调用失败: {e}")
             return None
 
         return None
 
+    async def _stream_gemini_response(
+        self,
+        character: Character,
+        conversation_history: List[Message],
+        max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        """使用 Google Gemini API 流式生成回复"""
+        if not self.gemini_client:
+            logger.error("Gemini客户端未初始化")
+            return
+
+        try:
+            enhanced_prompt = self._build_enhanced_prompt_for_gemini(character, conversation_history)
+
+            config = types.GenerateContentConfig(
+                max_output_tokens=max_tokens,
+                temperature=0.8,
+            )
+
+            async for chunk in self.gemini_client.aio.models.generate_content_stream(
+                model=self.current_config.model,
+                contents=enhanced_prompt,
+                config=config,
+            ):
+                if chunk.text:
+                    yield chunk.text
+
+        except Exception as e:
+            logger.error(f"Gemini 流式API调用失败: {e}")
+
     def _build_enhanced_system_prompt(self, character: Character, conversation_history: List[Message]) -> str:
         """构建包含角色记忆的增强系统提示"""
         base_prompt = character.get_system_prompt()
-        
+
         # 添加角色记忆信息
         memory_context = self._get_character_memory_context(character.id, conversation_history)
-        
+
         # 分析对话情境
         context_analysis = self._analyze_conversation_context(conversation_history[-10:], character)
-        
+
         enhanced_prompt = f"""{base_prompt}
 
 【角色记忆】
@@ -461,20 +513,20 @@ class AIService:
     def _build_enhanced_prompt_for_gemini(self, character: Character, conversation_history: List[Message]) -> str:
         """为Gemini构建增强提示词"""
         base_prompt = character.get_system_prompt()
-        
+
         # 构建对话历史
         conversation_text = ""
         recent_messages = conversation_history[-20:] if conversation_history else []
         for msg in recent_messages:
             if not msg.is_system:
                 conversation_text += f"[{msg.character_name}]: {msg.content}\n"
-        
+
         # 获取角色记忆
         memory_context = self._get_character_memory_context(character.id, conversation_history)
-        
+
         # 分析对话情境
         context_analysis = self._analyze_conversation_context(recent_messages, character)
-        
+
         full_prompt = f"""【角色设定】
 {base_prompt}
 
@@ -500,13 +552,13 @@ class AIService:
     def _get_character_memory_context(self, current_character_id: str, conversation_history: List[Message]) -> str:
         """获取角色记忆上下文"""
         memory_lines = []
-        
+
         # 获取聊天室中的其他角色
         other_characters = set()
         for msg in conversation_history:
             if not msg.is_system and msg.character_id != current_character_id:
                 other_characters.add((msg.character_id, msg.character_name))
-        
+
         # 为每个其他角色添加记忆信息
         for char_id, char_name in other_characters:
             context = self.character_memory.get_character_context(char_id)
@@ -514,12 +566,12 @@ class AIService:
                 memory_lines.append(context)
             else:
                 # 如果没有记忆，从最近消息中快速分析
-                char_messages = [msg for msg in conversation_history[-15:] 
+                char_messages = [msg for msg in conversation_history[-15:]
                                if msg.character_id == char_id]
                 if char_messages:
                     recent_content = " ".join([msg.content for msg in char_messages[-3:]])
                     memory_lines.append(f"{char_name}最近说过：{recent_content}")
-        
+
         return "\n".join(memory_lines) if memory_lines else "暂无其他角色的详细信息"
 
     def _analyze_conversation_context(self, recent_messages: List[Message], character: Character) -> str:
@@ -530,7 +582,7 @@ class AIService:
         # 分析最近的消息特征
         message_count = len(recent_messages)
         last_message = recent_messages[-1] if recent_messages else None
-        
+
         # 分析对话节奏
         if message_count <= 3:
             rhythm = "对话初期"
@@ -541,34 +593,34 @@ class AIService:
 
         # 分析最后一条消息
         analysis_parts = [f"对话状态：{rhythm}"]
-        
+
         if last_message and not last_message.is_system:
             last_content = last_message.content
-            
+
             # 检查是否包含问题
             if "?" in last_content or "？" in last_content or "吗" in last_content or "呢" in last_content:
                 analysis_parts.append("需要回答问题")
-            
+
             # 检查情绪
             if any(word in last_content for word in ["哈哈", "开心", "高兴", "好的"]):
                 analysis_parts.append("氛围轻松愉快")
             elif any(word in last_content for word in ["难过", "伤心", "不好", "糟糕"]):
                 analysis_parts.append("需要给予关怀")
-            
+
             # 检查消息长度
             if len(last_content) > 50:
                 analysis_parts.append("对方说得较多，可以详细回应")
             else:
                 analysis_parts.append("对方简洁回复，保持简洁即可")
-        
+
         # 检查角色参与度
-        character_recent = [msg for msg in recent_messages[-5:] 
+        character_recent = [msg for msg in recent_messages[-5:]
                           if msg.character_id == character.id]
         if not character_recent:
             analysis_parts.append("你还未参与此轮对话")
         elif len(character_recent) >= 2:
             analysis_parts.append("你已经连续发言，可以让其他人说话")
-        
+
         return "；".join(analysis_parts)
 
     def is_configured(self) -> bool:
@@ -594,26 +646,44 @@ class AIService:
                 "name": "DeepSeek Chat",
                 "models": ["deepseek-chat"],
                 "requires_key": "DEEPSEEK_API_KEY",
-                "description": "DeepSeek V3 聊天模型，适合日常对话"
+                "description": "DeepSeek V3.2 聊天模型，适合日常对话"
             },
             "deepseek_reasoner": {
                 "name": "DeepSeek Reasoner",
                 "models": ["deepseek-reasoner"],
                 "requires_key": "DEEPSEEK_API_KEY",
-                "description": "DeepSeek R1 推理模型，具有更强的逻辑推理能力"
+                "description": "DeepSeek V3.2 推理模型，具有更强的逻辑推理能力"
             },
             "gemini_25_flash": {
                 "name": "Gemini 2.5 Flash",
                 "models": ["gemini-2.5-flash"],
                 "requires_key": "GEMINI_API_KEY",
-                "description": "Google Gemini 2.5 Flash，快速响应"
+                "description": "Google Gemini 2.5 Flash，快速且高效"
             },
             "gemini_25_pro": {
                 "name": "Gemini 2.5 Pro",
                 "models": ["gemini-2.5-pro"],
                 "requires_key": "GEMINI_API_KEY",
-                "description": "Google Gemini 2.5 Pro，更强的理解能力"
-            }
+                "description": "Google Gemini 2.5 Pro，强大的理解和推理能力"
+            },
+            "gemini_3_flash": {
+                "name": "Gemini 3 Flash",
+                "models": ["gemini-3-flash-preview"],
+                "requires_key": "GEMINI_API_KEY",
+                "description": "Google Gemini 3 Flash，前沿性能，速度快成本低"
+            },
+            "gemini_31_pro": {
+                "name": "Gemini 3.1 Pro",
+                "models": ["gemini-3.1-pro-preview"],
+                "requires_key": "GEMINI_API_KEY",
+                "description": "Google Gemini 3.1 Pro，最强推理和编程能力"
+            },
+            "gemini_31_flash_lite": {
+                "name": "Gemini 3.1 Flash Lite",
+                "models": ["gemini-3.1-flash-lite-preview"],
+                "requires_key": "GEMINI_API_KEY",
+                "description": "Google Gemini 3.1 Flash Lite，高性价比的轻量模型"
+            },
         }
 
     async def test_api_connection(self) -> Dict[str, Any]:

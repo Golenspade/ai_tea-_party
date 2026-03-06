@@ -34,9 +34,7 @@ import {
   Square,
   Trash2,
   Settings,
-  DoorOpen,
   Send,
-  Loader2,
 } from "lucide-react";
 
 interface Character {
@@ -66,7 +64,6 @@ export default function Home() {
   // Dialog states
   const [addCharacterOpen, setAddCharacterOpen] = useState(false);
   const [apiConfigOpen, setApiConfigOpen] = useState(false);
-  const [roomSettingsOpen, setRoomSettingsOpen] = useState(false);
 
   // Form states
   const [characterForm, setCharacterForm] = useState({
@@ -107,8 +104,10 @@ export default function Home() {
       const data = JSON.parse(event.data);
       if (data.type === "message") {
         setMessages((prev) => {
+          // 检查消息是否已存在（流式渲染已添加）
           const exists = prev.find((msg) => msg.id === data.data.id);
           if (exists) {
+            // 消息已存在（流式渲染创建的），更新内容
             return prev.map((msg) =>
               msg.id === data.data.id
                 ? {
@@ -116,10 +115,11 @@ export default function Home() {
                     content: data.data.content,
                     timestamp: data.data.timestamp,
                   }
-                : msg
+                : msg,
             );
           }
 
+          // 消息不存在，可能是其他客户端发的或非流式消息，添加到列表
           return [
             ...prev,
             {
@@ -158,7 +158,9 @@ export default function Home() {
 
   const fetchCharacters = async () => {
     try {
-      const response = await fetch("http://localhost:3004/api/rooms/default/characters");
+      const response = await fetch(
+        "http://localhost:3004/api/rooms/default/characters",
+      );
       const data = await response.json();
       setCharacters(data);
     } catch (error) {
@@ -168,11 +170,14 @@ export default function Home() {
 
   const handleAddCharacter = async () => {
     try {
-      const response = await fetch("http://localhost:3004/api/rooms/default/characters", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(characterForm),
-      });
+      const response = await fetch(
+        "http://localhost:3004/api/rooms/default/characters",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(characterForm),
+        },
+      );
 
       if (response.ok) {
         setAddCharacterOpen(false);
@@ -204,14 +209,17 @@ export default function Home() {
     if (!messageInput.trim() || !selectedCharacter) return;
 
     try {
-      const response = await fetch("http://localhost:3004/api/rooms/default/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          character_id: selectedCharacter,
-          content: messageInput,
-        }),
-      });
+      const response = await fetch(
+        "http://localhost:3004/api/rooms/default/messages",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            character_id: selectedCharacter,
+            content: messageInput,
+          }),
+        },
+      );
 
       if (response.ok) {
         setMessageInput("");
@@ -235,11 +243,14 @@ export default function Home() {
     setMessages((prev) => [...prev, placeholderMessage]);
 
     try {
-      const response = await fetch("http://localhost:3004/api/rooms/default/generate/stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ character_id: characterId }),
-      });
+      const response = await fetch(
+        "http://localhost:3004/api/rooms/default/generate/stream",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ character_id: characterId }),
+        },
+      );
 
       if (!response.ok) {
         console.error("Failed to generate AI message");
@@ -277,16 +288,21 @@ export default function Home() {
                 prev.map((msg) =>
                   msg.id === tempId
                     ? { ...msg, content: (msg.content || "") + parsed.content }
-                    : msg
-                )
+                    : msg,
+                ),
               );
-            } else if (parsed.type === "end") {
-              setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+            } else if (parsed.type === "end" && parsed.message_id) {
+              // 流式结束：用真实 message_id 替换临时 ID，保留消息
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === tempId ? { ...msg, id: parsed.message_id } : msg,
+                ),
+              );
             } else if (parsed.type === "error") {
               setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
             }
-          } catch (err) {
-            console.error("Failed to parse stream chunk", err);
+          } catch (_err) {
+            console.error("Failed to parse stream chunk", _err);
           }
         });
 
@@ -305,10 +321,17 @@ export default function Home() {
 
           try {
             const parsed = JSON.parse(payload);
-            if (parsed.type === "end" || parsed.type === "error") {
+            if (parsed.type === "end" && parsed.message_id) {
+              // 流式结束：用真实 message_id 替换临时 ID，保留消息
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === tempId ? { ...msg, id: parsed.message_id } : msg,
+                ),
+              );
+            } else if (parsed.type === "error") {
               setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
             }
-          } catch (err) {
+          } catch {
             // ignore leftover parse errors
           }
         });
@@ -341,7 +364,14 @@ export default function Home() {
     }
   };
 
-  const handleClearChat = () => {
+  const handleClearChat = async () => {
+    try {
+      await fetch("http://localhost:3004/api/rooms/default/messages", {
+        method: "DELETE",
+      });
+    } catch (error) {
+      console.error("Failed to clear messages on server:", error);
+    }
     setMessages([]);
   };
 
@@ -405,9 +435,7 @@ export default function Home() {
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>API 配置</DialogTitle>
-                  <DialogDescription>
-                    配置您的 AI API 设置
-                  </DialogDescription>
+                  <DialogDescription>配置您的 AI API 设置</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
@@ -423,16 +451,25 @@ export default function Home() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="deepseek_chat">
-                          DeepSeek Chat
+                          DeepSeek Chat (V3.2)
                         </SelectItem>
                         <SelectItem value="deepseek_reasoner">
-                          DeepSeek Reasoner
+                          DeepSeek Reasoner (V3.2)
                         </SelectItem>
                         <SelectItem value="gemini_25_flash">
                           Gemini 2.5 Flash
                         </SelectItem>
                         <SelectItem value="gemini_25_pro">
                           Gemini 2.5 Pro
+                        </SelectItem>
+                        <SelectItem value="gemini_3_flash">
+                          Gemini 3 Flash
+                        </SelectItem>
+                        <SelectItem value="gemini_31_pro">
+                          Gemini 3.1 Pro
+                        </SelectItem>
+                        <SelectItem value="gemini_31_flash_lite">
+                          Gemini 3.1 Flash Lite
                         </SelectItem>
                       </SelectContent>
                     </Select>
@@ -461,7 +498,10 @@ export default function Home() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setApiConfigOpen(false)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setApiConfigOpen(false)}
+                  >
                     取消
                   </Button>
                   <Button onClick={handleSaveApiConfig}>保存</Button>
@@ -516,7 +556,9 @@ export default function Home() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleDeleteCharacter(character.id)}
+                              onClick={() =>
+                                handleDeleteCharacter(character.id)
+                              }
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
@@ -528,7 +570,10 @@ export default function Home() {
                 </div>
               </ScrollArea>
 
-              <Dialog open={addCharacterOpen} onOpenChange={setAddCharacterOpen}>
+              <Dialog
+                open={addCharacterOpen}
+                onOpenChange={setAddCharacterOpen}
+              >
                 <DialogTrigger asChild>
                   <Button className="w-full mt-3" variant="outline">
                     <Plus className="h-4 w-4 mr-2" />
@@ -583,9 +628,7 @@ export default function Home() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="speaking_style">
-                        说话风格（可选）
-                      </Label>
+                      <Label htmlFor="speaking_style">说话风格（可选）</Label>
                       <Input
                         id="speaking_style"
                         value={characterForm.speaking_style}
@@ -665,11 +708,8 @@ export default function Home() {
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-4">
                 {messages.map((message) => {
-                  const character = characters.find(
-                    (c) => c.id === message.character_id
-                  );
                   const characterIndex = characters.findIndex(
-                    (c) => c.id === message.character_id
+                    (c) => c.id === message.character_id,
                   );
                   return (
                     <div key={message.id} className="flex gap-3">
@@ -699,7 +739,10 @@ export default function Home() {
             {/* Input Area */}
             <div className="border-t p-4">
               <div className="flex gap-2">
-                <Select value={selectedCharacter} onValueChange={setSelectedCharacter}>
+                <Select
+                  value={selectedCharacter}
+                  onValueChange={setSelectedCharacter}
+                >
                   <SelectTrigger className="w-48">
                     <SelectValue placeholder="选择角色..." />
                   </SelectTrigger>
@@ -715,10 +758,13 @@ export default function Home() {
                   placeholder="输入消息..."
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                   className="flex-1"
                 />
-                <Button onClick={handleSendMessage} disabled={!selectedCharacter}>
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!selectedCharacter}
+                >
                   <Send className="h-4 w-4" />
                 </Button>
               </div>

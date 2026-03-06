@@ -1,23 +1,22 @@
-import os
-import logging
 import json
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, StreamingResponse
-from pydantic import BaseModel
-from typing import List, Optional, Dict
+import logging
+import os
+from typing import Dict, List, Optional
+
 import uvicorn
 from dotenv import load_dotenv
-from services.ai_service import APIProvider
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 
 # 导入自定义模块
-from models.character import Character, Message, ChatRoom
+from models.character import Character, ChatRoom, Message
+from services.ai_service import APIProvider, ai_service
 from services.chat_service import chat_service
-from services.ai_service import ai_service
 from utils.config_loader import config_loader
 from utils.env_watcher import env_watcher
+
 
 # WebSocket管理器
 class WebSocketManager:
@@ -49,28 +48,24 @@ class WebSocketManager:
                     "character_id": message.character_id,
                     "character_name": message.character_name,
                     "timestamp": message.timestamp.isoformat(),
-                    "is_system": message.is_system
-                }
+                    "is_system": message.is_system,
+                },
             }
             await self._broadcast_to_room(room_id, message_data)
 
-    async def broadcast_character_update(self, room_id: str, action: str, character_data: dict):
+    async def broadcast_character_update(
+        self, room_id: str, action: str, character_data: dict
+    ):
         if room_id in self.active_connections:
             update_data = {
                 "type": "character_update",
-                "data": {
-                    "action": action,
-                    "character": character_data
-                }
+                "data": {"action": action, "character": character_data},
             }
             await self._broadcast_to_room(room_id, update_data)
 
     async def broadcast_room_status(self, room_id: str, status_data: dict):
         if room_id in self.active_connections:
-            status_update = {
-                "type": "room_status",
-                "data": status_data
-            }
+            status_update = {"type": "room_status", "data": status_data}
             await self._broadcast_to_room(room_id, status_update)
 
     async def _broadcast_to_room(self, room_id: str, data: dict):
@@ -92,6 +87,7 @@ class WebSocketManager:
     def get_room_connection_count(self, room_id: str) -> int:
         return len(self.active_connections.get(room_id, []))
 
+
 websocket_manager = WebSocketManager()
 
 # 加载环境变量
@@ -99,8 +95,7 @@ load_dotenv()
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -123,14 +118,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 静态文件和模板
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
 
 # 请求模型
 class MessageRequest(BaseModel):
     character_id: str
     content: str
+
 
 class CharacterRequest(BaseModel):
     name: str
@@ -138,10 +131,12 @@ class CharacterRequest(BaseModel):
     background: str
     speaking_style: Optional[str] = ""
 
+
 class APIConfigRequest(BaseModel):
     provider: str
     api_key: str
     model: Optional[str] = None
+
 
 class CreateRoomRequest(BaseModel):
     name: str
@@ -149,14 +144,17 @@ class CreateRoomRequest(BaseModel):
     stealth_mode: bool = False
     user_description: str = ""
 
+
 class UpdateRoomRequest(BaseModel):
     stealth_mode: Optional[bool] = None
     user_description: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
 
+
 class GenerateRequest(BaseModel):
     character_id: str
+
 
 # 初始化聊天室
 # 尝试从 config.json 加载预设配置
@@ -184,18 +182,22 @@ else:
 
 DEFAULT_ROOM_ID = "default"
 
+
 # WebSocket消息回调
 async def websocket_message_callback(room_id: str, message: Message):
     """WebSocket消息回调函数"""
     await websocket_manager.broadcast_message(room_id, message)
 
+
 # 注册回调
 chat_service.add_message_callback(websocket_message_callback)
 
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    """主页"""
-    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/")
+async def home():
+    """API 根路径"""
+    return {"message": "AI Tea Party API", "version": "2.0.0", "docs": "/docs"}
+
 
 @app.websocket("/ws/{room_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str):
@@ -210,6 +212,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
     except WebSocketDisconnect:
         websocket_manager.disconnect(websocket, room_id)
 
+
 # API路由
 @app.get("/api/rooms/{room_id}")
 async def get_room(room_id: str):
@@ -217,14 +220,15 @@ async def get_room(room_id: str):
     room = chat_service.get_chat_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="聊天室不存在")
-    
+
     return {
         "id": room.id,
         "name": room.name,
         "is_auto_chat": room.is_auto_chat,
         "character_count": len(room.characters),
-        "message_count": len(room.messages)
+        "message_count": len(room.messages),
     }
+
 
 @app.get("/api/rooms/{room_id}/characters")
 async def get_characters(room_id: str):
@@ -232,7 +236,7 @@ async def get_characters(room_id: str):
     room = chat_service.get_chat_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="聊天室不存在")
-    
+
     return [
         {
             "id": char.id,
@@ -240,10 +244,11 @@ async def get_characters(room_id: str):
             "personality": char.personality,
             "background": char.background,
             "speaking_style": char.speaking_style,
-            "is_active": char.is_active
+            "is_active": char.is_active,
         }
         for char in room.characters
     ]
+
 
 @app.post("/api/characters")
 async def create_character_globally(character_data: CharacterRequest):
@@ -252,15 +257,17 @@ async def create_character_globally(character_data: CharacterRequest):
     这主要用于简化测试和初始设置。
     """
     if not ai_service.is_configured():
-        raise HTTPException(status_code=400, detail="AI服务未配置，请在设置中配置API密钥")
+        raise HTTPException(
+            status_code=400, detail="AI服务未配置，请在设置中配置API密钥"
+        )
 
     character = Character(
         name=character_data.name,
         personality=character_data.personality,
         background=character_data.background,
-        speaking_style=character_data.speaking_style or ""
+        speaking_style=character_data.speaking_style or "",
     )
-    
+
     # 直接使用 chat_service 中的方法，它应该能处理角色和房间的关联
     # 假设 chat_service 有一个方法可以创建并添加角色
     # 为了简化，我们直接添加到默认房间
@@ -270,11 +277,9 @@ async def create_character_globally(character_data: CharacterRequest):
         raise HTTPException(status_code=500, detail="无法将角色添加到默认聊天室")
 
     await websocket_manager.broadcast_character_update(
-        DEFAULT_ROOM_ID, 
-        "added", 
-        character.model_dump()
+        DEFAULT_ROOM_ID, "added", character.model_dump()
     )
-    
+
     return character
 
 
@@ -282,34 +287,38 @@ async def create_character_globally(character_data: CharacterRequest):
 async def add_character(room_id: str, character_data: CharacterRequest):
     """添加角色到聊天室"""
     if not ai_service.is_configured():
-        raise HTTPException(status_code=400, detail="AI服务未配置，请在设置中配置API密钥（支持DeepSeek或Gemini）")
-    
+        raise HTTPException(
+            status_code=400,
+            detail="AI服务未配置，请在设置中配置API密钥（支持DeepSeek或Gemini）",
+        )
+
     character = Character(
         name=character_data.name,
         personality=character_data.personality,
         background=character_data.background,
-        speaking_style=character_data.speaking_style or ""
+        speaking_style=character_data.speaking_style or "",
     )
-    
+
     success = chat_service.add_character_to_room(room_id, character)
     if not success:
         raise HTTPException(status_code=404, detail="聊天室不存在")
-    
+
     # 通知WebSocket客户端
     await websocket_manager.broadcast_character_update(
-        room_id, 
-        "added", 
+        room_id,
+        "added",
         {
             "id": character.id,
             "name": character.name,
             "personality": character.personality,
             "background": character.background,
             "speaking_style": character.speaking_style,
-            "is_active": character.is_active
-        }
+            "is_active": character.is_active,
+        },
     )
-    
+
     return {"message": "角色添加成功", "character_id": character.id}
+
 
 @app.delete("/api/rooms/{room_id}/characters/{character_id}")
 async def remove_character(room_id: str, character_id: str):
@@ -317,15 +326,14 @@ async def remove_character(room_id: str, character_id: str):
     success = chat_service.remove_character_from_room(room_id, character_id)
     if not success:
         raise HTTPException(status_code=404, detail="聊天室或角色不存在")
-    
+
     # 通知WebSocket客户端
     await websocket_manager.broadcast_character_update(
-        room_id, 
-        "removed", 
-        {"id": character_id}
+        room_id, "removed", {"id": character_id}
     )
-    
+
     return {"message": "角色移除成功"}
+
 
 @app.get("/api/rooms/{room_id}/messages")
 async def get_messages(room_id: str, limit: int = 50):
@@ -333,7 +341,7 @@ async def get_messages(room_id: str, limit: int = 50):
     room = chat_service.get_chat_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="聊天室不存在")
-    
+
     messages = room.get_recent_messages(limit)
     return [
         {
@@ -342,24 +350,24 @@ async def get_messages(room_id: str, limit: int = 50):
             "character_name": msg.character_name,
             "content": msg.content,
             "timestamp": msg.timestamp.isoformat(),
-            "is_system": msg.is_system
+            "is_system": msg.is_system,
         }
         for msg in messages
     ]
+
 
 @app.post("/api/rooms/{room_id}/messages")
 async def send_message(room_id: str, message_data: MessageRequest):
     """发送消息"""
     success = await chat_service.send_message(
-        room_id, 
-        message_data.character_id, 
-        message_data.content
+        room_id, message_data.character_id, message_data.content
     )
-    
+
     if not success:
         raise HTTPException(status_code=404, detail="聊天室或角色不存在")
-    
+
     return {"message": "消息发送成功"}
+
 
 @app.delete("/api/rooms/{room_id}/messages")
 async def clear_messages(room_id: str):
@@ -367,31 +375,37 @@ async def clear_messages(room_id: str):
     room = chat_service.get_chat_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="聊天室不存在")
-    
+
     room.messages.clear()
-    
+
     # 发送系统消息
     system_msg = Message(
         character_id="system",
         character_name="系统",
         content="聊天记录已清空",
-        is_system=True
+        is_system=True,
     )
     room.add_message(system_msg)
     await websocket_message_callback(room_id, system_msg)
-    
+
     return {"message": "聊天记录已清空"}
+
 
 @app.post("/api/rooms/{room_id}/generate")
 async def generate_response(room_id: str, generate_data: GenerateRequest):
     """生成AI回复"""
     if not ai_service.is_configured():
-        raise HTTPException(status_code=400, detail="AI服务未配置，请在设置中配置API密钥（支持DeepSeek或Gemini）")
-    
-    response = await chat_service.generate_ai_response(room_id, generate_data.character_id)
+        raise HTTPException(
+            status_code=400,
+            detail="AI服务未配置，请在设置中配置API密钥（支持DeepSeek或Gemini）",
+        )
+
+    response = await chat_service.generate_ai_response(
+        room_id, generate_data.character_id
+    )
     if response is None:
         raise HTTPException(status_code=404, detail="生成回复失败")
-    
+
     return {"message": "回复生成成功", "content": response}
 
 
@@ -399,45 +413,58 @@ async def generate_response(room_id: str, generate_data: GenerateRequest):
 async def stream_generate_response(room_id: str, generate_data: GenerateRequest):
     """流式生成AI回复"""
     if not ai_service.is_configured():
-        raise HTTPException(status_code=400, detail="AI服务未配置，请在设置中配置API密钥（支持DeepSeek或Gemini）")
+        raise HTTPException(
+            status_code=400,
+            detail="AI服务未配置，请在设置中配置API密钥（支持DeepSeek或Gemini）",
+        )
 
     room = chat_service.get_chat_room(room_id)
     if not room:
         raise HTTPException(status_code=404, detail="聊天室不存在")
 
-    character = next((c for c in room.characters if c.id == generate_data.character_id), None)
+    character = next(
+        (c for c in room.characters if c.id == generate_data.character_id), None
+    )
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
 
     async def event_generator():
-        async for event in chat_service.stream_ai_response(room_id, generate_data.character_id):
+        async for event in chat_service.stream_ai_response(
+            room_id, generate_data.character_id
+        ):
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
 
 @app.post("/api/rooms/{room_id}/auto-chat/start")
 async def start_auto_chat(room_id: str):
     """开始自动聊天"""
     if not ai_service.is_configured():
-        raise HTTPException(status_code=400, detail="AI服务未配置，请在设置中配置API密钥（支持DeepSeek或Gemini）")
-    
+        raise HTTPException(
+            status_code=400,
+            detail="AI服务未配置，请在设置中配置API密钥（支持DeepSeek或Gemini）",
+        )
+
     interval = int(os.getenv("AUTO_CHAT_INTERVAL", 5))
     chat_service.start_auto_chat(room_id, interval)
-    
+
     # 通知WebSocket客户端
     await websocket_manager.broadcast_room_status(room_id, {"is_auto_chat": True})
-    
+
     return {"message": "自动聊天已开始"}
+
 
 @app.post("/api/rooms/{room_id}/auto-chat/stop")
 async def stop_auto_chat(room_id: str):
     """停止自动聊天"""
     chat_service.stop_auto_chat(room_id)
-    
+
     # 通知WebSocket客户端
     await websocket_manager.broadcast_room_status(room_id, {"is_auto_chat": False})
-    
+
     return {"message": "自动聊天已停止"}
+
 
 @app.get("/api/health")
 async def health_check():
@@ -449,16 +476,18 @@ async def health_check():
         "connections": sum(
             websocket_manager.get_room_connection_count(room_id)
             for room_id in websocket_manager.active_connections.keys()
-        )
+        ),
     }
+
 
 @app.get("/api/config")
 async def get_api_config():
     """获取当前API配置"""
     return {
         "current_config": ai_service.get_current_config(),
-        "available_providers": ai_service.get_available_providers()
+        "available_providers": ai_service.get_available_providers(),
     }
+
 
 @app.post("/api/config")
 async def update_api_config(config: APIConfigRequest):
@@ -469,12 +498,18 @@ async def update_api_config(config: APIConfigRequest):
             "deepseek_chat": APIProvider.DEEPSEEK_CHAT,
             "deepseek_reasoner": APIProvider.DEEPSEEK_REASONER,
             "gemini_25_flash": APIProvider.GEMINI_25_FLASH,
-            "gemini_25_pro": APIProvider.GEMINI_25_PRO
+            "gemini_25_pro": APIProvider.GEMINI_25_PRO,
+            "gemini_3_flash": APIProvider.GEMINI_3_FLASH,
+            "gemini_31_pro": APIProvider.GEMINI_31_PRO,
+            "gemini_31_flash_lite": APIProvider.GEMINI_31_FLASH_LITE,
         }
 
         if config.provider not in provider_map:
             available_providers = ", ".join(provider_map.keys())
-            raise HTTPException(status_code=400, detail=f"不支持的API提供商: {config.provider}。支持的提供商: {available_providers}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"不支持的API提供商: {config.provider}。支持的提供商: {available_providers}",
+            )
 
         provider = provider_map[config.provider]
 
@@ -487,7 +522,7 @@ async def update_api_config(config: APIConfigRequest):
         return {
             "message": "API配置更新成功",
             "config": ai_service.get_current_config(),
-            "test_result": test_result
+            "test_result": test_result,
         }
 
     except HTTPException:
@@ -496,6 +531,7 @@ async def update_api_config(config: APIConfigRequest):
     except Exception as e:
         logger.error(f"更新API配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"更新配置失败: {str(e)}")
+
 
 @app.post("/api/test-connection")
 async def test_api_connection():
@@ -507,6 +543,7 @@ async def test_api_connection():
         logger.error(f"API连接测试失败: {e}")
         raise HTTPException(status_code=500, detail=f"连接测试失败: {str(e)}")
 
+
 @app.get("/api/status")
 async def get_api_status():
     """获取API状态"""
@@ -516,6 +553,7 @@ async def get_api_status():
         logger.error(f"获取API状态失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取状态失败: {str(e)}")
 
+
 @app.post("/api/rooms")
 async def create_room(request: CreateRoomRequest):
     """创建新聊天室"""
@@ -524,7 +562,7 @@ async def create_room(request: CreateRoomRequest):
             name=request.name,
             description=request.description,
             stealth_mode=request.stealth_mode,
-            user_description=request.user_description
+            user_description=request.user_description,
         )
         return {
             "status": "success",
@@ -535,12 +573,13 @@ async def create_room(request: CreateRoomRequest):
                 "stealth_mode": room.stealth_mode,
                 "user_description": room.user_description,
                 "character_count": len(room.characters),
-                "created_at": room.created_at.isoformat()
-            }
+                "created_at": room.created_at.isoformat(),
+            },
         }
     except Exception as e:
         logger.error(f"创建聊天室失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/rooms")
 async def get_rooms():
@@ -565,15 +604,18 @@ async def get_rooms():
                             "id": c.id,
                             "name": c.name,
                             "personality": c.personality,
-                            "is_active": c.is_active
-                        } for c in room.characters
-                    ]
-                } for room in rooms
-            ]
+                            "is_active": c.is_active,
+                        }
+                        for c in room.characters
+                    ],
+                }
+                for room in rooms
+            ],
         }
     except Exception as e:
         logger.error(f"获取聊天室列表失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.put("/api/rooms/{room_id}")
 async def update_room(room_id: str, request: UpdateRoomRequest):
@@ -584,7 +626,7 @@ async def update_room(room_id: str, request: UpdateRoomRequest):
             stealth_mode=request.stealth_mode,
             user_description=request.user_description,
             name=request.name,
-            description=request.description
+            description=request.description,
         )
 
         if not success:
@@ -597,10 +639,13 @@ async def update_room(room_id: str, request: UpdateRoomRequest):
         logger.error(f"更新聊天室设置失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 if __name__ == "__main__":
     # 检查AI服务配置
     if not ai_service.is_configured():
-        logger.warning("AI服务未配置，请在.env文件中设置DEEPSEEK_API_KEY或GEMINI_API_KEY")
+        logger.warning(
+            "AI服务未配置，请在.env文件中设置DEEPSEEK_API_KEY或GEMINI_API_KEY"
+        )
 
     # 设置 .env 热重载回调
     def on_env_reload():

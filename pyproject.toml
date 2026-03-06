@@ -1,6 +1,6 @@
 [project]
 name = "ai-tea-party"
-version = "0.0.0"
+version = "2.0.0"
 description = "AI Tea Party backend service"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,7 +15,7 @@ dependencies = [
     "jinja2>=3.1.2",
     "python-multipart>=0.0.6",
     "aiofiles>=23.2.1",
-    "google-generativeai>=0.8.3",
+    "google-genai>=1.0.0",
     "aiohttp>=3.9.5",
     "requests>=2.31.0",
 ]
