@@ -182,6 +182,10 @@ class ChatService:
 
         yield {"type": "end", "message_id": message.id}
 
+    def prepare_messages_for_ai(self, room: ChatRoom, character: Character) -> List[Message]:
+        """公开接口：根据聊天室设置准备 AI 使用的消息历史"""
+        return self._prepare_messages_for_ai(room, character)
+
     def _prepare_messages_for_ai(self, room: ChatRoom, character: Character) -> List[Message]:
         """根据聊天室设置准备AI使用的消息历史"""
         messages = room.messages.copy()
