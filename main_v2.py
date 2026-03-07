@@ -14,8 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.llm import ProviderRegistry, ModelCapabilities
-from core.llm.providers.openai_compat import OpenAICompatProvider
-from core.llm.providers.gemini import GeminiProvider
+from core.llm.providers.litellm_provider import LiteLLMProvider, ModelConfig
 from services.chat_service import chat_service
 from services.orchestrator import ChatOrchestrator
 from routes.ws import WebSocketManager, setup_ws_routes
@@ -65,50 +64,47 @@ registry = ProviderRegistry()
 
 
 def register_providers() -> None:
-    """从环境变量注册所有可用的 Provider。"""
+    """从环境变量注册所有可用的 Provider（统一使用 LiteLLM）。"""
     deepseek_key = os.getenv("DEEPSEEK_API_KEY")
     gemini_key = os.getenv("GEMINI_API_KEY")
 
+    models: dict[str, ModelConfig] = {}
+
     if deepseek_key:
-        registry.register(
-            OpenAICompatProvider(
-                provider_name="deepseek",
-                api_key=deepseek_key,
-                base_url="https://api.deepseek.com",
-                models={
-                    "deepseek-chat": ModelCapabilities(
-                        max_context_tokens=128_000, max_output_tokens=8_192
-                    ),
-                    "deepseek-reasoner": ModelCapabilities(
-                        max_context_tokens=128_000, max_output_tokens=8_192
-                    ),
-                },
-            )
+        models["deepseek-chat"] = ModelConfig(
+            litellm_model="deepseek/deepseek-chat",
+            api_key=deepseek_key,
+            capabilities=ModelCapabilities(
+                max_context_tokens=128_000, max_output_tokens=8_192
+            ),
+        )
+        models["deepseek-reasoner"] = ModelConfig(
+            litellm_model="deepseek/deepseek-reasoner",
+            api_key=deepseek_key,
+            capabilities=ModelCapabilities(
+                max_context_tokens=128_000, max_output_tokens=8_192
+            ),
         )
 
     if gemini_key:
-        registry.register(
-            GeminiProvider(
+        gemini_models = {
+            "gemini-2.5-flash": "gemini/gemini-2.5-flash",
+            "gemini-2.5-pro": "gemini/gemini-2.5-pro",
+            "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
+            "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
+            "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
+        }
+        for model_id, litellm_name in gemini_models.items():
+            models[model_id] = ModelConfig(
+                litellm_model=litellm_name,
                 api_key=gemini_key,
-                models={
-                    "gemini-2.5-flash": ModelCapabilities(
-                        max_context_tokens=1_000_000, max_output_tokens=8_192
-                    ),
-                    "gemini-2.5-pro": ModelCapabilities(
-                        max_context_tokens=1_000_000, max_output_tokens=8_192
-                    ),
-                    "gemini-3-flash-preview": ModelCapabilities(
-                        max_context_tokens=1_000_000, max_output_tokens=8_192
-                    ),
-                    "gemini-3.1-pro-preview": ModelCapabilities(
-                        max_context_tokens=1_000_000, max_output_tokens=8_192
-                    ),
-                    "gemini-3.1-flash-lite-preview": ModelCapabilities(
-                        max_context_tokens=1_000_000, max_output_tokens=8_192
-                    ),
-                },
+                capabilities=ModelCapabilities(
+                    max_context_tokens=1_000_000, max_output_tokens=8_192
+                ),
             )
-        )
+
+    if models:
+        registry.register(LiteLLMProvider(models=models))
 
 
 register_providers()

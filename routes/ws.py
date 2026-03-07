@@ -41,8 +41,8 @@ class WebSocketManager:
         await self._broadcast_to_room(
             room_id,
             {
-                "type": "new_message",
-                "message": {
+                "type": "message",
+                "data": {
                     "id": message.id,
                     "character_id": message.character_id,
                     "character_name": message.character_name,
@@ -66,7 +66,7 @@ class WebSocketManager:
         """广播房间状态变更。"""
         await self._broadcast_to_room(
             room_id,
-            {"type": "room_status", **status},
+            {"type": "room_status", "data": status},
         )
 
     async def _broadcast_to_room(self, room_id: str, data: dict) -> None:

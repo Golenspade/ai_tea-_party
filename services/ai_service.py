@@ -6,12 +6,14 @@ import time
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from models.character import Character, Message
-from google import genai
-from google.genai import types
+import litellm
 from enum import Enum
 
 # 确保环境变量已加载
 load_dotenv()
+
+# 降低 litellm 日志噪音
+litellm.suppress_debug_info = True
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +111,18 @@ _DEEPSEEK_PROVIDERS = frozenset({
 
 
 class AIService:
-    """AI服务类，处理与指定AI API的交互"""
+    """AI服务类，处理与指定AI API的交互（已迁移至 LiteLLM）"""
+
+    # LiteLLM 模型名映射
+    _LITELLM_MODEL_MAP: Dict[str, str] = {
+        "deepseek-chat": "deepseek/deepseek-chat",
+        "deepseek-reasoner": "deepseek/deepseek-reasoner",
+        "gemini-2.5-flash": "gemini/gemini-2.5-flash",
+        "gemini-2.5-pro": "gemini/gemini-2.5-pro",
+        "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
+        "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
+        "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
+    }
 
     def __init__(self):
         # 当前配置，可以动态更新
@@ -121,8 +134,6 @@ class AIService:
         self.health_check_interval = 300  # 5分钟检查一次
         self.api_status = "unknown"  # unknown, healthy, error
         self.last_error = None
-        self.deepseek_client = None
-        self.gemini_client: Optional[genai.Client] = None
 
         # 从环境变量加载默认配置
         self._load_default_config()
@@ -149,7 +160,6 @@ class AIService:
 
         if api_key:
             self.current_config = APIConfig(provider, api_key)
-            self._initialize_clients()
 
     def _get_api_key_for_provider(self, provider: APIProvider) -> Optional[str]:
         """根据提供商获取API密钥"""
@@ -159,36 +169,17 @@ class AIService:
             return os.getenv("GEMINI_API_KEY")
         return None
 
-    def _initialize_clients(self):
-        """初始化API客户端"""
-        if not self.current_config:
-            return
-
-        provider = self.current_config.provider
-        api_key = self.current_config.api_key
-
-        try:
-            if provider in _DEEPSEEK_PROVIDERS:
-                # DeepSeek API (OpenAI 兼容)
-                import openai
-                self.deepseek_client = openai.AsyncOpenAI(
-                    api_key=api_key,
-                    base_url="https://api.deepseek.com"
-                )
-
-            elif provider in _GEMINI_PROVIDERS:
-                # Google Gemini API (新版 google-genai SDK)
-                self.gemini_client = genai.Client(api_key=api_key)
-
-        except Exception as e:
-            logger.error(f"初始化API客户端失败: {e}")
-            self.deepseek_client = None
-            self.gemini_client = None
+    def _get_litellm_model(self) -> Optional[str]:
+        """获取当前配置对应的 LiteLLM 模型名"""
+        if not self.current_config or not self.current_config.model:
+            return None
+        return self._LITELLM_MODEL_MAP.get(
+            self.current_config.model, self.current_config.model
+        )
 
     def update_config(self, provider: APIProvider, api_key: str, model: Optional[str] = None):
         """动态更新API配置"""
         self.current_config = APIConfig(provider, api_key, model)
-        self._initialize_clients()
         logger.info(f"API配置已更新: {provider.value}")
 
         # 重置健康检查状态
@@ -225,9 +216,9 @@ class AIService:
             provider = self.current_config.provider
 
             if provider in _DEEPSEEK_PROVIDERS:
-                return await self._generate_deepseek_response(character, conversation_history, max_tokens)
+                return await self._generate_response_via_litellm(character, conversation_history, max_tokens)
             elif provider in _GEMINI_PROVIDERS:
-                return await self._generate_gemini_response(character, conversation_history, max_tokens)
+                return await self._generate_response_via_litellm(character, conversation_history, max_tokens)
             else:
                 logger.error(f"不支持的API提供商: {provider}")
                 return None
@@ -255,13 +246,8 @@ class AIService:
 
         provider = self.current_config.provider
 
-        if provider in _DEEPSEEK_PROVIDERS:
-            async for chunk in self._stream_deepseek_response(
-                character, conversation_history, max_tokens
-            ):
-                yield chunk
-        elif provider in _GEMINI_PROVIDERS:
-            async for chunk in self._stream_gemini_response(
+        if provider in _DEEPSEEK_PROVIDERS or provider in _GEMINI_PROVIDERS:
+            async for chunk in self._stream_response_via_litellm(
                 character, conversation_history, max_tokens
             ):
                 yield chunk
@@ -309,177 +295,98 @@ class AIService:
             if traits:
                 self.character_memory.update_character_profile(char_id, char_name, traits)
 
-    async def _generate_deepseek_response(
+    async def _generate_response_via_litellm(
         self,
         character: Character,
         conversation_history: List[Message],
         max_tokens: int
     ) -> Optional[str]:
-        """使用DeepSeek API生成回复"""
-        if not self.deepseek_client:
-            logger.error("DeepSeek客户端未初始化")
+        """使用 LiteLLM 统一生成回复"""
+        litellm_model = self._get_litellm_model()
+        if not litellm_model or not self.current_config:
+            logger.error("LiteLLM 配置无效")
             return None
 
         messages = self._build_deepseek_messages(character, conversation_history)
 
-        # 调用DeepSeek API
         try:
-            if not self.current_config or not self.current_config.model:
-                logger.error("DeepSeek配置无效")
-                return None
+            kwargs: Dict[str, Any] = {
+                "model": litellm_model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": 0.8,
+                "api_key": self.current_config.api_key,
+            }
 
-            response = await self.deepseek_client.chat.completions.create(
-                model=self.current_config.model,
-                messages=messages,  # type: ignore
-                max_tokens=max_tokens,
-                temperature=0.8,
-                presence_penalty=0.6,
-                frequency_penalty=0.3
-            )
+            # DeepSeek Reasoner 需要更多 token 来完成推理并输出最终答案
+            if litellm_model == "deepseek/deepseek-reasoner":
+                kwargs["max_tokens"] = max(max_tokens, 4096)
+
+            # 对非 Gemini 模型添加 penalty 参数
+            if not litellm_model.startswith("gemini/"):
+                kwargs["presence_penalty"] = 0.6
+                kwargs["frequency_penalty"] = 0.3
+
+            response = await litellm.acompletion(**kwargs)
 
             if response.choices:
-                content = response.choices[0].message.content
-                if content:
-                    # 清理回复内容
+                content = response.choices[0].message.content or ""
+                if content.strip():
                     content = content.strip()
                     if content.startswith(f"{character.name}:"):
                         content = content[len(f"{character.name}:"):].strip()
                     return content
 
         except Exception as e:
-            logger.error(f"DeepSeek API调用失败: {e}")
+            logger.error(f"LiteLLM API调用失败: {e}")
             return None
 
         return None
 
-    async def _stream_deepseek_response(
+    async def _stream_response_via_litellm(
         self,
         character: Character,
         conversation_history: List[Message],
         max_tokens: int
     ) -> AsyncGenerator[str, None]:
-        """使用DeepSeek API流式生成回复"""
-        if not self.deepseek_client:
-            logger.error("DeepSeek客户端未初始化")
-            return
-
-        if not self.current_config or not self.current_config.model:
-            logger.error("DeepSeek配置无效")
+        """使用 LiteLLM 统一流式生成回复"""
+        litellm_model = self._get_litellm_model()
+        if not litellm_model or not self.current_config:
+            logger.error("LiteLLM 配置无效")
             return
 
         messages = self._build_deepseek_messages(character, conversation_history)
 
         try:
-            stream = await self.deepseek_client.chat.completions.create(
-                model=self.current_config.model,
-                messages=messages,  # type: ignore
-                max_tokens=max_tokens,
-                temperature=0.8,
-                presence_penalty=0.6,
-                frequency_penalty=0.3,
-                stream=True,
-            )
+            kwargs: Dict[str, Any] = {
+                "model": litellm_model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": 0.8,
+                "stream": True,
+                "api_key": self.current_config.api_key,
+            }
 
-            async for chunk in stream:
+            # DeepSeek Reasoner 需要更多 token
+            if litellm_model == "deepseek/deepseek-reasoner":
+                kwargs["max_tokens"] = max(max_tokens, 4096)
+
+            if not litellm_model.startswith("gemini/"):
+                kwargs["presence_penalty"] = 0.6
+                kwargs["frequency_penalty"] = 0.3
+
+            response = await litellm.acompletion(**kwargs)
+
+            async for chunk in response:
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta
-                if not delta or delta.content is None:
-                    continue
-
-                text = self._extract_text_from_delta(delta.content)
-                if text:
-                    yield text
+                # 只输出 content，不输出 reasoning_content（内部思维链）
+                if delta and delta.content:
+                    yield delta.content
 
         except Exception as e:
-            logger.error(f"DeepSeek 流式API调用失败: {e}")
-
-    @staticmethod
-    def _extract_text_from_delta(content: Union[str, List[Any]]) -> str:
-        """提取流式 delta 内容中的文本"""
-        if isinstance(content, str):
-            return content
-
-        parts: List[str] = []
-        for item in content:
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict):
-                # 处理可能的富文本结构，尽量提取 text 字段
-                text = item.get("text") if isinstance(item.get("text"), str) else ""
-                if text:
-                    parts.append(text)
-        return "".join(parts)
-
-    async def _generate_gemini_response(
-        self,
-        character: Character,
-        conversation_history: List[Message],
-        max_tokens: int
-    ) -> Optional[str]:
-        """使用 Google Gemini API (google-genai SDK) 生成回复"""
-        if not self.gemini_client:
-            logger.error("Gemini客户端未初始化")
-            return None
-
-        try:
-            # 构建增强的提示词
-            enhanced_prompt = self._build_enhanced_prompt_for_gemini(character, conversation_history)
-
-            config = types.GenerateContentConfig(
-                max_output_tokens=max_tokens,
-                temperature=0.8,
-            )
-
-            # 使用新版 google-genai SDK 异步调用
-            response = await self.gemini_client.aio.models.generate_content(
-                model=self.current_config.model,
-                contents=enhanced_prompt,
-                config=config,
-            )
-
-            if response and response.text:
-                content = response.text.strip()
-                # 清理回复内容
-                if content.startswith(f"{character.name}:"):
-                    content = content[len(f"{character.name}:"):].strip()
-                return content
-
-        except Exception as e:
-            logger.error(f"Gemini API调用失败: {e}")
-            return None
-
-        return None
-
-    async def _stream_gemini_response(
-        self,
-        character: Character,
-        conversation_history: List[Message],
-        max_tokens: int
-    ) -> AsyncGenerator[str, None]:
-        """使用 Google Gemini API 流式生成回复"""
-        if not self.gemini_client:
-            logger.error("Gemini客户端未初始化")
-            return
-
-        try:
-            enhanced_prompt = self._build_enhanced_prompt_for_gemini(character, conversation_history)
-
-            config = types.GenerateContentConfig(
-                max_output_tokens=max_tokens,
-                temperature=0.8,
-            )
-
-            async for chunk in self.gemini_client.aio.models.generate_content_stream(
-                model=self.current_config.model,
-                contents=enhanced_prompt,
-                config=config,
-            ):
-                if chunk.text:
-                    yield chunk.text
-
-        except Exception as e:
-            logger.error(f"Gemini 流式API调用失败: {e}")
+            logger.error(f"LiteLLM 流式API调用失败: {e}")
 
     def _build_enhanced_system_prompt(self, character: Character, conversation_history: List[Message]) -> str:
         """构建包含角色记忆的增强系统提示"""

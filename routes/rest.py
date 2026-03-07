@@ -306,35 +306,36 @@ def setup_rest_routes(
 
         model_id = config.model or PROVIDER_TO_MODEL[config.provider]
 
-        # 需要用新的 API key 重新注册 Provider
-        # 这里通过 orchestrator.update_model 切换
-        from core.llm.providers.openai_compat import OpenAICompatProvider
-        from core.llm.providers.gemini import GeminiProvider
+        # 使用 LiteLLM 统一 Provider 重新注册
+        from core.llm.providers.litellm_provider import LiteLLMProvider, ModelConfig
         from core.llm import ModelCapabilities
 
+        models: dict[str, ModelConfig] = {}
+
         if config.provider.startswith("deepseek"):
-            provider = OpenAICompatProvider(
-                provider_name="deepseek",
-                api_key=config.api_key,
-                base_url="https://api.deepseek.com",
-                models={
-                    "deepseek-chat": ModelCapabilities(max_context_tokens=128_000),
-                    "deepseek-reasoner": ModelCapabilities(max_context_tokens=128_000),
-                },
-            )
-            orchestrator.registry.register(provider)
+            for mid in ["deepseek-chat", "deepseek-reasoner"]:
+                models[mid] = ModelConfig(
+                    litellm_model=f"deepseek/{mid}",
+                    api_key=config.api_key,
+                    capabilities=ModelCapabilities(max_context_tokens=128_000),
+                )
         elif config.provider.startswith("gemini"):
-            provider = GeminiProvider(
-                api_key=config.api_key,
-                models={
-                    "gemini-2.5-flash": ModelCapabilities(max_context_tokens=1_000_000),
-                    "gemini-2.5-pro": ModelCapabilities(max_context_tokens=1_000_000),
-                    "gemini-3-flash-preview": ModelCapabilities(max_context_tokens=1_000_000),
-                    "gemini-3.1-pro-preview": ModelCapabilities(max_context_tokens=1_000_000),
-                    "gemini-3.1-flash-lite-preview": ModelCapabilities(max_context_tokens=1_000_000),
-                },
-            )
-            orchestrator.registry.register(provider)
+            gemini_models = {
+                "gemini-2.5-flash": "gemini/gemini-2.5-flash",
+                "gemini-2.5-pro": "gemini/gemini-2.5-pro",
+                "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
+                "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
+                "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
+            }
+            for mid, litellm_name in gemini_models.items():
+                models[mid] = ModelConfig(
+                    litellm_model=litellm_name,
+                    api_key=config.api_key,
+                    capabilities=ModelCapabilities(max_context_tokens=1_000_000),
+                )
+
+        if models:
+            orchestrator.registry.register(LiteLLMProvider(models=models))
 
         orchestrator.update_model(model_id)
 

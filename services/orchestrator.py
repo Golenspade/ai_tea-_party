@@ -125,12 +125,7 @@ class ChatOrchestrator:
 
         # 2. 构建 ChatRequest
         provider = self.registry.get_provider(self.current_model_id)
-        is_gemini = provider.provider_name == "gemini"
-
-        if is_gemini:
-            chat_messages = self._build_gemini_messages(character, messages_for_ai)
-        else:
-            chat_messages = self._build_openai_messages(character, messages_for_ai)
+        chat_messages = self._build_openai_messages(character, messages_for_ai)
 
         request = ChatRequest(
             model_id=self.current_model_id,
@@ -275,55 +270,7 @@ class ChatOrchestrator:
 
         return messages
 
-    def _build_gemini_messages(
-        self,
-        character: Character,
-        conversation_history: list[Message],
-    ) -> list[ChatMessage]:
-        """
-        构建 Gemini 的消息列表。
 
-        Gemini 使用单一 prompt，所以把所有内容放在一个 SYSTEM message 中。
-        GeminiProvider._build_prompt() 会将其转为纯文本。
-        """
-        base_prompt = character.get_system_prompt()
-
-        # 对话历史
-        conversation_text = ""
-        recent = conversation_history[-20:] if conversation_history else []
-        for msg in recent:
-            if not msg.is_system:
-                conversation_text += f"[{msg.character_name}]: {msg.content}\n"
-
-        # 角色记忆
-        memory_context = self._get_character_memory_context(
-            character.id, conversation_history
-        )
-
-        # 情境分析
-        context_analysis = self._analyze_conversation_context(recent, character)
-
-        full_prompt = f"""【角色设定】
-{base_prompt}
-
-【其他角色信息】
-{memory_context}
-
-【对话历史】
-{conversation_text}
-
-【情境分析】
-{context_analysis}
-
-请以{character.name}的身份，根据以上信息自然地回复。注意：
-- 保持角色一致性
-- 体现对其他角色的了解和记忆
-- 根据对话情境调整回复风格
-- 可以适当引用之前的对话内容
-
-{character.name}的回复："""
-
-        return [ChatMessage(role=ChatRole.SYSTEM, content=full_prompt)]
 
     # ------------------------------------------------------------------
     # System prompt 构建（从 ai_service.py 迁移）
