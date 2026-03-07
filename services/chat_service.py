@@ -5,6 +5,7 @@ from typing import List, Optional, Callable, AsyncGenerator, Dict
 from datetime import datetime
 from models.character import Character, Message, ChatRoom
 from services.ai_service import ai_service
+from db import repository as db
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,8 @@ class ChatService:
         )
         self.chat_rooms[room.id] = room
         logger.info(f"创建聊天室: {name} (ID: {room.id})")
+        # 持久化到 SQLite
+        asyncio.create_task(db.save_room(room))
         return room
     
     def get_chat_room(self, room_id: str) -> Optional[ChatRoom]:
@@ -60,6 +63,8 @@ class ChatService:
         room = self.get_chat_room(room_id)
         if room:
             room.add_character(character)
+            # 持久化角色
+            asyncio.create_task(db.save_character(character, room_id))
             # 发送系统消息
             system_msg = Message(
                 character_id="system",
@@ -68,6 +73,7 @@ class ChatService:
                 is_system=True
             )
             room.add_message(system_msg)
+            asyncio.create_task(db.save_message(system_msg, room_id))
             asyncio.create_task(self.notify_message_callbacks(room_id, system_msg))
             logger.info(f"角色 {character.name} 加入聊天室 {room.name}")
             return True
@@ -80,6 +86,8 @@ class ChatService:
             character = next((c for c in room.characters if c.id == character_id), None)
             if character:
                 room.remove_character(character_id)
+                # 持久化移除
+                asyncio.create_task(db.remove_character_from_room(room_id, character_id))
                 # 发送系统消息
                 system_msg = Message(
                     character_id="system",
@@ -88,6 +96,7 @@ class ChatService:
                     is_system=True
                 )
                 room.add_message(system_msg)
+                asyncio.create_task(db.save_message(system_msg, room_id))
                 asyncio.create_task(self.notify_message_callbacks(room_id, system_msg))
                 logger.info(f"角色 {character.name} 离开聊天室 {room.name}")
                 return True
@@ -110,6 +119,7 @@ class ChatService:
         )
         
         room.add_message(message)
+        await db.save_message(message, room_id)
         await self.notify_message_callbacks(room_id, message)
         logger.info(f"{character.name} 在 {room.name} 中说: {content}")
         return True
@@ -178,6 +188,7 @@ class ChatService:
         # 最终落库并广播完整消息
         if message.content.strip():
             room.add_message(message)
+            await db.save_message(message, room_id)
             await self.notify_message_callbacks(room_id, message)
 
         yield {"type": "end", "message_id": message.id}
@@ -245,6 +256,8 @@ class ChatService:
             room.description = description
             logger.info(f"聊天室 {room.name} 描述已更新")
 
+        # 持久化设置
+        asyncio.create_task(db.save_room(room))
         return True
 
     async def auto_chat_loop(self, room_id: str, interval: int = 5):

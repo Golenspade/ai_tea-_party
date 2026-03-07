@@ -7,6 +7,7 @@ AI Tea Party — 重构入口 (v2.1.0)
 
 import os
 import logging
+from contextlib import asynccontextmanager
 
 import uvicorn
 from dotenv import load_dotenv
@@ -22,6 +23,9 @@ from routes.sse import setup_sse_routes
 from routes.rest import setup_rest_routes
 from utils.config_loader import config_loader
 from utils.env_watcher import env_watcher
+from db.database import init_db
+from db import repository as db_repo
+from models.character import ChatRoom
 
 # ------------------------------------------------------------------
 # 环境与日志
@@ -35,11 +39,70 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+# ------------------------------------------------------------------
+# Lifespan（DB 初始化 + 数据恢复）
+# ------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用启动时初始化 DB 并从中恢复数据"""
+    await init_db()
+
+    # 尝试从 DB 恢复聊天室
+    db_rooms = await db_repo.load_all_rooms()
+    if db_rooms:
+        logger.info(f"从 SQLite 恢复 {len(db_rooms)} 个聊天室")
+        for rd in db_rooms:
+            room = ChatRoom(
+                id=rd["id"],
+                name=rd["name"],
+                description=rd["description"],
+                stealth_mode=rd["stealth_mode"],
+                user_description=rd["user_description"],
+                characters=rd["characters"],
+                messages=rd["messages"],
+            )
+            chat_service.chat_rooms[room.id] = room
+            logger.info(f"  恢复聊天室: {room.name} ({len(rd['characters'])} 角色, {len(rd['messages'])} 消息)")
+    else:
+        # DB 为空，从 config.json 初始化（chat_service 会自动持久化 rooms）
+        logger.info("SQLite 为空，从 config.json 初始化...")
+        await _init_from_config()
+
+    yield
+
+
+async def _init_from_config():
+    """从 config.json 加载预设聊天室和角色"""
+    if config_loader.load_config():
+        rooms = config_loader.initialize_rooms()
+        if rooms:
+            logger.info(f"成功加载 {len(rooms)} 个预设聊天室")
+        if "default" not in chat_service.chat_rooms:
+            logger.warning("config.json 中没有 default 房间，创建默认房间")
+            default_room = chat_service.create_chat_room("AI Tea Party 聊天室")
+            default_room.id = "default"
+            chat_service.chat_rooms["default"] = default_room
+    else:
+        logger.info("未找到 config.json，创建默认聊天室")
+        default_room = chat_service.create_chat_room("AI Tea Party 聊天室")
+        default_room.id = "default"
+        chat_service.chat_rooms["default"] = default_room
+
+    # config_loader 直接调用 room.add_character()，绕过了 chat_service 的 DB 写入
+    # 需要在这里手动持久化所有角色
+    for room_id, room in chat_service.chat_rooms.items():
+        await db_repo.save_room(room)  # 确保 room（含自定义 ID）被保存
+        for character in room.characters:
+            await db_repo.save_character(character, room_id)
+
+
 # ------------------------------------------------------------------
 # FastAPI 应用
 # ------------------------------------------------------------------
 
-app = FastAPI(title="AI Tea Party", description="AI角色聊天室", version="2.1.0")
+app = FastAPI(title="AI Tea Party", description="AI角色聊天室", version="2.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -147,27 +210,10 @@ async def _ws_message_callback(room_id, message):
 orchestrator.add_message_callback(_ws_message_callback)
 chat_service.add_message_callback(_ws_message_callback)
 
-# ------------------------------------------------------------------
-# 初始化聊天室
-# ------------------------------------------------------------------
 
 DEFAULT_ROOM_ID = "default"
 
-if config_loader.load_config():
-    logger.info("正在从 config.json 加载预设聊天室和角色...")
-    rooms = config_loader.initialize_rooms()
-    if rooms:
-        logger.info(f"成功加载 {len(rooms)} 个预设聊天室")
-    if "default" not in chat_service.chat_rooms:
-        logger.warning("config.json 中没有 default 房间，创建默认房间")
-        default_room = chat_service.create_chat_room("AI Tea Party 聊天室")
-        default_room.id = "default"
-        chat_service.chat_rooms["default"] = default_room
-else:
-    logger.info("未找到 config.json，创建默认聊天室")
-    default_room = chat_service.create_chat_room("AI Tea Party 聊天室")
-    default_room.id = "default"
-    chat_service.chat_rooms["default"] = default_room
+# 初始化逻辑已移至 lifespan() 中：启动时先从 SQLite 恢复，如果为空则从 config.json 初始化
 
 # ------------------------------------------------------------------
 # 注册路由

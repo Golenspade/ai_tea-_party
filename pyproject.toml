@@ -17,6 +17,7 @@ dependencies = [
     "aiohttp>=3.9.5",
     "requests>=2.31.0",
     "litellm>=1.81.0",
+    "aiosqlite>=0.22.1",
 ]
 
 [tool.uv]

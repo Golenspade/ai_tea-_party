@@ -243,6 +243,9 @@ def setup_rest_routes(
         if not room:
             raise HTTPException(status_code=404, detail="聊天室不存在")
         room.messages.clear()
+        # 同步清空数据库
+        from db import repository as db_repo
+        await db_repo.clear_messages(room_id)
         system_msg = Message(
             character_id="system",
             character_name="系统",
@@ -250,6 +253,7 @@ def setup_rest_routes(
             is_system=True,
         )
         room.add_message(system_msg)
+        await db_repo.save_message(system_msg, room_id)
         await ws_manager.broadcast_message(room_id, system_msg)
         return {"message": "聊天记录已清空"}
 
