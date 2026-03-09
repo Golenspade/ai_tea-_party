@@ -31,3 +31,10 @@ yarn-debug.log*
 .DS_Store
 Thumbs.db
 data/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+
+# Misc
+*.pdf
