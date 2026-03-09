@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tea Party - 诗意流线 (Poetic Fluid Ink)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #F8F9FA; --ink: #111822; }
+        body { font-family: 'Jost', sans-serif; background-color: var(--bg); color: var(--ink); }
+        .font-lyrical { font-family: 'Crimson Pro', serif; }
+        
+        /* 如墨水晕开的流光背景 */
+        .ink-blur {
+            position: fixed; width: 50vw; height: 50vw; border-radius: 50%;
+            background: radial-gradient(circle, rgba(200,215,230,0.4) 0%, transparent 70%);
+            filter: blur(60px); z-index: -1; animation: drift 30s ease-in-out infinite alternate;
+        }
+        .ink-2 {
+            background: radial-gradient(circle, rgba(230,210,215,0.4) 0%, transparent 70%);
+            top: auto; bottom: -10%; right: -10%; animation-delay: -15s;
+        }
+        @keyframes drift {
+            0% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(5%, 10%) scale(1.2); }
+            100% { transform: translate(-5%, -5%) scale(0.9); }
+        }
+
+        /* 文字如墨水般显现 */
+        .reveal-ink {
+            animation: inkFade 2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            opacity: 0; filter: blur(10px); color: rgba(17,24,34, 0.5);
+        }
+        @keyframes inkFade {
+            100% { opacity: 1; filter: blur(0px); color: rgba(17,24,34, 1); }
+        }
+        
+        .msg-delay-1 { animation-delay: 0.2s; }
+        .msg-delay-2 { animation-delay: 0.6s; }
+        
+        /* 平滑且细微的交互 */
+        .liquid-hover { transition: all 0.7s cubic-bezier(0.4, 0, 0.1, 1); }
+        .liquid-hover:hover { border-color: rgba(17,24,34,0.3); background-color: rgba(255,255,255,0.5); }
+
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="h-screen flex justify-center overflow-hidden">
+
+    <div class="ink-blur top-[-10%] left-[-10%]"></div>
+    <div class="ink-blur ink-2"></div>
+
+    <main class="w-full max-w-4xl h-full flex flex-col relative px-8">
+        
+        <header class="h-32 flex items-center justify-center shrink-0 w-full reveal-ink">
+            <h1 class="font-lyrical text-3xl italic tracking-wide text-gray-500">Muse & Melody</h1>
+        </header>
+
+        <section class="flex-1 overflow-y-auto pt-10 pb-20 flex flex-col gap-12 text-center w-full px-4 sm:px-12 md:px-24">
+            
+            <div class="text-xs tracking-[0.2em] uppercase text-gray-400 font-light reveal-ink mb-4">Today, 3:15 PM</div>
+
+            <!-- 用户 -->
+            <div class="flex flex-col items-center">
+                <div class="max-w-xl font-light text-[17px] leading-loose text-gray-600 reveal-ink msg-delay-1">
+                    "Write me a short paragraph about the feeling of witnessing a quiet dawn by the ocean, when the water is entirely still."
+                </div>
+            </div>
+
+            <!-- 分割线 -->
+            <div class="flex justify-center reveal-ink msg-delay-1 opacity-30">
+                <div class="h-8 w-px bg-gradient-to-b from-transparent via-gray-400 to-transparent"></div>
+            </div>
+
+            <!-- AI -->
+            <div class="flex flex-col items-center">
+                <div class="max-w-2xl font-lyrical text-[22px] leading-[1.9] text-gray-800 reveal-ink msg-delay-2 p-8 lg:p-12 relative">
+                    <!-- 装饰引号 -->
+                    <span class="absolute top-0 left-4 text-6xl text-gray-200 font-serif leading-none select-none">"</span>
+                    <span class="absolute bottom-0 right-4 text-6xl text-gray-200 font-serif leading-none select-none rotate-180">"</span>
+                    
+                    The horizon surrendered a pale, bruised violet before bleeding into gold. The ocean, stripped of its usual restlessness, lay heavy and flat as a sheet of poured glass. In that suspended breath between night and day, the world felt unwritten, silent enough to hear the mist rising.
+                </div>
+            </div>
+            
+        </section>
+
+        <!-- 极简流线底栏 -->
+        <footer class="h-32 w-full shrink-0 flex items-center justify-center pointer-events-none pb-8">
+            <div class="w-full max-w-2xl bg-white/40 backdrop-blur-xl border border-white/60 p-1.5 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.03)] flex pointer-events-auto liquid-hover group">
+                <input type="text" class="flex-1 bg-transparent px-6 text-lg font-light outline-none placeholder-gray-400/70" placeholder="whisper your thought...">
+                <button class="w-12 h-12 rounded-full bg-gray-100/50 flex items-center justify-center text-gray-400 group-hover:bg-gray-800 group-hover:text-white transition-all duration-500 ease-in-out">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4"></path></svg>
+                </button>
+            </div>
+        </footer>
+
+    </main>
+
+</body>
+</html>

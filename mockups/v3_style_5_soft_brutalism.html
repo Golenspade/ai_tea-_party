@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tea Party - 柔软粗野 (Soft Brutalism)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,600&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #FEF6EB; --ink: #1D1B18; border-radius: 40px; }
+        body { font-family: 'DM Sans', sans-serif; background-color: var(--bg); color: var(--ink); }
+        
+        /* 柔软粗野的特点：超大圆角，极细边框或无边框，低对比度色彩，大果冻动画 */
+        .soft-chip {
+            background-color: #EAE3D9; border-radius: 999px; padding: 12px 24px;
+            font-size: 1.1rem; letter-spacing: -0.02em; cursor: pointer;
+            transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); /* 强烈的弹簧和反弹感 */
+        }
+        .soft-chip:hover {
+            transform: scale(1.05); background-color: #DCD4C8;
+        }
+        .soft-chip.active { background-color: #D3E0C1; /* 柔和浅绿 */ color: #1D1B18; }
+        .soft-chip.active2 { background-color: #E2CFDF; /* 柔和粉紫 */ color: #1D1B18; }
+
+        .big-input { border-radius: 40px; transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+        .big-input:focus-within { transform: scale(1.02); box-shadow: 0 30px 60px rgba(0,0,0,0.06); }
+
+        .bubble { border-radius: 36px; padding: 32px; font-size: 1.25rem; font-weight: 300; line-height: 1.6; letter-spacing: -0.01em; }
+        
+        /* 对话气泡动画 */
+        .msg-enter { animation: bubblePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both; transform-origin: left bottom;}
+        .msg-enter.right { transform-origin: right bottom; }
+        @keyframes bubblePop {
+            0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden p-6 md:p-10">
+
+    <header class="flex justify-between items-center mb-8 shrink-0 px-4">
+        <h1 class="text-3xl font-semibold tracking-tight">CooCoo Chat</h1>
+        <div class="flex gap-4">
+            <div class="w-12 h-12 rounded-full bg-[#EAE3D9] flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-500">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            </div>
+            <div class="w-12 h-12 rounded-full bg-[#1D1B18] text-[#FEF6EB] flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-500">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex gap-4 mb-4 overflow-x-auto pb-4 px-4 shrink-0">
+        <div class="soft-chip active flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+            Bean (Planner)
+        </div>
+        <div class="soft-chip">Blob (Designer)</div>
+        <div class="soft-chip">Byte (Coder)</div>
+    </div>
+
+    <!-- 巨型聊天气泡区 -->
+    <main class="flex-1 bg-white rounded-[48px] overflow-hidden flex flex-col relative shadow-[0_20px_60px_rgba(0,0,0,0.02)] mx-4 border border-[#EAE3D9]/50">
+        
+        <div class="flex-1 overflow-y-auto p-8 md:p-16 flex flex-col gap-10">
+            <!-- User Blob -->
+            <div class="flex justify-end msg-enter right">
+                <div class="max-w-2xl bubble bg-[#FEF6EB] text-[#1D1B18] rounded-br-none">
+                    I need a quick weekly plan template. Just something simple to organize tasks without stress.
+                </div>
+            </div>
+
+            <!-- AI Blob -->
+            <div class="flex justify-start msg-enter" style="animation-delay: 0.1s;">
+                <div class="flex gap-6 max-w-3xl">
+                    <div class="w-14 h-14 rounded-full bg-[#D3E0C1] shrink-0 flex items-center justify-center text-xl shadow-sm mt-2">🌱</div>
+                    <div class="bubble bg-[#F5F5F5] text-[#1D1B18] rounded-tl-none">
+                        <p class="mb-4">Here is a very gentle weekly structure for you:</p>
+                        <div class="space-y-3 font-normal text-lg bg-white p-6 rounded-3xl">
+                            <div class="flex items-center gap-4"><div class="w-8 h-8 rounded-full bg-[#EAE3D9] flex items-center justify-center text-sm">M</div> Focus on one big task.</div>
+                            <div class="flex items-center gap-4"><div class="w-8 h-8 rounded-full bg-[#EAE3D9] flex items-center justify-center text-sm">T</div> Handle small, quick emails.</div>
+                            <div class="flex items-center gap-4"><div class="w-8 h-8 rounded-full bg-[#EAE3D9] flex items-center justify-center text-sm">W</div> Creative/Brainstorming day.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 悬浮巨大的输入框 -->
+        <div class="p-8 pt-0 w-full shrink-0">
+            <div class="bg-[#F5F5F5] big-input flex items-center p-3 pr-4 h-24">
+                <input type="text" class="flex-1 bg-transparent px-8 outline-none text-2xl font-light placeholder-[#BDB8B0]" placeholder="Say anything...">
+                <button class="w-16 h-16 rounded-full bg-[#1D1B18] hover:bg-[#D3E0C1] hover:text-[#1D1B18] text-white flex items-center justify-center transition-all duration-500 ease-in-out cursor-pointer shadow-md">
+                    <svg class="w-8 h-8 transform rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                </button>
+            </div>
+        </div>
+        
+    </main>
+
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tea Party - 全息数据枢纽 (Holographic Data)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --dark: #030712; --panel: #111827; --glow: #3b82f6; --glow-sec: #a855f7; }
+        body { font-family: 'Rajdhani', sans-serif; background-color: var(--dark); color: #f3f4f6; }
+        
+        /* 微网格背景 */
+        .grid-bg {
+            background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* 科技感发光面板 */
+        .holo-panel {
+            background: linear-gradient(135deg, rgba(17, 24, 39, 0.8) 0%, rgba(3, 7, 18, 0.9) 100%);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            box-shadow: inset 0 0 20px rgba(59, 130, 246, 0.05), 0 4px 20px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border-radius: 8px;
+        }
+
+        .glow-text {
+            text-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+        }
+        
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: var(--dark); }
+        ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 4px; }
+        
+        /* 装饰角 */
+        .corner-tl { position: absolute; top: 0; left: 0; width: 10px; height: 10px; border-top: 2px solid var(--glow); border-left: 2px solid var(--glow); }
+        .corner-br { position: absolute; bottom: 0; right: 0; width: 10px; height: 10px; border-bottom: 2px solid var(--glow); border-right: 2px solid var(--glow); }
+    </style>
+</head>
+<body class="h-screen flex flex-col grid-bg overflow-hidden p-4 gap-4">
+
+    <!-- 顶栏 -->
+    <header class="holo-panel h-16 shrink-0 flex items-center justify-between px-6 relative">
+        <div class="corner-tl"></div>
+        <div class="corner-br"></div>
+        <div class="flex items-center gap-4">
+            <h1 class="text-2xl font-bold tracking-[0.2em] uppercase glow-text text-blue-400">Palantir Chat Core</h1>
+            <div class="px-2 py-0.5 border border-blue-500/30 text-xs text-blue-400 bg-blue-500/10 tracking-widest uppercase">Secured Connection</div>
+        </div>
+        <div class="flex items-center gap-6 text-sm tracking-widest text-gray-400">
+            <div>Nodes: <span class="text-white">5 Active</span></div>
+            <div>Latency: <span class="text-green-400">12ms</span></div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 gap-4 overflow-hidden">
+        
+        <!-- 左侧实体概览 -->
+        <aside class="holo-panel w-72 flex flex-col shrink-0 relative p-4">
+            <div class="corner-tl"></div>
+            <div class="corner-br"></div>
+            
+            <h2 class="text-sm uppercase tracking-[0.1em] text-blue-300 mb-4 border-b border-blue-900/50 pb-2">Active Entities</h2>
+            
+            <div class="space-y-3">
+                <div class="flex items-center gap-3 p-2 bg-blue-900/20 border-l-2 border-blue-500 cursor-pointer">
+                    <div class="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_8px_#60a5fa] animate-pulse"></div>
+                    <div>
+                        <div class="font-semibold text-white tracking-widest">OP-Alpha</div>
+                        <div class="text-[10px] text-gray-400 uppercase">Financial Analyst Model</div>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-3 p-2 border-l-2 border-transparent hover:border-blue-900/50 cursor-pointer opacity-60 transition-all">
+                    <div class="w-2 h-2 rounded-full border border-gray-500"></div>
+                    <div>
+                        <div class="font-semibold text-gray-300 tracking-widest">OP-Beta</div>
+                        <div class="text-[10px] text-gray-500 uppercase">DevOps Assistant</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据雷达假象 -->
+            <div class="mt-auto pt-4 border-t border-blue-900/50 flex justify-center">
+                <div class="w-32 h-32 rounded-full border border-blue-500/20 relative flex items-center justify-center">
+                    <div class="w-16 h-16 rounded-full border border-blue-500/40"></div>
+                    <div class="absolute w-1/2 h-1 bg-gradient-to-r from-blue-500/80 to-transparent left-1/2 origin-left animate-[spin_3s_linear_infinite]"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主面板 -->
+        <main class="holo-panel flex-1 flex flex-col relative shrink-0">
+            <div class="corner-tl"></div><div class="corner-br"></div>
+            
+            <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
+                 <!-- User -->
+                 <div class="flex justify-end">
+                     <div class="max-w-xl text-right">
+                         <div class="text-[10px] text-blue-400 uppercase tracking-widest mb-1 opacity-70">Cmdr_Request // 14:02:44Z</div>
+                         <div class="inline-block border border-blue-500/30 bg-blue-900/10 p-3 text-lg font-medium text-blue-50">
+                             Synthesize Q3 market trend anomalies and cross-reference with global supply chain delays.
+                         </div>
+                     </div>
+                 </div>
+
+                 <!-- AI -->
+                 <div class="flex justify-start">
+                     <div class="max-w-3xl">
+                         <div class="text-[10px] text-purple-400 uppercase tracking-widest mb-1 glow-text">OP-Alpha [Processing] // 14:02:47Z</div>
+                         <div class="border-l-2 border-purple-500 bg-black/40 p-4 text-gray-300 font-medium tracking-wide leading-relaxed shadow-lg">
+                             <p class="mb-3">Cross-referencing initiated. Three significant anomalies detected with an 89% confidence interval.</p>
+                             
+                             <!-- 模拟数据图表UI -->
+                             <div class="border border-purple-900/50 bg-purple-900/10 p-4 font-mono text-sm mt-4">
+                                 <div class="flex justify-between border-b border-purple-900/50 pb-2 mb-2 text-purple-300">
+                                     <span>Sector</span><span>Deviation</span><span>Correlation (Delay)</span>
+                                 </div>
+                                 <div class="flex justify-between mb-1">
+                                     <span>[Semiconductors]</span><span class="text-red-400">-12.4%</span><span>High (0.84)</span>
+                                 </div>
+                                 <div class="flex justify-between mb-1">
+                                     <span>[Rare Earth Mat.]</span><span class="text-red-400">-8.1%</span><span>Medium (0.62)</span>
+                                 </div>
+                                 <div class="flex justify-between">
+                                     <span>[Agri-Tech]</span><span class="text-green-400">+4.2%</span><span>Low (0.15)</span>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+            </div>
+
+            <!-- 终端输入框 -->
+            <div class="p-4 bg-black/50 border-t border-blue-500/20">
+                <div class="flex items-center gap-3">
+                    <span class="text-blue-500 font-bold animate-pulse">>_</span>
+                    <input type="text" class="flex-1 bg-transparent border-none outline-none text-xl glow-text text-blue-100 placeholder-blue-900" placeholder="Awaiting Input Protocol...">
+                    <button class="bg-blue-600/20 hover:bg-blue-500/40 border border-blue-500/50 text-blue-300 px-6 py-2 uppercase tracking-[0.2em] font-bold transition-all text-sm">Execute</button>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

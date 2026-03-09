@@ -1,22 +1,23 @@
 import type { Metadata } from "next";
-import { Noto_Sans, Noto_Sans_Mono } from "next/font/google";
+import { Libre_Baskerville, Karla } from "next/font/google";
 import "./globals.css";
 
-const notoSans = Noto_Sans({
-  variable: "--font-noto-sans",
+const libreBaskerville = Libre_Baskerville({
+  variable: "--font-book",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
 });
 
-const notoSansMono = Noto_Sans_Mono({
-  variable: "--font-noto-mono",
+const karla = Karla({
+  variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["300", "400", "500", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "AI Tea Party - AI角色聊天室",
-  description: "一个让不同AI角色相互对话的聊天室应用",
+  title: "Index Rerum - Scholar's AI Chat",
+  description: "Scholarly AI conversation interface",
 };
 
 export default function RootLayout({
@@ -30,10 +31,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body
-        className={`${notoSans.variable} ${notoSansMono.variable} antialiased`}
-        style={{ fontFamily: 'var(--font-noto-sans), "Google Sans", system-ui, -apple-system, sans-serif' }}
-      >
+      <body className={`${libreBaskerville.variable} ${karla.variable} antialiased texture font-sans overflow-hidden`} style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
         {children}
       </body>
     </html>

@@ -1,10 +1,6 @@
 "use client";
 
 import type { Character } from "@/lib/types";
-import { getAvatarColor, getCharacterInitials } from "@/lib/types";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageCircle, Trash2 } from "lucide-react";
 
@@ -14,50 +10,48 @@ interface CharacterListProps {
   onDelete: (characterId: string) => void;
 }
 
+const romanNumerals = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+const getRoman = (index: number) => romanNumerals[index] || (index + 1).toString();
+
 export function CharacterList({
   characters,
   onAISpeech,
   onDelete,
 }: CharacterListProps) {
   return (
-    <ScrollArea className="h-[300px]">
-      <div className="space-y-2">
-        {characters.map((character, index) => (
-          <Card key={character.id} className="group">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-3">
-                <Avatar className={getAvatarColor(index)}>
-                  <AvatarFallback className="text-white">
-                    {getCharacterInitials(character.name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate">{character.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {character.personality}
-                  </p>
-                </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => onAISpeech(character.id)}
-                  >
-                    <MessageCircle className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => onDelete(character.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
+    <div className="space-y-1">
+      {characters.map((character, index) => (
+        <div key={character.id} className="group">
+          <div className="px-4 py-3 rounded hover:bg-[#f1ede3] cursor-pointer flex flex-col hover-fade group-hover:text-[var(--theme-accent)]">
+            <div className="flex justify-between items-center bg-transparent">
+              <span className="font-book italic tracking-wide text-[var(--text)] group-hover:text-[var(--theme-accent)] transition-colors">
+                {getRoman(index)}. {character.name}
+              </span>
+              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  className="text-[#7e766c] hover:text-[var(--theme-accent)] transition-colors p-1 rounded"
+                  onClick={(e) => { e.stopPropagation(); onAISpeech(character.id); }}
+                  title="Speak"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  className="text-[#7e766c] hover:text-red-700 transition-colors p-1 rounded"
+                  onClick={(e) => { e.stopPropagation(); onDelete(character.id); }}
+                  title="Delete"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </ScrollArea>
+            </div>
+            {character.personality && (
+              <p className="pl-6 pt-1 text-xs text-[#7e766c] font-sans truncate pr-8">
+                {character.personality}
+              </p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

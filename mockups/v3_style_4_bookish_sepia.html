@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tea Party - 质感学术 (Bookish Sepia)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Karla:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg: #fdfaf5; --text: #3b3631; --accent: #a35d40; --border: #e6dec1; }
+        body { font-family: 'Karla', sans-serif; background-color: var(--bg); color: var(--text); }
+        .font-book { font-family: 'Libre Baskerville', serif; }
+        
+        /* 报纸/书籍纹理 */
+        .texture {
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.05'/%3E%3C/svg%3E");
+            background-blend-mode: multiply;
+        }
+
+        /* 下沉式纸张边缘效果 */
+        .page-shadow { box-shadow: -20px 0 30px -10px rgba(163, 93, 64, 0.05); }
+        
+        /* 丝滑手风琴展开动画 */
+        .accordion-transition { transition: max-height 0.6s cubic-bezier(0.25, 1, 0.5, 1), padding 0.6s ease; }
+        .hover-fade { transition: opacity 0.4s ease, color 0.4s ease; }
+
+        /* 首字下沉效果 */
+        .drop-cap:first-letter {
+            float: left; font-size: 3.5rem; line-height: 0.8; padding-top: 8px; padding-right: 8px;
+            font-family: 'Libre Baskerville', serif; color: var(--accent);
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #e6dec1; border-radius: 4px; }
+    </style>
+</head>
+<body class="h-screen flex texture overflow-hidden justify-center items-center p-8">
+
+    <!-- 书籍容器 -->
+    <div class="w-full max-w-7xl h-full flex bg-[#fffcf8] rounded-md shadow-2xl overflow-hidden border border-[#e6dec1] ring-1 ring-white/50">
+        
+        <!-- 左侧索引/目录 -->
+        <aside class="w-80 border-r border-[#e6dec1] flex flex-col pt-12 shrink-0 bg-[#fbf8f1]">
+            <div class="px-10 pb-8 border-b border-[#e6dec1]">
+                <h1 class="font-book text-2xl font-bold tracking-tight text-[#3b3631]">Index Rerum.</h1>
+                <p class="text-xs uppercase tracking-[0.1em] text-[#a35d40] mt-2 font-semibold">Scholarly Chat Interface</p>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto px-6 py-6 space-y-2">
+                <!-- 目录项：折叠组件概念 -->
+                <div class="group">
+                    <div class="px-4 py-3 rounded hover:bg-[#f1ede3] cursor-pointer flex justify-between items-center hover-fade group-hover:text-[#a35d40]">
+                        <span class="font-book italic tracking-wide">I. Historical Analyses</span>
+                        <span class="text-xs">+</span>
+                    </div>
+                </div>
+
+                <div class="group">
+                    <div class="px-4 py-3 rounded bg-[#f1ede3] border-l-2 border-[#a35d40] cursor-pointer flex justify-between items-center text-[#a35d40]">
+                        <span class="font-book italic tracking-wide">II. Literature Reviews</span>
+                        <span class="text-xs">-</span>
+                    </div>
+                    <!-- 展开内容 -->
+                    <div class="accordion-transition overflow-hidden pl-8 pr-4 border-l-2 border-transparent">
+                        <div class="py-2 text-sm text-[#7e766c] hover:text-[#a35d40] cursor-pointer hover-fade">Virginia Woolf's Style</div>
+                        <div class="py-2 text-sm text-[#7e766c] hover:text-[#a35d40] cursor-pointer hover-fade">Modernist Poetry</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 右侧页面主体 -->
+        <main class="flex-1 flex flex-col relative page-shadow z-10 bg-white">
+            
+            <div class="h-16 flex items-center justify-between px-16 border-b border-[#e6dec1]/50 text-xs uppercase tracking-[0.2em] text-[#a35d40]/60 shrink-0">
+                <span>Literature Reviews</span>
+                <span>Page 042</span>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-16 md:px-24 pt-16 pb-32">
+                <!-- 论文标题布局 -->
+                <h2 class="font-book text-3xl font-bold text-center mb-4">On the Stream of Consciousness</h2>
+                <div class="h-0.5 w-12 bg-[#a35d40] mx-auto mb-16"></div>
+
+                <!-- 交互记录 -->
+                <div class="max-w-3xl mx-auto space-y-12">
+                    <!-- User Prompt 像注脚 -->
+                    <div class="text-[15px] font-light leading-relaxed text-[#7e766c] pl-8 border-l border-[#e6dec1]">
+                        <span class="uppercase text-[10px] font-bold tracking-widest text-[#a35d40] block mb-2">Inquiry /</span>
+                        Discuss how Virginia Woolf utilizes the stream of consciousness technique to stretch actual time versus psychological time in 'Mrs. Dalloway'.
+                    </div>
+
+                    <!-- AI Response 像正文段落 -->
+                    <div class="font-book text-[17px] leading-[2.2] text-[#3b3631] text-justify">
+                        <p class="drop-cap mb-6">
+                            he ticking of Big Ben anchors 'Mrs. Dalloway' in objective, chronological time—a relentless march forward. However, Woolf employs the stream of consciousness to subvert this forward momentum, creating expansive pools of psychological time within mere seconds of clock time.
+                        </p>
+                        <p>
+                            When Clarissa observes a car backfiring or a skywriting airplane, the narrative doesn't move forward linearly; it plunges deeply into the subjective consciousness of multiple observers. A single moment in June stretches to encompass decades of memories at Bourton, regrets, and existential anxieties.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部输入，像书签或注脚输入 -->
+            <div class="absolute bottom-0 w-full p-8 border-t border-[#e6dec1] bg-[#fffcf8]/95 backdrop-blur-sm">
+                <div class="max-w-4xl mx-auto border border-[#e6dec1] rounded flex items-end bg-white shadow-sm focus-within:border-[#a35d40] transition-colors p-2">
+                    <textarea class="flex-1 bg-transparent border-none outline-none resize-none px-4 pt-2 font-book italic text-[16px] text-[#3b3631] placeholder-[#e6dec1]" rows="2" placeholder="Formulate an addendum..."></textarea>
+                    <button class="px-6 py-2 bg-[#f1ede3] text-[#a35d40] font-bold text-xs uppercase tracking-widest rounded hover:bg-[#a35d40] hover:text-white transition-colors duration-300">Submit</button>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+</body>
+</html>

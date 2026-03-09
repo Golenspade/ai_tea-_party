@@ -8,9 +8,6 @@ import { SidebarMain } from "@/components/sidebar/sidebar-main";
 import { ChatMessageList } from "@/components/chat/chat-message-list";
 import { ChatBottombar } from "@/components/chat/chat-bottombar";
 import { ApiConfigDialog } from "@/components/dialogs/api-config-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardHeader } from "@/components/ui/card";
-import { MessageCircle } from "lucide-react";
 import { useEffect } from "react";
 
 export function ChatLayout() {
@@ -224,25 +221,9 @@ export function ChatLayout() {
 
   // --- 渲染 ---
   return (
-    <div className="flex h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      {/* Header */}
-      <div className="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-white/80 dark:bg-gray-900/80 border-b">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="h-6 w-6 text-indigo-600" />
-            <h1 className="text-xl font-bold">AI Tea Party</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <ApiConfigDialog onSave={handleSaveApiConfig} />
-            <Badge variant={isConnected ? "default" : "destructive"}>
-              {isConnected ? "已连接" : "未连接"}
-            </Badge>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex w-full pt-16">
+    <div className="h-screen w-full max-w-[1400px] mx-auto flex p-0 sm:p-8">
+      {/* Combine sidebar and main into a paper-like book block */}
+      <div className="flex-1 flex w-full bg-[#fdfaf5] shadow-2xl overflow-hidden sm:rounded-sm border-x sm:border-[var(--theme-border)]">
         <SidebarMain
           characters={characters}
           isAutoChat={isAutoChat}
@@ -255,24 +236,24 @@ export function ChatLayout() {
         />
 
         {/* Chat Area */}
-        <main className="flex-1 flex flex-col">
-          <Card className="flex-1 m-4 flex flex-col">
-            <CardHeader className="border-b">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">AI 茶话会聊天室</h2>
-                <Badge variant={isAutoChat ? "default" : "secondary"}>
-                  {isAutoChat ? "自动聊天中" : "就绪"}
-                </Badge>
-              </div>
-            </CardHeader>
+        <main className="flex-1 bg-white page-shadow relative overflow-hidden flex flex-col">
+          {/* Top Navbar / Controls */}
+          <div className="absolute top-6 right-8 z-10 flex items-center gap-5">
+            {isAutoChat && (
+              <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold animate-pulse">
+                [Auto-Dialogue]
+              </span>
+            )}
+            <ApiConfigDialog onSave={handleSaveApiConfig} />
+            <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? "bg-green-700/70" : "bg-red-700/70"} shadow-[0_0_8px_rgba(0,0,0,0.1)]`} title={isConnected ? "Connected" : "Disconnected"} />
+          </div>
 
-            <ChatMessageList messages={messages} characters={characters} />
+          <ChatMessageList messages={messages} characters={characters} />
 
-            <ChatBottombar
-              characters={characters}
-              onSendMessage={handleSendMessage}
-            />
-          </Card>
+          <ChatBottombar
+            characters={characters}
+            onSendMessage={handleSendMessage}
+          />
         </main>
       </div>
     </div>

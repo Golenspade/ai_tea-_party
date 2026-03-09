@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tea Party - 现代毛玻璃风</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+        .bg-mesh {
+            background-color: #4158D0;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,1) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(339,49%,30%,1) 0, transparent 50%),
+                radial-gradient(at 100% 100%, hsla(254,41%,27%,1) 0, transparent 50%), 
+                radial-gradient(at 0% 100%, hsla(168,44%,27%,1) 0, transparent 50%);
+            background-size: cover;
+        }
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-mesh h-screen flex text-white overflow-hidden p-4 md:p-8 lg:p-12 gap-6 items-stretch justify-center">
+
+    <!-- 左侧悬浮面板 -->
+    <aside class="w-80 glass-panel rounded-3xl flex flex-col shrink-0 overflow-hidden">
+        <div class="p-6 border-b border-white/20">
+            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">Aura AI</h1>
+            <p class="text-sm text-white/60 mt-1">你的专属数字伴侣</p>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-4 space-y-2">
+            <!-- 激活状态项 -->
+            <div class="p-3 rounded-2xl bg-white/20 border border-white/30 backdrop-blur-md flex items-center gap-4 cursor-pointer shadow-lg">
+                <div class="relative w-12 h-12 rounded-full overflow-hidden bg-gradient-to-tr from-pink-300 to-purple-400 p-[2px]">
+                    <div class="w-full h-full bg-black/50 rounded-full flex items-center justify-center text-xl">✨</div>
+                </div>
+                <div>
+                    <h3 class="font-bold">Lumina</h3>
+                    <p class="text-xs text-green-300">在线交流中</p>
+                </div>
+            </div>
+            
+            <!-- 未激活选项 -->
+            <div class="p-3 rounded-2xl hover:bg-white/10 transition-colors flex items-center gap-4 cursor-pointer">
+                <div class="w-12 h-12 rounded-full overflow-hidden bg-white/10 flex items-center justify-center text-xl">📚</div>
+                <div>
+                    <h3 class="font-medium text-white/80">Archivist</h3>
+                    <p class="text-xs text-white/40">休眠</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="p-6">
+            <button class="w-full py-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 transition-colors backdrop-blur-sm font-medium">配置控制中心</button>
+        </div>
+    </aside>
+
+    <!-- 主聊天悬浮面板 -->
+    <main class="flex-1 max-w-4xl glass-panel rounded-3xl flex flex-col overflow-hidden relative shadow-2xl">
+        <!-- 半透明头部 -->
+        <header class="h-16 border-b border-white/10 flex items-center justify-between px-8 bg-white/5 backdrop-blur-md absolute top-0 w-full z-10">
+            <div class="flex items-center gap-3">
+                <div class="w-2 h-2 bg-green-400 rounded-full shadow-[0_0_8px_#4ade80]"></div>
+                <span class="font-medium tracking-wide">Lumina Channel</span>
+            </div>
+            <div class="flex gap-4 text-white/60">
+                <svg class="w-5 h-5 cursor-pointer hover:text-white transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                <svg class="w-5 h-5 cursor-pointer hover:text-white transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+            </div>
+        </header>
+
+        <!-- 聊天区域 -->
+        <div class="flex-1 overflow-y-auto px-8 pt-24 pb-6 flex flex-col gap-6">
+            <!-- 气泡：对方 -->
+            <div class="flex justify-start">
+                <div class="max-w-md bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl rounded-tl-sm p-4 shadow-lg text-sm text-white/90 leading-relaxed font-light">
+                    你好！我是 Lumina。很高兴今天能和你聊聊天。这段时间你过得怎么样？
+                </div>
+            </div>
+            <!-- 气泡：自己 -->
+            <div class="flex justify-end">
+                <div class="max-w-md bg-gradient-to-r from-purple-500/80 to-pink-500/80 backdrop-blur-md rounded-2xl rounded-tr-sm p-4 shadow-lg text-sm text-white leading-relaxed font-light">
+                    非常棒！我正在欣赏这个漂亮的毛玻璃 UI 设计界面，感觉非常未来和梦幻。
+                </div>
+            </div>
+        </div>
+
+        <!-- 悬浮输入框 -->
+        <div class="p-6 pt-0 bg-gradient-to-t from-black/20 to-transparent">
+            <div class="bg-black/30 backdrop-blur-xl border border-white/20 rounded-2xl p-2 pl-4 flex items-center shadow-inner">
+                <input type="text" class="flex-1 bg-transparent border-none outline-none text-white placeholder-white/40 font-light text-sm" placeholder="Message Lumina...">
+                <button class="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition ml-2">
+                    <svg class="w-5 h-5 transform rotate-45 -mt-1 -ml-1 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                </button>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
