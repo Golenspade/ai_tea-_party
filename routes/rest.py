@@ -62,10 +62,11 @@ class UpdateRoomRequest(BaseModel):
 
 
 # ------------------------------------------------------------------
-# 通用 Provider 注册表（LiteLLM SDK 支持的所有 provider）
+# 通用 Provider 注册表（LiteLLM SDK 支持的所有主流 provider）
 # ------------------------------------------------------------------
 
 PROVIDERS: dict[str, dict] = {
+    # ==================== 主流 API Provider ====================
     "openai": {
         "name": "OpenAI",
         "prefix": "openai",
@@ -100,7 +101,7 @@ PROVIDERS: dict[str, dict] = {
         "models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
         "default": "gemini-2.5-flash",
         "context_tokens": 1_000_000,
-        "description": "Google Gemini 系列，超长上下文窗口",
+        "description": "Google Gemini 系列（API Key 模式），超长上下文窗口",
     },
     "xai": {
         "name": "xAI (Grok)",
@@ -120,6 +121,53 @@ PROVIDERS: dict[str, dict] = {
         "context_tokens": 128_000,
         "description": "Mistral AI 欧洲旗舰模型",
     },
+    "cohere": {
+        "name": "Cohere",
+        "prefix": "cohere",
+        "env_key": "COHERE_API_KEY",
+        "models": ["command-r-plus", "command-r", "command-light"],
+        "default": "command-r",
+        "context_tokens": 128_000,
+        "description": "Cohere Command 系列，企业级 RAG 和搜索",
+    },
+    "perplexity": {
+        "name": "Perplexity",
+        "prefix": "perplexity",
+        "env_key": "PERPLEXITYAI_API_KEY",
+        "models": ["sonar-pro", "sonar", "sonar-reasoning-pro"],
+        "default": "sonar",
+        "context_tokens": 128_000,
+        "description": "Perplexity Sonar 系列，内置网络搜索增强",
+    },
+    # ==================== 推理加速 Provider ====================
+    "groq": {
+        "name": "Groq",
+        "prefix": "groq",
+        "env_key": "GROQ_API_KEY",
+        "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768"],
+        "default": "llama-3.3-70b-versatile",
+        "context_tokens": 128_000,
+        "description": "Groq LPU 推理，超快速度运行开源模型",
+    },
+    "fireworks_ai": {
+        "name": "Fireworks AI",
+        "prefix": "fireworks_ai",
+        "env_key": "FIREWORKS_AI_API_KEY",
+        "models": ["accounts/fireworks/models/llama-v3p1-70b-instruct", "accounts/fireworks/models/mixtral-8x7b-instruct"],
+        "default": "accounts/fireworks/models/llama-v3p1-70b-instruct",
+        "context_tokens": 131_072,
+        "description": "Fireworks AI 高速推理平台",
+    },
+    "together_ai": {
+        "name": "Together AI",
+        "prefix": "together_ai",
+        "env_key": "TOGETHERAI_API_KEY",
+        "models": ["meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", "Qwen/Qwen2.5-72B-Instruct-Turbo", "deepseek-ai/DeepSeek-R1"],
+        "default": "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        "context_tokens": 131_072,
+        "description": "Together AI 开源模型托管，支持微调",
+    },
+    # ==================== 聚合 / 本地 ====================
     "openrouter": {
         "name": "OpenRouter",
         "prefix": "openrouter",
@@ -141,10 +189,56 @@ PROVIDERS: dict[str, dict] = {
         "needs_api_base": True,
         "default_api_base": "http://localhost:11434",
     },
+    "huggingface": {
+        "name": "HuggingFace",
+        "prefix": "huggingface",
+        "env_key": "HUGGINGFACE_API_KEY",
+        "models": [],
+        "default": "",
+        "context_tokens": 32_000,
+        "description": "HuggingFace Inference Endpoints，需要 api_base",
+        "custom_model": True,
+        "needs_api_base": True,
+    },
+    # ==================== 云厂商 Provider ====================
+    "azure": {
+        "name": "Azure OpenAI",
+        "prefix": "azure",
+        "env_key": "AZURE_API_KEY",
+        "models": [],
+        "default": "",
+        "context_tokens": 128_000,
+        "description": "Azure OpenAI 部署，需要 api_base 和部署名",
+        "custom_model": True,
+        "needs_api_base": True,
+    },
+    "bedrock": {
+        "name": "AWS Bedrock",
+        "prefix": "bedrock",
+        "env_key": "AWS_ACCESS_KEY_ID",
+        "models": ["anthropic.claude-3-5-sonnet-20241022-v2:0", "meta.llama3-1-70b-instruct-v1:0", "amazon.nova-pro-v1:0"],
+        "default": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+        "context_tokens": 200_000,
+        "description": "AWS Bedrock 托管模型，需要 AWS 凭证",
+        "needs_extra_config": True,
+    },
+    "vertex_ai": {
+        "name": "Google Vertex AI",
+        "prefix": "vertex_ai",
+        "env_key": "",
+        "models": ["gemini-2.5-flash", "gemini-2.5-pro"],
+        "default": "gemini-2.5-flash",
+        "context_tokens": 1_000_000,
+        "description": "Google Vertex AI（GCP 凭证模式），企业级部署",
+        "needs_extra_config": True,
+    },
 }
 
 # 不支持 presence/frequency penalty 的 provider 前缀
-_NO_PENALTY_PREFIXES = ("gemini/", "anthropic/", "ollama/")
+_NO_PENALTY_PREFIXES = (
+    "gemini/", "anthropic/", "ollama/", "cohere/",
+    "bedrock/", "vertex_ai/", "perplexity/",
+)
 
 
 def setup_rest_routes(
