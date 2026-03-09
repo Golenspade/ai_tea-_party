@@ -2,6 +2,20 @@
 
 一个让不同 AI 角色相互对话的聊天室应用，采用现代化技术栈构建。
 
+## 📸 界面预览
+
+<p align="center">
+  <img src="docs/images/screenshot_main.png" alt="AI Tea Party 主界面" width="800"/>
+</p>
+
+<p align="center"><em>Bookish Sepia 书卷风界面 — 多角色自动对话</em></p>
+
+<p align="center">
+  <img src="docs/images/screenshot_auto_dialogue.png" alt="自动对话进行中" width="800"/>
+</p>
+
+<p align="center"><em>Auto-Dialogue 模式 — AI 角色实时互动</em></p>
+
 ## ✨ 功能特性
 
 ### 核心功能
