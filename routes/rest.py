@@ -42,8 +42,9 @@ class CharacterRequest(BaseModel):
 
 class APIConfigRequest(BaseModel):
     provider: str
-    api_key: str
+    api_key: str = ""
     model: Optional[str] = None
+    api_base: Optional[str] = None
 
 
 class CreateRoomRequest(BaseModel):
@@ -61,64 +62,89 @@ class UpdateRoomRequest(BaseModel):
 
 
 # ------------------------------------------------------------------
-# 模型 ID 映射（前端发送的 provider key → 实际 model_id）
+# 通用 Provider 注册表（LiteLLM SDK 支持的所有 provider）
 # ------------------------------------------------------------------
 
-PROVIDER_TO_MODEL: dict[str, str] = {
-    "deepseek_chat": "deepseek-chat",
-    "deepseek_reasoner": "deepseek-reasoner",
-    "gemini_25_flash": "gemini-2.5-flash",
-    "gemini_25_pro": "gemini-2.5-pro",
-    "gemini_3_flash": "gemini-3-flash-preview",
-    "gemini_31_pro": "gemini-3.1-pro-preview",
-    "gemini_31_flash_lite": "gemini-3.1-flash-lite-preview",
+PROVIDERS: dict[str, dict] = {
+    "openai": {
+        "name": "OpenAI",
+        "prefix": "openai",
+        "env_key": "OPENAI_API_KEY",
+        "models": ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "o3-mini"],
+        "default": "gpt-4o-mini",
+        "context_tokens": 128_000,
+        "description": "OpenAI GPT 系列，全球最流行的商用 LLM",
+    },
+    "anthropic": {
+        "name": "Anthropic",
+        "prefix": "anthropic",
+        "env_key": "ANTHROPIC_API_KEY",
+        "models": ["claude-sonnet-4-20250514", "claude-3-5-haiku-20241022"],
+        "default": "claude-sonnet-4-20250514",
+        "context_tokens": 200_000,
+        "description": "Anthropic Claude 系列，擅长长文本理解",
+    },
+    "deepseek": {
+        "name": "DeepSeek",
+        "prefix": "deepseek",
+        "env_key": "DEEPSEEK_API_KEY",
+        "models": ["deepseek-chat", "deepseek-reasoner"],
+        "default": "deepseek-chat",
+        "context_tokens": 128_000,
+        "description": "DeepSeek V3 聊天/推理模型，高性价比",
+    },
+    "gemini": {
+        "name": "Google Gemini",
+        "prefix": "gemini",
+        "env_key": "GEMINI_API_KEY",
+        "models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+        "default": "gemini-2.5-flash",
+        "context_tokens": 1_000_000,
+        "description": "Google Gemini 系列，超长上下文窗口",
+    },
+    "xai": {
+        "name": "xAI (Grok)",
+        "prefix": "xai",
+        "env_key": "XAI_API_KEY",
+        "models": ["grok-3", "grok-3-mini", "grok-2-latest"],
+        "default": "grok-3-mini",
+        "context_tokens": 131_072,
+        "description": "xAI Grok 系列，实时信息和长上下文",
+    },
+    "mistral": {
+        "name": "Mistral AI",
+        "prefix": "mistral",
+        "env_key": "MISTRAL_API_KEY",
+        "models": ["mistral-large-latest", "mistral-small-latest", "codestral-latest"],
+        "default": "mistral-small-latest",
+        "context_tokens": 128_000,
+        "description": "Mistral AI 欧洲旗舰模型",
+    },
+    "openrouter": {
+        "name": "OpenRouter",
+        "prefix": "openrouter",
+        "env_key": "OPENROUTER_API_KEY",
+        "models": [],
+        "default": "",
+        "context_tokens": 128_000,
+        "description": "OpenRouter 聚合平台，可访问 100+ 模型",
+        "custom_model": True,
+    },
+    "ollama": {
+        "name": "Ollama (本地)",
+        "prefix": "ollama",
+        "env_key": "",
+        "models": ["llama3.1", "qwen2.5", "deepseek-r1", "gemma2"],
+        "default": "llama3.1",
+        "context_tokens": 128_000,
+        "description": "本地 Ollama 运行的开源模型，无需 API Key",
+        "needs_api_base": True,
+        "default_api_base": "http://localhost:11434",
+    },
 }
 
-# 模型描述（给前端 UI 使用）
-MODEL_DESCRIPTIONS: dict[str, dict] = {
-    "deepseek_chat": {
-        "name": "DeepSeek Chat",
-        "models": ["deepseek-chat"],
-        "requires_key": "DEEPSEEK_API_KEY",
-        "description": "DeepSeek V3.2 聊天模型，适合日常对话",
-    },
-    "deepseek_reasoner": {
-        "name": "DeepSeek Reasoner",
-        "models": ["deepseek-reasoner"],
-        "requires_key": "DEEPSEEK_API_KEY",
-        "description": "DeepSeek V3.2 推理模型，具有更强的逻辑推理能力",
-    },
-    "gemini_25_flash": {
-        "name": "Gemini 2.5 Flash",
-        "models": ["gemini-2.5-flash"],
-        "requires_key": "GEMINI_API_KEY",
-        "description": "Google Gemini 2.5 Flash，快速且高效",
-    },
-    "gemini_25_pro": {
-        "name": "Gemini 2.5 Pro",
-        "models": ["gemini-2.5-pro"],
-        "requires_key": "GEMINI_API_KEY",
-        "description": "Google Gemini 2.5 Pro，强大的理解和推理能力",
-    },
-    "gemini_3_flash": {
-        "name": "Gemini 3 Flash",
-        "models": ["gemini-3-flash-preview"],
-        "requires_key": "GEMINI_API_KEY",
-        "description": "Google Gemini 3 Flash，前沿性能，速度快成本低",
-    },
-    "gemini_31_pro": {
-        "name": "Gemini 3.1 Pro",
-        "models": ["gemini-3.1-pro-preview"],
-        "requires_key": "GEMINI_API_KEY",
-        "description": "Google Gemini 3.1 Pro，最强推理和编程能力",
-    },
-    "gemini_31_flash_lite": {
-        "name": "Gemini 3.1 Flash Lite",
-        "models": ["gemini-3.1-flash-lite-preview"],
-        "requires_key": "GEMINI_API_KEY",
-        "description": "Google Gemini 3.1 Flash Lite，高性价比的轻量模型",
-    },
-}
+# 不支持 presence/frequency penalty 的 provider 前缀
+_NO_PENALTY_PREFIXES = ("gemini/", "anthropic/", "ollama/")
 
 
 def setup_rest_routes(
@@ -292,62 +318,64 @@ def setup_rest_routes(
             ),
         }
 
+    @router.get("/api/providers")
+    async def get_providers():
+        """返回所有支持的 Provider 及其模型列表（供前端动态渲染）。"""
+        return {"providers": PROVIDERS}
+
     @router.get("/api/config")
     async def get_api_config():
         return {
             "current_config": orchestrator.get_current_config(),
-            "available_providers": MODEL_DESCRIPTIONS,
+            "providers": PROVIDERS,
         }
 
     @router.post("/api/config")
     async def update_api_config(config: APIConfigRequest):
-        if config.provider not in PROVIDER_TO_MODEL:
-            available = ", ".join(PROVIDER_TO_MODEL.keys())
+        provider_def = PROVIDERS.get(config.provider)
+        if provider_def is None:
+            available = ", ".join(PROVIDERS.keys())
             raise HTTPException(
                 status_code=400,
-                detail=f"不支持的API提供商: {config.provider}。支持: {available}",
+                detail=f"不支持的 Provider: {config.provider}。支持: {available}",
             )
 
-        model_id = config.model or PROVIDER_TO_MODEL[config.provider]
+        prefix = provider_def["prefix"]
+        ctx = provider_def["context_tokens"]
+        api_base = config.api_base or provider_def.get("default_api_base")
 
-        # 使用 LiteLLM 统一 Provider 重新注册
+        # 确定要注册的 model 列表
+        model_list = provider_def["models"]
+        if config.model and config.model not in model_list:
+            model_list = [config.model] + model_list
+
         from core.llm import ModelCapabilities
         from core.llm.providers.litellm_provider import LiteLLMProvider, ModelConfig
 
         models: dict[str, ModelConfig] = {}
-
-        if config.provider.startswith("deepseek"):
-            for mid in ["deepseek-chat", "deepseek-reasoner"]:
-                models[mid] = ModelConfig(
-                    litellm_model=f"deepseek/{mid}",
-                    api_key=config.api_key,
-                    capabilities=ModelCapabilities(max_context_tokens=128_000),
-                )
-        elif config.provider.startswith("gemini"):
-            gemini_models = {
-                "gemini-2.5-flash": "gemini/gemini-2.5-flash",
-                "gemini-2.5-pro": "gemini/gemini-2.5-pro",
-                "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
-                "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
-                "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
-            }
-            for mid, litellm_name in gemini_models.items():
-                models[mid] = ModelConfig(
-                    litellm_model=litellm_name,
-                    api_key=config.api_key,
-                    capabilities=ModelCapabilities(max_context_tokens=1_000_000),
-                )
+        for mid in model_list:
+            models[mid] = ModelConfig(
+                litellm_model=f"{prefix}/{mid}",
+                api_key=config.api_key,
+                capabilities=ModelCapabilities(max_context_tokens=ctx),
+                api_base=api_base,
+            )
 
         if models:
             orchestrator.registry.register(LiteLLMProvider(models=models))
 
-        orchestrator.update_model(model_id)
+        # 选定的 model
+        active_model = config.model or provider_def["default"]
+        if active_model:
+            orchestrator.update_model(active_model)
 
         # 测试连接
         test_result = await orchestrator.test_connection()
 
         return {
             "message": "API配置更新成功",
+            "provider": config.provider,
+            "model": active_model,
             "config": orchestrator.get_current_config(),
             "test_result": test_result,
         }

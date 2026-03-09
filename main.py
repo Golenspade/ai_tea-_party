@@ -127,44 +127,35 @@ registry = ProviderRegistry()
 
 
 def register_providers() -> None:
-    """从环境变量注册所有可用的 Provider（统一使用 LiteLLM）。"""
-    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
-    gemini_key = os.getenv("GEMINI_API_KEY")
+    """从环境变量自动注册所有可用的 Provider（基于 PROVIDERS 注册表）。"""
+    from routes.rest import PROVIDERS
 
     models: dict[str, ModelConfig] = {}
 
-    if deepseek_key:
-        models["deepseek-chat"] = ModelConfig(
-            litellm_model="deepseek/deepseek-chat",
-            api_key=deepseek_key,
-            capabilities=ModelCapabilities(
-                max_context_tokens=128_000, max_output_tokens=8_192
-            ),
-        )
-        models["deepseek-reasoner"] = ModelConfig(
-            litellm_model="deepseek/deepseek-reasoner",
-            api_key=deepseek_key,
-            capabilities=ModelCapabilities(
-                max_context_tokens=128_000, max_output_tokens=8_192
-            ),
-        )
+    for provider_key, pdef in PROVIDERS.items():
+        env_key = pdef.get("env_key", "")
+        api_key = os.getenv(env_key, "") if env_key else ""
+        needs_key = bool(env_key)
 
-    if gemini_key:
-        gemini_models = {
-            "gemini-2.5-flash": "gemini/gemini-2.5-flash",
-            "gemini-2.5-pro": "gemini/gemini-2.5-pro",
-            "gemini-3-flash-preview": "gemini/gemini-3-flash-preview",
-            "gemini-3.1-pro-preview": "gemini/gemini-3.1-pro-preview",
-            "gemini-3.1-flash-lite-preview": "gemini/gemini-3.1-flash-lite-preview",
-        }
-        for model_id, litellm_name in gemini_models.items():
-            models[model_id] = ModelConfig(
-                litellm_model=litellm_name,
-                api_key=gemini_key,
+        # 跳过需要 API Key 但未配置的 provider
+        if needs_key and not api_key:
+            continue
+
+        prefix = pdef["prefix"]
+        ctx = pdef["context_tokens"]
+        api_base = pdef.get("default_api_base")
+
+        for mid in pdef["models"]:
+            models[mid] = ModelConfig(
+                litellm_model=f"{prefix}/{mid}",
+                api_key=api_key,
                 capabilities=ModelCapabilities(
-                    max_context_tokens=1_000_000, max_output_tokens=8_192
+                    max_context_tokens=ctx, max_output_tokens=8_192
                 ),
+                api_base=api_base,
             )
+        if models:
+            logger.info(f"  ✓ {pdef['name']} ({len(pdef['models'])} models)")
 
     if models:
         registry.register(LiteLLMProvider(models=models))
@@ -176,17 +167,15 @@ register_providers()
 # 确定默认模型
 # ------------------------------------------------------------------
 
-_provider_str = os.getenv("AI_PROVIDER", "deepseek_chat").lower()
-_PROVIDER_TO_MODEL = {
-    "deepseek_chat": "deepseek-chat",
-    "deepseek_reasoner": "deepseek-reasoner",
-    "gemini_25_flash": "gemini-2.5-flash",
-    "gemini_25_pro": "gemini-2.5-pro",
-    "gemini_3_flash": "gemini-3-flash-preview",
-    "gemini_31_pro": "gemini-3.1-pro-preview",
-    "gemini_31_flash_lite": "gemini-3.1-flash-lite-preview",
-}
-_default_model = _PROVIDER_TO_MODEL.get(_provider_str, "deepseek-chat")
+_default_model = os.getenv("AI_DEFAULT_MODEL", "")
+if not _default_model:
+    # 按优先级自动选择：DeepSeek → Gemini → OpenAI → 第一个可用
+    for key, env in [("deepseek-chat", "DEEPSEEK_API_KEY"), ("gemini-2.5-flash", "GEMINI_API_KEY"), ("gpt-4o-mini", "OPENAI_API_KEY")]:
+        if os.getenv(env):
+            _default_model = key
+            break
+    if not _default_model:
+        _default_model = "deepseek-chat"  # fallback
 
 # ------------------------------------------------------------------
 # Orchestrator

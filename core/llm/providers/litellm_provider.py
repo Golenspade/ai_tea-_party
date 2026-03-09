@@ -119,8 +119,9 @@ class LiteLLMProvider:
         if request.max_tokens:
             kwargs["max_tokens"] = request.max_tokens
 
-        # 对非 Gemini 模型添加 penalty 参数
-        if not cfg.litellm_model.startswith("gemini/"):
+        # 部分 provider 不支持 penalty 参数（Gemini、Anthropic、Ollama 等）
+        _no_penalty = ("gemini/", "anthropic/", "ollama/")
+        if not cfg.litellm_model.startswith(_no_penalty):
             kwargs["presence_penalty"] = self._default_presence_penalty
             kwargs["frequency_penalty"] = self._default_frequency_penalty
 

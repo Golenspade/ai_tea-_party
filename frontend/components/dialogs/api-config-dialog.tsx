@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { ApiConfig } from "@/lib/types";
+import { useState, useEffect } from "react";
+import type { ApiConfig, ProviderDef } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Settings } from "lucide-react";
+import { fetchProviders } from "@/services/api";
 
 interface ApiConfigDialogProps {
   onSave: (config: ApiConfig) => void;
@@ -29,11 +30,39 @@ interface ApiConfigDialogProps {
 
 export function ApiConfigDialog({ onSave }: ApiConfigDialogProps) {
   const [open, setOpen] = useState(false);
+  const [providers, setProviders] = useState<Record<string, ProviderDef>>({});
   const [form, setForm] = useState<ApiConfig>({
     provider: "",
     apiKey: "",
     model: "",
+    apiBase: "",
   });
+
+  // 加载 provider 列表
+  useEffect(() => {
+    if (open) {
+      fetchProviders()
+        .then(setProviders)
+        .catch((err) => console.error("Failed to fetch providers:", err));
+    }
+  }, [open]);
+
+  const selectedProvider = providers[form.provider];
+  const showApiKey = !selectedProvider?.needs_api_base || selectedProvider?.env_key;
+  const showApiBase = selectedProvider?.needs_api_base;
+  const showCustomModel = selectedProvider?.custom_model;
+  const modelOptions = selectedProvider?.models ?? [];
+
+  // 选择 provider 后自动填入默认值
+  const handleProviderChange = (providerKey: string) => {
+    const pdef = providers[providerKey];
+    setForm({
+      provider: providerKey,
+      apiKey: form.apiKey, // 保持已输入的 key
+      model: pdef?.default || "",
+      apiBase: pdef?.default_api_base || "",
+    });
+  };
 
   const handleSave = () => {
     onSave(form);
@@ -47,64 +76,94 @@ export function ApiConfigDialog({ onSave }: ApiConfigDialogProps) {
           <Settings className="h-4 w-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>API 配置</DialogTitle>
-          <DialogDescription>配置您的 AI API 设置</DialogDescription>
+          <DialogDescription>选择 AI 提供商并配置 API 密钥</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          {/* Provider 选择 */}
           <div>
-            <Label htmlFor="api-provider">API 提供商</Label>
-            <Select
-              value={form.provider}
-              onValueChange={(value) => setForm({ ...form, provider: value })}
-            >
+            <Label>AI 提供商</Label>
+            <Select value={form.provider} onValueChange={handleProviderChange}>
               <SelectTrigger>
                 <SelectValue placeholder="选择提供商..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="deepseek_chat">
-                  DeepSeek Chat (V3.2)
-                </SelectItem>
-                <SelectItem value="deepseek_reasoner">
-                  DeepSeek Reasoner (V3.2)
-                </SelectItem>
-                <SelectItem value="gemini_25_flash">
-                  Gemini 2.5 Flash
-                </SelectItem>
-                <SelectItem value="gemini_25_pro">Gemini 2.5 Pro</SelectItem>
-                <SelectItem value="gemini_3_flash">Gemini 3 Flash</SelectItem>
-                <SelectItem value="gemini_31_pro">Gemini 3.1 Pro</SelectItem>
-                <SelectItem value="gemini_31_flash_lite">
-                  Gemini 3.1 Flash Lite
-                </SelectItem>
+                {Object.entries(providers).map(([key, pdef]) => (
+                  <SelectItem key={key} value={key}>
+                    <span className="font-medium">{pdef.name}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {pdef.description}
+                    </span>
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label htmlFor="api-key">API 密钥</Label>
-            <Input
-              id="api-key"
-              type="password"
-              value={form.apiKey}
-              onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
-            />
-          </div>
-          <div>
-            <Label htmlFor="api-model">模型（可选）</Label>
-            <Input
-              id="api-model"
-              value={form.model}
-              onChange={(e) => setForm({ ...form, model: e.target.value })}
-              placeholder="留空使用默认模型"
-            />
-          </div>
+
+          {/* API Key（Ollama 不需要） */}
+          {selectedProvider && showApiKey && selectedProvider.env_key && (
+            <div>
+              <Label>API 密钥</Label>
+              <Input
+                type="password"
+                value={form.apiKey}
+                onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
+                placeholder={`输入 ${selectedProvider.env_key}`}
+              />
+            </div>
+          )}
+
+          {/* API Base（Ollama 需要） */}
+          {showApiBase && (
+            <div>
+              <Label>API 地址</Label>
+              <Input
+                value={form.apiBase}
+                onChange={(e) => setForm({ ...form, apiBase: e.target.value })}
+                placeholder={selectedProvider?.default_api_base || "http://localhost:11434"}
+              />
+            </div>
+          )}
+
+          {/* 模型选择 */}
+          {selectedProvider && (
+            <div>
+              <Label>模型</Label>
+              {showCustomModel ? (
+                <Input
+                  value={form.model}
+                  onChange={(e) => setForm({ ...form, model: e.target.value })}
+                  placeholder="输入模型名称，如 openai/gpt-4o"
+                />
+              ) : (
+                <Select
+                  value={form.model}
+                  onValueChange={(v) => setForm({ ...form, model: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择模型..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelOptions.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             取消
           </Button>
-          <Button onClick={handleSave}>保存</Button>
+          <Button onClick={handleSave} disabled={!form.provider}>
+            保存
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

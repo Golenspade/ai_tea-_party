@@ -21,6 +21,20 @@ export interface ApiConfig {
   provider: string;
   apiKey: string;
   model: string;
+  apiBase?: string;
+}
+
+export interface ProviderDef {
+  name: string;
+  prefix: string;
+  env_key: string;
+  models: string[];
+  default: string;
+  context_tokens: number;
+  description: string;
+  custom_model?: boolean;
+  needs_api_base?: boolean;
+  default_api_base?: string;
 }
 
 export interface CharacterFormData {

@@ -171,4 +171,4 @@ class TestConfigEndpoints:
         resp = client.get("/api/config")
         assert resp.status_code == 200
         data = resp.json()
-        assert "available_providers" in data
+        assert "providers" in data

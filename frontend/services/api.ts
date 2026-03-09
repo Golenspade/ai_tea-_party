@@ -1,6 +1,6 @@
 // REST API 服务层 — 封装对后端 rest.py 的所有 HTTP 请求
 
-import type { Character, CharacterFormData, ApiConfig } from "@/lib/types";
+import type { Character, CharacterFormData, ApiConfig, ProviderDef } from "@/lib/types";
 
 const BASE_URL = "http://localhost:3004";
 
@@ -83,7 +83,20 @@ export async function stopAutoChat(roomId = "default"): Promise<void> {
   });
 }
 
-// --- 配置 API ---
+// --- Provider / 配置 API ---
+
+export async function fetchProviders(): Promise<Record<string, ProviderDef>> {
+  const res = await fetch(`${BASE_URL}/api/providers`);
+  if (!res.ok) throw new Error("Failed to fetch providers");
+  const data = await res.json();
+  return data.providers;
+}
+
+export async function fetchCurrentConfig(): Promise<{ current_config: Record<string, unknown> | null; providers: Record<string, ProviderDef> }> {
+  const res = await fetch(`${BASE_URL}/api/config`);
+  if (!res.ok) throw new Error("Failed to fetch config");
+  return res.json();
+}
 
 export async function saveApiConfig(config: ApiConfig): Promise<void> {
   const res = await fetch(`${BASE_URL}/api/config`, {
@@ -93,9 +106,11 @@ export async function saveApiConfig(config: ApiConfig): Promise<void> {
       provider: config.provider,
       api_key: config.apiKey,
       model: config.model || undefined,
+      api_base: config.apiBase || undefined,
     }),
   });
   if (!res.ok) throw new Error("Failed to save API config");
 }
 
 export { BASE_URL };
+
