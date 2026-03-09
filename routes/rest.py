@@ -121,6 +121,17 @@ PROVIDERS: dict[str, dict] = {
         "context_tokens": 128_000,
         "description": "Mistral AI 欧洲旗舰模型",
     },
+    "minimax": {
+        "name": "MiniMax",
+        "prefix": "minimax",
+        "env_key": "MINIMAX_API_KEY",
+        "models": ["MiniMax-M2.1"],
+        "default": "MiniMax-M2.1",
+        "context_tokens": 1_000_000,
+        "description": "MiniMax 海螺 AI，国产大模型，支持超长上下文",
+        "needs_api_base": True,
+        "default_api_base": "https://api.minimax.io/v1",
+    },
     "cohere": {
         "name": "Cohere",
         "prefix": "cohere",
