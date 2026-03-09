@@ -4,8 +4,6 @@ import type { Character, CharacterFormData } from "@/lib/types";
 import { CharacterList } from "@/components/sidebar/character-list";
 import { RoomControls } from "@/components/sidebar/room-controls";
 import { AddCharacterDialog } from "@/components/dialogs/add-character-dialog";
-import { Separator } from "@/components/ui/separator";
-import { Users } from "lucide-react";
 
 interface SidebarMainProps {
   characters: Character[];

@@ -14,9 +14,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from models.character import Character, Message
+from routes.ws import WebSocketManager
 from services.chat_service import ChatService
 from services.orchestrator import ChatOrchestrator
-from routes.ws import WebSocketManager
 
 logger = logging.getLogger(__name__)
 
@@ -311,8 +311,8 @@ def setup_rest_routes(
         model_id = config.model or PROVIDER_TO_MODEL[config.provider]
 
         # 使用 LiteLLM 统一 Provider 重新注册
-        from core.llm.providers.litellm_provider import LiteLLMProvider, ModelConfig
         from core.llm import ModelCapabilities
+        from core.llm.providers.litellm_provider import LiteLLMProvider, ModelConfig
 
         models: dict[str, ModelConfig] = {}
 

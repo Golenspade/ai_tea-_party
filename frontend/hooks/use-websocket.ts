@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Message } from "@/lib/types";
 
 const WS_URL = "ws://localhost:3004/ws/default";

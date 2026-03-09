@@ -11,21 +11,19 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import AsyncIterator, Optional, List, Dict, Any, Callable
 from datetime import datetime
+from typing import Any, AsyncIterator, Callable, Dict, Optional
 
 from core.llm import (
+    ChatEvent,
     ChatMessage,
     ChatRequest,
-    ChatEvent,
     ChatRole,
     EventType,
     LLMError,
-    LLMErrorCode,
-    ModelCapabilities,
     ProviderRegistry,
 )
-from models.character import Character, Message, ChatRoom
+from models.character import Character, ChatRoom, Message
 
 logger = logging.getLogger(__name__)
 

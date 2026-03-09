@@ -3,8 +3,9 @@
 """
 import json
 import logging
-from typing import Dict, List, Optional
 from pathlib import Path
+from typing import Dict, List, Optional
+
 from models.character import Character, ChatRoom
 from services.chat_service import chat_service
 

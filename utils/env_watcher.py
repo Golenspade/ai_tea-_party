@@ -1,13 +1,13 @@
 """
 环境变量文件监视器 - 实现 .env 文件的热重载
 """
-import os
-import time
 import logging
 import threading
+import time
 from pathlib import Path
-from dotenv import load_dotenv
 from typing import Callable, Optional
+
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class EnvWatcher:
 
                 # 检查文件是否被修改
                 if current_mtime > self.last_modified and current_mtime > 0:
-                    logger.info(f"检测到 .env 文件变化，正在重新加载...")
+                    logger.info("检测到 .env 文件变化，正在重新加载...")
                     self.last_modified = current_mtime
                     # 稍等一下确保文件写入完成
                     time.sleep(0.1)

@@ -1,6 +1,6 @@
 [project]
 name = "ai-tea-party"
-version = "2.0.0"
+version = "2.1.0"
 description = "AI Tea Party backend service"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,3 +22,24 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.9.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+exclude = ["archive/", "scripts/", "mockups/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501", "F841"]

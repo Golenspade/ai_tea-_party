@@ -7,12 +7,14 @@ AI Tea Party 是一个多角色AI对话系统，允许创建多个AI角色并在
 ## 技术栈
 
 ### 后端
+
 - **Python**: 3.12+（代码兼容3.10-3.14）
 - **FastAPI**: Web框架 + WebSocket支持
 - **AI API**: OpenAI SDK (DeepSeek), Google Generative AI (Gemini)
 - **包管理**: uv (Astral)
 
 ### 前端
+
 - **框架**: Next.js 15 + React 19
 - **语言**: TypeScript
 - **UI**: shadcn/ui + Tailwind CSS
@@ -35,12 +37,14 @@ npm run dev
 ```
 
 ### 服务地址
+
 - 后端 API: http://localhost:3004
 - 前端界面: http://localhost:3001
 
 ### 配置文件
 
 #### .env 环境变量
+
 ```env
 # AI API 配置
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
@@ -57,6 +61,7 @@ AUTO_CHAT_INTERVAL=5
 ```
 
 #### config.json
+
 定义聊天室和角色预设，支持热重载。
 
 ## 常见开发任务
@@ -82,13 +87,26 @@ python debug_openai_client.py
 
 ```
 ai_tea_party/
-├── main.py                      # 应用入口
+├── main.py                      # 应用入口 (v2.1)
 ├── config.json                  # 聊天室/角色配置
 ├── .env                        # 环境变量
 │
+├── core/                        # LLM 抽象层
+│   └── llm/                    # Provider/Registry/Types
+│       └── providers/          # LiteLLM Provider
+│
 ├── services/                    # 业务逻辑
-│   ├── ai_service.py           # AI API服务
+│   ├── orchestrator.py         # 聊天编排器
 │   └── chat_service.py         # 聊天室服务
+│
+├── routes/                      # 路由层
+│   ├── rest.py                 # REST API
+│   ├── sse.py                  # SSE 流式传输
+│   └── ws.py                   # WebSocket
+│
+├── db/                          # 数据持久化
+│   ├── database.py             # SQLite 初始化
+│   └── repository.py           # CRUD
 │
 ├── models/                     # 数据模型
 │   └── character.py            # 角色和消息模型
@@ -100,20 +118,26 @@ ai_tea_party/
 └── frontend/                   # Next.js前端
     ├── app/                    # App Router
     ├── components/             # 组件
-    │   └── ui/                # shadcn/ui组件
+    │   ├── chat/              # 聊天组件
+    │   ├── sidebar/           # 侧边栏
+    │   ├── dialogs/           # 弹窗
+    │   └── ui/                # shadcn/ui组件库
     └── lib/                   # 工具函数
 ```
 
 ## Claude Code 特殊配置
 
 ### 忽略规则
+
 项目已配置 `.gitignore` 忽略：
+
 - `__pycache__/` - Python缓存文件
 - `*.pyc` - 编译的Python文件
 - `.venv/` - 虚拟环境
 - `frontend/node_modules/` - Node依赖
 
 ### Python 环境
+
 使用 `uv` 管理依赖，虚拟环境位于 `.venv/`。Claude Code可以使用以下命令：
 
 ```bash
@@ -131,13 +155,17 @@ uv sync
 ## 调试技巧
 
 ### 后端日志
+
 查看 stdout/stderr 获取详细日志信息，包括：
+
 - API 请求和响应
 - WebSocket 连接状态
 - AI API 调用详情
 
 ### 前端调试
+
 在浏览器开发者工具中查看：
+
 - Console - JavaScript错误和日志
 - Network - API请求状态
 - WebSocket - 实时通信状态
@@ -167,6 +195,6 @@ uv sync
 
 ## 版本信息
 
-当前版本: v2.0.0
-发布日期: 2025-10-03
-代号: "Modern UI & Smart Config"
+当前版本: v2.1.0
+发布日期: 2026-03-09
+代号: "LLM Abstraction & Persistence"

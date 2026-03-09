@@ -8,7 +8,6 @@ routes.ws — WebSocket 路由
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 

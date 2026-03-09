@@ -2,9 +2,10 @@
 SQLite 数据库模块 — 异步初始化和连接管理
 """
 
-import aiosqlite
 import logging
 from pathlib import Path
+
+import aiosqlite
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ DB_PATH = Path("data/tea_party.db")
 async def init_db():
     """初始化数据库表结构"""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    
+
     async with aiosqlite.connect(str(DB_PATH)) as db:
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS rooms (
@@ -59,5 +60,5 @@ async def init_db():
             CREATE INDEX IF NOT EXISTS idx_room_characters_room ON room_characters(room_id);
         """)
         await db.commit()
-    
+
     logger.info(f"数据库初始化完成: {DB_PATH}")

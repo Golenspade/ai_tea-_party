@@ -1,7 +1,6 @@
 "use client";
 
 import type { Character } from "@/lib/types";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageCircle, Trash2 } from "lucide-react";
 
 interface CharacterListProps {

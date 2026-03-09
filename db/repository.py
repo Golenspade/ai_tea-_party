@@ -2,13 +2,14 @@
 数据库 CRUD 操作封装
 """
 
-import aiosqlite
 import logging
-from typing import List
 from datetime import datetime
+from typing import List
+
+import aiosqlite
 
 from db.database import DB_PATH
-from models.character import Character, Message, ChatRoom
+from models.character import Character, ChatRoom, Message
 
 logger = logging.getLogger(__name__)
 
@@ -41,11 +42,11 @@ async def load_all_rooms() -> List[dict]:
             "SELECT id, name, description, stealth_mode, user_description, created_at FROM rooms"
         )
         room_rows = await cursor.fetchall()
-        
+
         rooms = []
         for row in room_rows:
             room_id, name, description, stealth_mode, user_description, created_at = row
-            
+
             # 2. 加载该房间的角色
             cursor2 = await db.execute(
                 """SELECT c.id, c.name, c.personality, c.background, c.speaking_style, c.is_active
@@ -62,7 +63,7 @@ async def load_all_rooms() -> List[dict]:
                     background=crow[3], speaking_style=crow[4] or "",
                     is_active=bool(crow[5]),
                 ))
-            
+
             # 3. 加载该房间的消息（按时间排序，最多 50 条）
             cursor3 = await db.execute(
                 """SELECT id, character_id, character_name, content, is_system, timestamp
@@ -77,7 +78,7 @@ async def load_all_rooms() -> List[dict]:
                     content=mrow[3], is_system=bool(mrow[4]),
                     timestamp=datetime.fromisoformat(mrow[5]),
                 ))
-            
+
             rooms.append({
                 "id": room_id,
                 "name": name,
@@ -88,7 +89,7 @@ async def load_all_rooms() -> List[dict]:
                 "characters": characters,
                 "messages": messages,
             })
-        
+
         return rooms
 
 

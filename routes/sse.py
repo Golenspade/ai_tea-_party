@@ -7,7 +7,6 @@ routes.sse — SSE 流式生成路由
 
 from __future__ import annotations
 
-import json
 import logging
 
 from fastapi import APIRouter, HTTPException

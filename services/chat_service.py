@@ -1,27 +1,36 @@
+from __future__ import annotations
+
 import asyncio
-import random
 import logging
-from typing import List, Optional, Callable, AsyncGenerator, Dict
-from datetime import datetime
-from models.character import Character, Message, ChatRoom
-from services.ai_service import ai_service
+import random
+from typing import TYPE_CHECKING, AsyncGenerator, Callable, Dict, List, Optional
+
 from db import repository as db
+from models.character import Character, ChatRoom, Message
+
+if TYPE_CHECKING:
+    from services.orchestrator import ChatOrchestrator
 
 logger = logging.getLogger(__name__)
 
 
 class ChatService:
     """聊天服务类，管理聊天室逻辑"""
-    
+
     def __init__(self):
         self.chat_rooms: dict[str, ChatRoom] = {}
         self.message_callbacks: List[Callable] = []
         self.auto_chat_tasks: dict[str, asyncio.Task] = {}
-        
+        self._orchestrator: Optional[ChatOrchestrator] = None
+
+    def set_orchestrator(self, orchestrator: ChatOrchestrator) -> None:
+        """注入 Orchestrator 实例（在 main 中调用，避免循环引用）"""
+        self._orchestrator = orchestrator
+
     def add_message_callback(self, callback: Callable):
         """添加消息回调函数"""
         self.message_callbacks.append(callback)
-        
+
     async def notify_message_callbacks(self, room_id: str, message: Message):
         """通知所有消息回调"""
         for callback in self.message_callbacks:
@@ -29,7 +38,7 @@ class ChatService:
                 await callback(room_id, message)
             except Exception as e:
                 logger.error(f"消息回调执行失败: {e}")
-    
+
     def create_chat_room(
         self,
         name: str,
@@ -49,15 +58,15 @@ class ChatService:
         # 持久化到 SQLite
         asyncio.create_task(db.save_room(room))
         return room
-    
+
     def get_chat_room(self, room_id: str) -> Optional[ChatRoom]:
         """获取聊天室"""
         return self.chat_rooms.get(room_id)
-    
+
     def get_all_chat_rooms(self) -> List[ChatRoom]:
         """获取所有聊天室"""
         return list(self.chat_rooms.values())
-    
+
     def add_character_to_room(self, room_id: str, character: Character) -> bool:
         """添加角色到聊天室"""
         room = self.get_chat_room(room_id)
@@ -78,7 +87,7 @@ class ChatService:
             logger.info(f"角色 {character.name} 加入聊天室 {room.name}")
             return True
         return False
-    
+
     def remove_character_from_room(self, room_id: str, character_id: str) -> bool:
         """从聊天室移除角色"""
         room = self.get_chat_room(room_id)
@@ -101,31 +110,35 @@ class ChatService:
                 logger.info(f"角色 {character.name} 离开聊天室 {room.name}")
                 return True
         return False
-    
+
     async def send_message(self, room_id: str, character_id: str, content: str) -> bool:
         """发送消息"""
         room = self.get_chat_room(room_id)
         if not room:
             return False
-            
+
         character = next((c for c in room.characters if c.id == character_id), None)
         if not character:
             return False
-            
+
         message = Message(
             character_id=character_id,
             character_name=character.name,
             content=content
         )
-        
+
         room.add_message(message)
         await db.save_message(message, room_id)
         await self.notify_message_callbacks(room_id, message)
         logger.info(f"{character.name} 在 {room.name} 中说: {content}")
         return True
-    
+
     async def generate_ai_response(self, room_id: str, character_id: str) -> Optional[str]:
-        """为指定角色生成AI回复"""
+        """为指定角色生成AI回复（通过 Orchestrator）"""
+        if not self._orchestrator or not self._orchestrator.is_configured():
+            logger.warning("Orchestrator 未配置，无法生成 AI 回复")
+            return None
+
         room = self.get_chat_room(room_id)
         if not room:
             return None
@@ -134,11 +147,11 @@ class ChatService:
         if not character:
             return None
 
-        # 根据隐身模式调整消息历史
         messages_for_ai = self._prepare_messages_for_ai(room, character)
 
-        # 生成AI回复
-        response = await ai_service.generate_response(character, messages_for_ai)
+        response = await self._orchestrator.generate_non_stream(
+            room, character, messages_for_ai
+        )
         if response:
             await self.send_message(room_id, character_id, response)
             return response
@@ -150,6 +163,10 @@ class ChatService:
         """
         为指定角色流式生成AI回复，逐片返回 token，并在完成后写入历史
         """
+        if not self._orchestrator or not self._orchestrator.is_configured():
+            yield {"type": "error", "message": "AI 服务未配置"}
+            return
+
         room = self.get_chat_room(room_id)
         if not room:
             raise ValueError("聊天室不存在")
@@ -166,15 +183,26 @@ class ChatService:
         )
 
         try:
-            async for chunk in ai_service.stream_response(character, messages_for_ai):
-                message.content += chunk
-                yield {
-                    "type": "chunk",
-                    "content": chunk,
-                    "message_id": message.id,
-                    "character_id": character.id,
-                    "character_name": character.name,
-                }
+            async for event in self._orchestrator.generate(
+                room, character, messages_for_ai
+            ):
+                if event.type.value == "delta" and event.content:
+                    message.content += event.content
+                    yield {
+                        "type": "chunk",
+                        "content": event.content,
+                        "message_id": message.id,
+                        "character_id": character.id,
+                        "character_name": character.name,
+                    }
+                elif event.type.value == "error":
+                    yield {
+                        "type": "error",
+                        "message": event.error_message or "生成失败",
+                        "message_id": message.id,
+                        "character_id": character.id,
+                    }
+                    return
         except Exception as e:
             logger.error(f"流式生成失败: {e}")
             yield {
@@ -267,36 +295,36 @@ class ChatService:
                 room = self.get_chat_room(room_id)
                 if not room or not room.is_auto_chat:
                     break
-                    
+
                 active_characters = room.get_active_characters()
                 if len(active_characters) < 2:
                     await asyncio.sleep(interval)
                     continue
-                
+
                 # 随机选择一个角色发言
                 # 避免同一个角色连续发言
                 last_message = room.messages[-1] if room.messages else None
                 available_characters = active_characters
-                
+
                 if last_message and not last_message.is_system:
                     available_characters = [
-                        c for c in active_characters 
+                        c for c in active_characters
                         if c.id != last_message.character_id
                     ]
-                
+
                 if not available_characters:
                     available_characters = active_characters
-                
+
                 selected_character = random.choice(available_characters)
                 await self.generate_ai_response(room_id, selected_character.id)
-                
+
                 # 等待间隔时间
                 await asyncio.sleep(interval)
-                
+
             except Exception as e:
                 logger.error(f"自动聊天循环出错: {e}")
                 await asyncio.sleep(interval)
-    
+
     def start_auto_chat(self, room_id: str, interval: int = 5):
         """开始自动聊天"""
         room = self.get_chat_room(room_id)
@@ -306,7 +334,7 @@ class ChatService:
                 task = asyncio.create_task(self.auto_chat_loop(room_id, interval))
                 self.auto_chat_tasks[room_id] = task
                 logger.info(f"开始自动聊天: {room.name}")
-    
+
     def stop_auto_chat(self, room_id: str):
         """停止自动聊天"""
         room = self.get_chat_room(room_id)
