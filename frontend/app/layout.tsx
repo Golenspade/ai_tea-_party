@@ -31,7 +31,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body className={`${libreBaskerville.variable} ${karla.variable} antialiased texture font-sans overflow-hidden`} style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
+      <body suppressHydrationWarning className={`${libreBaskerville.variable} ${karla.variable} antialiased texture font-sans overflow-hidden`} style={{ backgroundColor: 'var(--bg)', color: 'var(--text)' }}>
         {children}
       </body>
     </html>
