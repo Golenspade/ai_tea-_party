@@ -581,6 +581,30 @@ def setup_rest_routes(
         }
 
     # ==================================================================
+    # 生成设置
+    # ==================================================================
+
+    class SettingsRequest(BaseModel):
+        response_length: str = "default"  # short / default / long
+
+    @router.get("/api/settings")
+    async def get_settings():
+        return {
+            "response_length": orchestrator.response_length,
+        }
+
+    @router.post("/api/settings")
+    async def update_settings(req: SettingsRequest):
+        try:
+            orchestrator.update_response_length(req.response_length)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        return {
+            "message": "设置已更新",
+            "response_length": orchestrator.response_length,
+        }
+
+    # ==================================================================
     # 房间
     # ==================================================================
 

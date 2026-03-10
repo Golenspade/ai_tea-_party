@@ -1,7 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Character } from "@/lib/types";
+import { type ResponseLength, fetchSettings, setResponseLength } from "@/services/api";
+
+const LENGTH_OPTIONS: { value: ResponseLength; label: string; icon: string }[] = [
+  { value: "short", label: "简短", icon: "📝" },
+  { value: "default", label: "默认", icon: "💬" },
+  { value: "long", label: "详细", icon: "📖" },
+];
 
 interface ChatBottombarProps {
   characters: Character[];
@@ -11,11 +18,28 @@ interface ChatBottombarProps {
 export function ChatBottombar({ characters, onSendMessage }: ChatBottombarProps) {
   const [selectedCharacter, setSelectedCharacter] = useState("");
   const [messageInput, setMessageInput] = useState("");
+  const [responseLength, setLength] = useState<ResponseLength>("default");
+
+  // 加载当前设置
+  useEffect(() => {
+    fetchSettings()
+      .then((s) => setLength(s.response_length))
+      .catch(() => {}); // 静默失败
+  }, []);
 
   const handleSend = () => {
     if (!messageInput.trim() || !selectedCharacter) return;
     onSendMessage(selectedCharacter, messageInput);
     setMessageInput("");
+  };
+
+  const handleLengthChange = async (length: ResponseLength) => {
+    setLength(length);
+    try {
+      await setResponseLength(length);
+    } catch (err) {
+      console.error("Failed to update response length:", err);
+    }
   };
 
   return (
@@ -25,7 +49,7 @@ export function ChatBottombar({ characters, onSendMessage }: ChatBottombarProps)
           <select 
             value={selectedCharacter}
             onChange={(e) => setSelectedCharacter(e.target.value)}
-            className="bg-transparent text-sm font-book italic text-[var(--theme-accent)] outline-none cursor-pointer w-full"
+            className="bg-transparent text-sm font-book italic text-[var(--theme-accent)] outline-none cursor-pointer flex-1"
           >
             <option value="" disabled>Direct inquiry to...</option>
             {characters.map((character) => (
@@ -34,6 +58,25 @@ export function ChatBottombar({ characters, onSendMessage }: ChatBottombarProps)
               </option>
             ))}
           </select>
+
+          {/* 回复长度选择器 */}
+          <div className="flex items-center gap-0.5 ml-3 bg-[#f5f1ea] rounded-sm p-0.5">
+            {LENGTH_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleLengthChange(opt.value)}
+                className={`text-xs px-2.5 py-1 rounded-sm transition-all ${
+                  responseLength === opt.value
+                    ? "bg-white shadow-sm text-[var(--theme-accent)] font-medium"
+                    : "text-[var(--text)]/50 hover:text-[var(--text)]/80"
+                }`}
+                title={`回复长度: ${opt.label}`}
+              >
+                <span className="mr-1">{opt.icon}</span>
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
         
         <div className="flex items-end gap-2">

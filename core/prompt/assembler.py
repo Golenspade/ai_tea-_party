@@ -22,10 +22,24 @@ from models.world_info import WorldInfoBook
 
 logger = logging.getLogger(__name__)
 
-# 默认主系统提示（角色级 override 可替换）
-DEFAULT_MAIN_PROMPT = """你是一个角色扮演中的AI角色。请始终保持角色一致性，
-用符合你性格和背景的方式自然地回应对话。回复要简洁有趣，通常在1-3句话之间。
-不要重复别人刚说过的话。"""
+# 默认主系统提示（角色级 system_prompt_override 可替换）
+# 参考 SillyTavern Main Prompt + Claude Soul 设计：
+#   - 只定义行为规范，不限制长度（长度由 PHI 控制）
+#   - 核心身份由 CharacterCard 槽位注入
+DEFAULT_MAIN_PROMPT = """你正在参与一场多角色对话。你将扮演指定的角色，在对话中自然地回应。
+
+- 始终保持角色的人格、语气和知识范围的一致性
+- 像真人对话一样自然流畅地回应，避免机械感
+- 不要重复其他角色刚说过的话或观点
+- 对话中可以表达情感、提问、反驳或展开新话题
+- 如果角色有独特的说话习惯或口癖，请自然地体现出来"""
+
+# 回复长度引导（注入到 PHI 位置，紧贴生成位，权重最高）
+LENGTH_GUIDANCE = {
+    "short": "[回复约束] 简洁回复，1-2句话即可，像微信聊天一样精炼。",
+    "default": "[回复约束] 自然回复，根据话题需要灵活调整长度，通常2-5句话。可以适当展开。",
+    "long": "[回复约束] 请充分展开你的想法，包含细节描述、故事、例子或深入分析。篇幅不限，鼓励深度表达。",
+}
 
 
 class PromptAssembler:
@@ -48,6 +62,7 @@ class PromptAssembler:
         persona: Optional[Persona] = None,
         world_info_books: Optional[List[WorldInfoBook]] = None,
         room_scenario: str = "",
+        response_length: str = "default",
     ) -> List[ChatMessage]:
         """
         组装完整的 prompt messages 列表。
@@ -58,6 +73,7 @@ class PromptAssembler:
             persona: 用户人设（可选）
             world_info_books: 绑定的世界观知识库列表（可选）
             room_scenario: 房间级场景设定
+            response_length: 回复长度偏好 ("short" / "default" / "long")
         """
         # 1. WI 触发扫描
         scan_result = self._scan_world_info(
@@ -66,7 +82,7 @@ class PromptAssembler:
 
         # 2. 按槽位收集内容
         slots = self._collect_slots(
-            character, persona, scan_result, room_scenario
+            character, persona, scan_result, room_scenario, response_length
         )
 
         # 3. 组装为 ChatMessage 列表
@@ -131,6 +147,7 @@ class PromptAssembler:
         persona: Optional[Persona],
         scan_result: ScanResult,
         room_scenario: str,
+        response_length: str = "default",
     ) -> List[SlotContent]:
         """按定义顺序收集各槽位的内容"""
         slots: List[SlotContent] = []
@@ -204,7 +221,7 @@ class PromptAssembler:
                 source=f"character:{character.id}",
             ))
 
-        # POST_INSTRUCTIONS
+        # POST_INSTRUCTIONS（角色级 PHI）
         phi = character.post_instructions
         if phi:
             slots.append(SlotContent(
@@ -212,6 +229,14 @@ class PromptAssembler:
                 content=phi,
                 source=f"character:{character.id}",
             ))
+
+        # LENGTH_GUIDANCE（回复长度约束，PHI 位置，权重最高）
+        length_text = LENGTH_GUIDANCE.get(response_length, LENGTH_GUIDANCE["default"])
+        slots.append(SlotContent(
+            slot=PromptSlot.POST_INSTRUCTIONS,
+            content=f"{length_text}\n\n请以{character.name}的身份自然回复：",
+            source="length_guidance",
+        ))
 
         return slots
 

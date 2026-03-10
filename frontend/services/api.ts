@@ -110,6 +110,25 @@ export async function saveApiConfig(config: ApiConfig): Promise<void> {
   if (!res.ok) throw new Error("Failed to save API config");
 }
 
+// --- 生成设置 ---
+
+export type ResponseLength = "short" | "default" | "long";
+
+export async function fetchSettings(): Promise<{ response_length: ResponseLength }> {
+  const res = await fetch(`${BASE_URL}/api/settings`);
+  if (!res.ok) throw new Error("Failed to fetch settings");
+  return res.json();
+}
+
+export async function setResponseLength(length: ResponseLength): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/settings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ response_length: length }),
+  });
+  if (!res.ok) throw new Error("Failed to update response length");
+}
+
 // --- Persona API ---
 
 export async function fetchPersonas(): Promise<Persona[]> {

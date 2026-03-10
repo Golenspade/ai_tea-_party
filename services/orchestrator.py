@@ -96,6 +96,7 @@ class ChatOrchestrator:
         self.current_model_id = current_model_id
         self.character_memory = CharacterMemory()
         self.prompt_assembler = PromptAssembler()
+        self.response_length: str = "default"  # short / default / long
         self._message_callbacks: list[Callable] = []
 
     def add_message_callback(self, callback: Callable) -> None:
@@ -215,6 +216,13 @@ class ChatOrchestrator:
         self.current_model_id = model_id
         logger.info(f"已切换模型: {model_id}")
 
+    def update_response_length(self, length: str) -> None:
+        """切换回复长度偏好。"""
+        if length not in ("short", "default", "long"):
+            raise ValueError(f"无效的回复长度: {length}，应为 short/default/long")
+        self.response_length = length
+        logger.info(f"已切换回复长度: {length}")
+
     def is_configured(self) -> bool:
         """检查是否有可用模型。"""
         return self.registry.has_model(self.current_model_id)
@@ -251,13 +259,14 @@ class ChatOrchestrator:
         委托给 PromptAssembler 按槽位组装，然后追加角色记忆
         和对话情境分析作为补充系统消息。
         """
-        # PromptAssembler 做核心组装
+        # PromptAssembler 做核心组装（包含 PHI 长度约束）
         messages = self.prompt_assembler.assemble(
             character=character,
             chat_history=conversation_history,
             persona=persona,
             world_info_books=world_info_books,
             room_scenario=room_scenario,
+            response_length=self.response_length,
         )
 
         # 追加角色记忆系统的上下文（补充知识）
@@ -277,46 +286,15 @@ class ChatOrchestrator:
         if context_analysis.strip():
             messages.append(ChatMessage(
                 role=ChatRole.SYSTEM,
-                content=f"【对话情境分析】\n{context_analysis}\n\n请以{character.name}的身份自然回复：",
+                content=f"【对话情境分析】\n{context_analysis}",
             ))
 
         return messages
 
 
-
     # ------------------------------------------------------------------
-    # System prompt 构建（从 ai_service.py 迁移）
+    # 角色记忆
     # ------------------------------------------------------------------
-
-    def _build_enhanced_system_prompt(
-        self,
-        character: Character,
-        conversation_history: list[Message],
-    ) -> str:
-        base_prompt = character.get_system_prompt()
-        memory_context = self._get_character_memory_context(
-            character.id, conversation_history
-        )
-        context_analysis = self._analyze_conversation_context(
-            conversation_history[-10:], character
-        )
-
-        return f"""{base_prompt}
-
-【角色记忆】
-{memory_context}
-
-【对话情境分析】
-{context_analysis}
-
-【回复指导】
-1. 保持角色一致性，体现你的性格特点
-2. 记住并参考其他角色的特征和说话风格
-3. 根据对话情境调整回复的长度和风格
-4. 可以引用之前的对话内容，体现连续性
-5. 回复要自然流畅，避免重复他人刚说的话
-
-请以{character.name}的身份自然回复："""
 
     def _get_character_memory_context(
         self,
