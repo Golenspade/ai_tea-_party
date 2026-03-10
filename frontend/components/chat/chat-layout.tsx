@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import type { Character, Message, CharacterFormData, ApiConfig } from "@/lib/types";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { useTypewriter } from "@/hooks/use-typewriter";
 import * as api from "@/services/api";
 import { SidebarMain } from "@/components/sidebar/sidebar-main";
 import { ChatMessageList } from "@/components/chat/chat-message-list";
@@ -102,6 +103,19 @@ export function ChatLayout() {
     }
   };
 
+  // --- 打字机效果 ---
+  const typewriterUpdate = useCallback(
+    (id: string, updater: (prev: string) => string) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === id ? { ...msg, content: updater(msg.content || "") } : msg,
+        ),
+      );
+    },
+    [],
+  );
+  const { enqueue, flush, stop: stopTypewriter } = useTypewriter(typewriterUpdate);
+
   const handleAISpeech = async (characterId: string) => {
     const targetCharacter = characters.find((c) => c.id === characterId);
     const tempId = `stream-${Date.now()}`;
@@ -115,6 +129,8 @@ export function ChatLayout() {
 
     setMessages((prev) => [...prev, placeholder]);
 
+    let finalRequestId: string | null = null;
+
     try {
       const response = await api.streamAIResponse(characterId);
 
@@ -127,70 +143,55 @@ export function ChatLayout() {
       const decoder = new TextDecoder();
       let buffer = "";
 
+      const processSSELine = (line: string) => {
+        if (!line.startsWith("data:")) return;
+        const payload = line.replace(/^data:\s*/, "");
+        if (!payload) return;
+
+        try {
+          const parsed = JSON.parse(payload);
+          if (parsed.type === "delta" && parsed.content) {
+            // 推入打字机队列，逐字显示
+            enqueue(tempId, parsed.content);
+          } else if (parsed.type === "final" && parsed.request_id) {
+            finalRequestId = parsed.request_id;
+          } else if (parsed.type === "error") {
+            stopTypewriter(tempId);
+            setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+          }
+        } catch {
+          // ignore parse errors
+        }
+      };
+
       while (true) {
         const { value, done } = await reader.read();
         buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
 
         const events = buffer.split("\n\n");
         buffer = events.pop() || "";
-
-        events.forEach((event) => {
-          const line = event.trim();
-          if (!line.startsWith("data:")) return;
-          const payload = line.replace(/^data:\s*/, "");
-          if (!payload) return;
-
-          try {
-            const parsed = JSON.parse(payload);
-            if (parsed.type === "delta" && parsed.content) {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === tempId
-                    ? { ...msg, content: (msg.content || "") + parsed.content }
-                    : msg,
-                ),
-              );
-            } else if (parsed.type === "final" && parsed.request_id) {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === tempId ? { ...msg, id: parsed.request_id } : msg,
-                ),
-              );
-            } else if (parsed.type === "error") {
-              setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
-            }
-          } catch {
-            // ignore parse errors
-          }
-        });
+        events.forEach((ev) => processSSELine(ev.trim()));
 
         if (done) break;
       }
 
       // 处理缓冲区残留
       if (buffer.trim()) {
-        const remaining = buffer.split("\n\n");
-        remaining.forEach((event) => {
-          const line = event.trim();
-          if (!line.startsWith("data:")) return;
-          const payload = line.replace(/^data:\s*/, "");
-          if (!payload) return;
-          try {
-            const parsed = JSON.parse(payload);
-            if (parsed.type === "final" && parsed.request_id) {
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === tempId ? { ...msg, id: parsed.request_id } : msg,
-                ),
-              );
-            }
-          } catch {
-            // ignore
-          }
-        });
+        buffer.split("\n\n").forEach((ev) => processSSELine(ev.trim()));
+      }
+
+      // 流结束 → flush 队列里剩余字符，然后替换临时 ID
+      flush(tempId);
+      if (finalRequestId) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === tempId ? { ...msg, id: finalRequestId! } : msg,
+          ),
+        );
       }
     } catch (error) {
       console.error("Error generating AI message:", error);
+      stopTypewriter(tempId);
       setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
     }
   };
