@@ -135,6 +135,7 @@ class ChatOrchestrator:
             room_id=room.id,
             character_id=character.id,
             character_name=character.name,
+            max_tokens=4096,
         )
 
         # 3. 调用 Provider 流式生成
