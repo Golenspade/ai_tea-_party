@@ -112,6 +112,12 @@ async def init_db():
                 PRIMARY KEY (room_id, book_id)
             );
 
+            -- 应用设置 (KV 存储)
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);
             CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
             CREATE INDEX IF NOT EXISTS idx_room_characters_room ON room_characters(room_id);

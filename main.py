@@ -49,6 +49,12 @@ async def lifespan(app: FastAPI):
     """应用启动时初始化 DB 并从中恢复数据"""
     await init_db()
 
+    # 恢复设置
+    saved_length = await db_repo.get_setting("response_length", "default")
+    if saved_length in ("short", "default", "long"):
+        orchestrator.response_length = saved_length
+        logger.info(f"从 DB 恢复 response_length: {saved_length}")
+
     # 尝试从 DB 恢复聊天室
     db_rooms = await db_repo.load_all_rooms()
     if db_rooms:

@@ -597,6 +597,8 @@ def setup_rest_routes(
     async def update_settings(req: SettingsRequest):
         try:
             orchestrator.update_response_length(req.response_length)
+            from db import repository as db_repo
+            await db_repo.set_setting("response_length", req.response_length)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         return {

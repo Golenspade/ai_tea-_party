@@ -411,3 +411,25 @@ async def load_room_worldinfo_books(room_id: str) -> List[WorldInfoBook]:
             ))
         return books
 
+
+# ─── Settings (KV) ───────────────────────────────────────────────────
+
+
+async def get_setting(key: str, default: str = "") -> str:
+    """读取设置值，不存在则返回默认值"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            "SELECT value FROM settings WHERE key = ?", (key,)
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else default
+
+
+async def set_setting(key: str, value: str) -> None:
+    """写入设置值（upsert）"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (key, value),
+        )
+        await db.commit()
