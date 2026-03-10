@@ -23,7 +23,10 @@ from core.llm import (
     LLMError,
     ProviderRegistry,
 )
+from core.prompt.assembler import PromptAssembler
 from models.character import Character, ChatRoom, Message
+from models.persona import Persona
+from models.world_info import WorldInfoBook
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +95,7 @@ class ChatOrchestrator:
         self.registry = registry
         self.current_model_id = current_model_id
         self.character_memory = CharacterMemory()
+        self.prompt_assembler = PromptAssembler()
         self._message_callbacks: list[Callable] = []
 
     def add_message_callback(self, callback: Callable) -> None:
@@ -237,34 +241,43 @@ class ChatOrchestrator:
         self,
         character: Character,
         conversation_history: list[Message],
+        persona: Persona | None = None,
+        world_info_books: list[WorldInfoBook] | None = None,
+        room_scenario: str = "",
     ) -> list[ChatMessage]:
-        """构建 OpenAI 兼容的消息列表（system + user/assistant 序列）。"""
-        enhanced_prompt = self._build_enhanced_system_prompt(
-            character, conversation_history
+        """构建 OpenAI 兼容的消息列表。
+
+        委托给 PromptAssembler 按槽位组装，然后追加角色记忆
+        和对话情境分析作为补充系统消息。
+        """
+        # PromptAssembler 做核心组装
+        messages = self.prompt_assembler.assemble(
+            character=character,
+            chat_history=conversation_history,
+            persona=persona,
+            world_info_books=world_info_books,
+            room_scenario=room_scenario,
         )
 
-        messages = [ChatMessage(role=ChatRole.SYSTEM, content=enhanced_prompt)]
+        # 追加角色记忆系统的上下文（补充知识）
+        memory_context = self._get_character_memory_context(
+            character.id, conversation_history
+        )
+        if memory_context.strip():
+            messages.append(ChatMessage(
+                role=ChatRole.SYSTEM,
+                content=f"【角色记忆】\n{memory_context}",
+            ))
 
-        recent = conversation_history[-25:] if conversation_history else []
-        for msg in recent:
-            if msg.is_system:
-                continue
-            if msg.character_id == character.id:
-                messages.append(
-                    ChatMessage(
-                        role=ChatRole.ASSISTANT,
-                        content=msg.content,
-                        name=msg.character_name,
-                    )
-                )
-            else:
-                messages.append(
-                    ChatMessage(
-                        role=ChatRole.USER,
-                        content=f"[{msg.character_name}]: {msg.content}",
-                        name=msg.character_name,
-                    )
-                )
+        # 追加对话情境分析
+        context_analysis = self._analyze_conversation_context(
+            conversation_history[-10:], character
+        )
+        if context_analysis.strip():
+            messages.append(ChatMessage(
+                role=ChatRole.SYSTEM,
+                content=f"【对话情境分析】\n{context_analysis}\n\n请以{character.name}的身份自然回复：",
+            ))
 
         return messages
 

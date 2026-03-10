@@ -109,9 +109,14 @@ class LiteLLMProvider:
             "messages": messages,
             "temperature": request.temperature or self._default_temperature,
             "stream": True,
-            "stream_options": {"include_usage": True},
             "api_key": cfg.api_key,
         }
+
+        # stream_options 在 Gemini/Anthropic/Ollama 等上不兼容，
+        # 会导致流式 chunk 的 content 变为 None
+        _no_stream_opts = ("gemini/", "anthropic/", "ollama/", "cohere/")
+        if not cfg.litellm_model.startswith(_no_stream_opts):
+            kwargs["stream_options"] = {"include_usage": True}
 
         if cfg.api_base:
             kwargs["api_base"] = cfg.api_base

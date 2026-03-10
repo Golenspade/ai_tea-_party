@@ -5,24 +5,60 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
+class ExampleDialogue(BaseModel):
+    """示例对话对 — 教模型这个角色应该怎么说话"""
+    user_message: str
+    character_response: str
+
+
 class Character(BaseModel):
-    """AI角色模型"""
+    """AI 角色模型 — 结构化角色卡
+
+    扩展自 SillyTavern 的 Character Definition 层次：
+    - description: 角色描述（外貌、身份、核心特征）
+    - personality: 性格特质
+    - scenario: 场景设定
+    - speaking_style: 说话风格
+    - example_dialogues: 示例对话
+    """
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str = Field(..., description="角色名称")
+
+    # 核心设定
     personality: str = Field(..., description="角色性格描述")
-    background: str = Field(..., description="角色背景故事")
+    background: str = Field(..., description="角色背景故事（兼容旧字段）")
+    description: str = Field(default="", description="角色描述：外貌、身份、核心特征")
+    scenario: str = Field(default="", description="场景设定：当前对话发生的上下文环境")
+
+    # 对话风格与高级设定
     speaking_style: str = Field(default="", description="说话风格")
+    system_prompt_override: str = Field(default="", description="角色级主 prompt 覆写")
+    post_instructions: str = Field(default="", description="角色级 PHI（生成前最终约束）")
+
+    # 示例对话与首条消息
+    example_dialogues: List[ExampleDialogue] = Field(default_factory=list, description="示例对话")
+    greeting: str = Field(default="", description="首条消息 / 问候语")
+
+    # 元信息
     avatar: Optional[str] = Field(default=None, description="头像URL")
     is_active: bool = Field(default=True, description="是否激活")
+    tags: List[str] = Field(default_factory=list, description="标签")
+    creator_notes: str = Field(default="", description="制作者注释（不注入 prompt）")
     created_at: datetime = Field(default_factory=datetime.now)
 
     def get_system_prompt(self) -> str:
-        """生成角色的系统提示词"""
+        """生成角色的系统提示词（基础版，高级版由 PromptAssembler 接管）"""
         prompt = f"""你是{self.name}。
 
 性格特点：{self.personality}
 
 背景故事：{self.background}"""
+
+        if self.description:
+            prompt += f"\n\n角色描述：{self.description}"
+
+        if self.scenario:
+            prompt += f"\n\n场景设定：{self.scenario}"
 
         if self.speaking_style:
             prompt += f"\n\n说话风格：{self.speaking_style}"

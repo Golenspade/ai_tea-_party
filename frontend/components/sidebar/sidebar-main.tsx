@@ -4,6 +4,8 @@ import type { Character, CharacterFormData } from "@/lib/types";
 import { CharacterList } from "@/components/sidebar/character-list";
 import { RoomControls } from "@/components/sidebar/room-controls";
 import { AddCharacterDialog } from "@/components/dialogs/add-character-dialog";
+import { PersonaDialog } from "@/components/dialogs/persona-dialog";
+import { WorldInfoDialog } from "@/components/dialogs/world-info-dialog";
 
 interface SidebarMainProps {
   characters: Character[];
@@ -47,6 +49,19 @@ export function SidebarMain({
             onAISpeech={onAISpeech}
             onDelete={onDeleteCharacter}
           />
+        </div>
+
+        <div className="h-px bg-[var(--theme-border)] w-full opacity-50" />
+
+        {/* 人设与世界观 */}
+        <div>
+          <h2 className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold mb-3 px-2">
+            Lore & Persona
+          </h2>
+          <div className="space-y-2 px-2">
+            <PersonaDialog />
+            <WorldInfoDialog />
+          </div>
         </div>
 
         <div className="h-px bg-[var(--theme-border)] w-full opacity-50" />

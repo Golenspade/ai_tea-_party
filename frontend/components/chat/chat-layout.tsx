@@ -19,13 +19,24 @@ export function ChatLayout() {
   // --- WebSocket ---
   const handleWsMessage = useCallback((msg: Message) => {
     setMessages((prev) => {
-      const exists = prev.find((m) => m.id === msg.id);
-      if (exists) {
+      // 1. ID 精确匹配 → 更新内容（WS 补齐等场景）
+      const existsById = prev.find((m) => m.id === msg.id);
+      if (existsById) {
         return prev.map((m) =>
           m.id === msg.id
             ? { ...m, content: msg.content, timestamp: msg.timestamp }
             : m,
         );
+      }
+      // 2. 去重：如果同一个角色的相同内容已经通过 SSE 流写入了，则跳过 WS 广播
+      const duplicate = prev.find(
+        (m) =>
+          m.character_id === msg.character_id &&
+          m.content === msg.content &&
+          !m.is_system,
+      );
+      if (duplicate) {
+        return prev;
       }
       return [...prev, msg];
     });
@@ -131,7 +142,7 @@ export function ChatLayout() {
 
           try {
             const parsed = JSON.parse(payload);
-            if (parsed.type === "chunk" && parsed.content) {
+            if (parsed.type === "delta" && parsed.content) {
               setMessages((prev) =>
                 prev.map((msg) =>
                   msg.id === tempId
@@ -139,10 +150,10 @@ export function ChatLayout() {
                     : msg,
                 ),
               );
-            } else if (parsed.type === "end" && parsed.message_id) {
+            } else if (parsed.type === "final" && parsed.request_id) {
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === tempId ? { ...msg, id: parsed.message_id } : msg,
+                  msg.id === tempId ? { ...msg, id: parsed.request_id } : msg,
                 ),
               );
             } else if (parsed.type === "error") {
@@ -166,10 +177,10 @@ export function ChatLayout() {
           if (!payload) return;
           try {
             const parsed = JSON.parse(payload);
-            if (parsed.type === "end" && parsed.message_id) {
+            if (parsed.type === "final" && parsed.request_id) {
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === tempId ? { ...msg, id: parsed.message_id } : msg,
+                  msg.id === tempId ? { ...msg, id: parsed.request_id } : msg,
                 ),
               );
             }

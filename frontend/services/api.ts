@@ -1,6 +1,4 @@
-// REST API 服务层 — 封装对后端 rest.py 的所有 HTTP 请求
-
-import type { Character, CharacterFormData, ApiConfig, ProviderDef } from "@/lib/types";
+import type { Character, CharacterFormData, ApiConfig, ProviderDef, Persona, WorldInfoBook, WorldInfoEntry } from "@/lib/types";
 
 const BASE_URL = "http://localhost:3004";
 
@@ -112,5 +110,114 @@ export async function saveApiConfig(config: ApiConfig): Promise<void> {
   if (!res.ok) throw new Error("Failed to save API config");
 }
 
-export { BASE_URL };
+// --- Persona API ---
 
+export async function fetchPersonas(): Promise<Persona[]> {
+  const res = await fetch(`${BASE_URL}/api/personas`);
+  if (!res.ok) throw new Error("Failed to fetch personas");
+  return res.json();
+}
+
+export async function createPersona(data: { name: string; description: string; is_default?: boolean }): Promise<Persona> {
+  const res = await fetch(`${BASE_URL}/api/personas`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create persona");
+  const json = await res.json();
+  return json.persona;
+}
+
+export async function updatePersona(id: string, data: { name: string; description: string; is_default?: boolean }): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/personas/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update persona");
+}
+
+export async function deletePersona(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/personas/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete persona");
+}
+
+// --- World Info API ---
+
+export async function fetchWorldInfoBooks(): Promise<WorldInfoBook[]> {
+  const res = await fetch(`${BASE_URL}/api/world-info`);
+  if (!res.ok) throw new Error("Failed to fetch world info books");
+  return res.json();
+}
+
+export async function createWorldInfoBook(data: { name: string; description?: string }): Promise<WorldInfoBook> {
+  const res = await fetch(`${BASE_URL}/api/world-info`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create world info book");
+  const json = await res.json();
+  return json.book;
+}
+
+export async function updateWorldInfoBook(id: string, data: { name: string; description?: string; enabled?: boolean }): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/world-info/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update world info book");
+}
+
+export async function deleteWorldInfoBook(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/world-info/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete world info book");
+}
+
+// --- World Info Entries ---
+
+export async function createWorldInfoEntry(bookId: string, data: Partial<WorldInfoEntry>): Promise<WorldInfoEntry> {
+  const res = await fetch(`${BASE_URL}/api/world-info/${bookId}/entries`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to create entry");
+  const json = await res.json();
+  return json.entry;
+}
+
+export async function updateWorldInfoEntry(bookId: string, entryId: string, data: Partial<WorldInfoEntry>): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/world-info/${bookId}/entries/${entryId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error("Failed to update entry");
+}
+
+export async function deleteWorldInfoEntry(bookId: string, entryId: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/world-info/${bookId}/entries/${entryId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete entry");
+}
+
+// --- Room ↔ WorldInfo ---
+
+export async function fetchRoomWorldInfo(roomId: string): Promise<WorldInfoBook[]> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/world-info`);
+  if (!res.ok) throw new Error("Failed to fetch room world info");
+  return res.json();
+}
+
+export async function updateRoomWorldInfo(roomId: string, bookIds: string[]): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/world-info`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ book_ids: bookIds }),
+  });
+  if (!res.ok) throw new Error("Failed to update room world info");
+}
+
+export { BASE_URL };

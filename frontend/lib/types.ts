@@ -1,4 +1,9 @@
-// 共享类型定义 — 与后端 models/character.py 对齐
+// 共享类型定义 — 与后端 models/ 对齐
+
+export interface ExampleDialogue {
+  user_message: string;
+  character_response: string;
+}
 
 export interface Character {
   id: string;
@@ -6,6 +11,43 @@ export interface Character {
   personality: string;
   background: string;
   speaking_style?: string;
+  // CharacterCard 扩展
+  description?: string;
+  scenario?: string;
+  system_prompt_override?: string;
+  post_instructions?: string;
+  greeting?: string;
+  creator_notes?: string;
+  tags?: string[];
+  example_dialogues?: ExampleDialogue[];
+}
+
+export interface Persona {
+  id: string;
+  name: string;
+  description: string;
+  is_default: boolean;
+}
+
+export interface WorldInfoEntry {
+  id: string;
+  keys: string[];
+  secondary_keys: string[];
+  selective_logic: string;
+  content: string;
+  position: string;
+  depth: number;
+  enabled: boolean;
+  constant: boolean;
+  order: number;
+}
+
+export interface WorldInfoBook {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  entries: WorldInfoEntry[];
 }
 
 export interface Message {
@@ -42,6 +84,15 @@ export interface CharacterFormData {
   personality: string;
   background: string;
   speaking_style: string;
+  // CharacterCard 扩展
+  description?: string;
+  scenario?: string;
+  system_prompt_override?: string;
+  post_instructions?: string;
+  greeting?: string;
+  creator_notes?: string;
+  tags?: string[];
+  example_dialogues?: ExampleDialogue[];
 }
 
 // --- 工具函数 ---

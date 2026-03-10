@@ -1,6 +1,8 @@
 "use client";
 
 import type { Character, Message } from "@/lib/types";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface ChatBubbleProps {
   message: Message;
@@ -31,7 +33,9 @@ export function CustomChatBubble({ message }: ChatBubbleProps) {
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
-        <p className="text-sm font-sans leading-relaxed text-[#3b3631] whitespace-pre-wrap">{message.content}</p>
+        <div className="text-sm font-sans leading-relaxed text-[#3b3631] whitespace-pre-wrap prose prose-sm max-w-none">
+          {message.content}
+        </div>
       </div>
     );
   }
@@ -46,8 +50,12 @@ export function CustomChatBubble({ message }: ChatBubbleProps) {
         </span>
       </div>
       
-      <div className="font-book text-[1.05rem] leading-8 text-[#3b3631] text-justify space-y-4">
-        <p className="drop-cap whitespace-pre-wrap">{message.content}</p>
+      <div className="font-book text-[1.05rem] leading-8 text-[#3b3631] text-justify">
+        <div className="prose prose-sm md:prose-base lg:prose-lg max-w-none text-inherit leading-8 drop-cap marker:text-[#a35d40] prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-headings:font-book prose-headings:text-[#3b3631]">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {message.content}
+          </ReactMarkdown>
+        </div>
       </div>
     </div>
   );

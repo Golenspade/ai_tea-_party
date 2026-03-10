@@ -13,7 +13,10 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from models.character import Character, Message
+from db import repository as repo
+from models.character import Character, ExampleDialogue, Message
+from models.persona import Persona
+from models.world_info import WIPosition, WorldInfoBook, WorldInfoEntry
 from routes.ws import WebSocketManager
 from services.chat_service import ChatService
 from services.orchestrator import ChatOrchestrator
@@ -38,6 +41,15 @@ class CharacterRequest(BaseModel):
     personality: str
     background: str
     speaking_style: Optional[str] = ""
+    # CharacterCard 扩展字段
+    description: Optional[str] = ""
+    scenario: Optional[str] = ""
+    system_prompt_override: Optional[str] = ""
+    post_instructions: Optional[str] = ""
+    greeting: Optional[str] = ""
+    creator_notes: Optional[str] = ""
+    tags: Optional[list] = []
+    example_dialogues: Optional[list] = []
 
 
 class APIConfigRequest(BaseModel):
@@ -59,6 +71,34 @@ class UpdateRoomRequest(BaseModel):
     user_description: Optional[str] = None
     name: Optional[str] = None
     description: Optional[str] = None
+
+
+class PersonaRequest(BaseModel):
+    name: str
+    description: str = ""
+    is_default: bool = False
+
+
+class WorldInfoBookRequest(BaseModel):
+    name: str
+    description: str = ""
+    enabled: bool = True
+
+
+class WorldInfoEntryRequest(BaseModel):
+    keys: list
+    content: str
+    secondary_keys: list = []
+    selective_logic: str = "AND"
+    position: str = "after_char"
+    depth: int = 4
+    enabled: bool = True
+    constant: bool = False
+    order: int = 100
+
+
+class RoomWorldInfoRequest(BaseModel):
+    book_ids: list
 
 
 # ------------------------------------------------------------------
@@ -98,10 +138,19 @@ PROVIDERS: dict[str, dict] = {
         "name": "Google Gemini",
         "prefix": "gemini",
         "env_key": "GEMINI_API_KEY",
-        "models": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+        "models": [
+            "gemini-3.1-pro-preview",
+            "gemini-3.1-flash-lite-preview",
+            "gemini-3-pro-preview",
+            "gemini-3-flash",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-2.0-flash",
+        ],
         "default": "gemini-2.5-flash",
         "context_tokens": 1_000_000,
-        "description": "Google Gemini 系列（API Key 模式），超长上下文窗口",
+        "description": "Google Gemini 系列（AI Studio API Key 模式），超长上下文窗口",
     },
     "xai": {
         "name": "xAI (Grok)",
@@ -598,5 +647,125 @@ def setup_rest_routes(
         if not success:
             raise HTTPException(status_code=404, detail="聊天室不存在")
         return {"status": "success", "message": "聊天室设置已更新"}
+
+    # ==============================================================
+    # Persona 人设管理
+    # ==============================================================
+
+    @router.get("/api/personas")
+    async def list_personas():
+        personas = await repo.load_all_personas()
+        return [{"id": p.id, "name": p.name, "description": p.description,
+                 "is_default": p.is_default} for p in personas]
+
+    @router.post("/api/personas")
+    async def create_persona(data: PersonaRequest):
+        persona = Persona(name=data.name, description=data.description,
+                          is_default=data.is_default)
+        await repo.save_persona(persona)
+        return {"status": "success", "persona": persona.model_dump()}
+
+    @router.put("/api/personas/{persona_id}")
+    async def update_persona(persona_id: str, data: PersonaRequest):
+        persona = Persona(id=persona_id, name=data.name,
+                          description=data.description, is_default=data.is_default)
+        await repo.save_persona(persona)
+        return {"status": "success", "persona": persona.model_dump()}
+
+    @router.delete("/api/personas/{persona_id}")
+    async def delete_persona(persona_id: str):
+        await repo.delete_persona(persona_id)
+        return {"status": "success"}
+
+    # ==============================================================
+    # World Info 世界观管理
+    # ==============================================================
+
+    @router.get("/api/world-info")
+    async def list_world_info_books():
+        books = await repo.load_all_world_info_books()
+        return [b.model_dump() for b in books]
+
+    @router.post("/api/world-info")
+    async def create_world_info_book(data: WorldInfoBookRequest):
+        book = WorldInfoBook(name=data.name, description=data.description,
+                             enabled=data.enabled)
+        await repo.save_world_info_book(book)
+        return {"status": "success", "book": book.model_dump()}
+
+    @router.put("/api/world-info/{book_id}")
+    async def update_world_info_book(book_id: str, data: WorldInfoBookRequest):
+        book = WorldInfoBook(id=book_id, name=data.name,
+                             description=data.description, enabled=data.enabled)
+        await repo.save_world_info_book(book)
+        return {"status": "success", "book": book.model_dump()}
+
+    @router.delete("/api/world-info/{book_id}")
+    async def delete_world_info_book(book_id: str):
+        await repo.delete_world_info_book(book_id)
+        return {"status": "success"}
+
+    # --- World Info Entries ---
+
+    @router.get("/api/world-info/{book_id}/entries")
+    async def list_world_info_entries(book_id: str):
+        books = await repo.load_all_world_info_books()
+        target = next((b for b in books if b.id == book_id), None)
+        if not target:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        return [e.model_dump() for e in target.entries]
+
+    @router.post("/api/world-info/{book_id}/entries")
+    async def create_world_info_entry(book_id: str, data: WorldInfoEntryRequest):
+        entry = WorldInfoEntry(
+            keys=data.keys, content=data.content,
+            secondary_keys=data.secondary_keys,
+            selective_logic=data.selective_logic,
+            position=WIPosition(data.position),
+            depth=data.depth, enabled=data.enabled,
+            constant=data.constant, order=data.order,
+        )
+        await repo.save_world_info_entry(entry, book_id)
+        return {"status": "success", "entry": entry.model_dump()}
+
+    @router.put("/api/world-info/{book_id}/entries/{entry_id}")
+    async def update_world_info_entry(
+        book_id: str, entry_id: str, data: WorldInfoEntryRequest
+    ):
+        entry = WorldInfoEntry(
+            id=entry_id, keys=data.keys, content=data.content,
+            secondary_keys=data.secondary_keys,
+            selective_logic=data.selective_logic,
+            position=WIPosition(data.position),
+            depth=data.depth, enabled=data.enabled,
+            constant=data.constant, order=data.order,
+        )
+        await repo.save_world_info_entry(entry, book_id)
+        return {"status": "success", "entry": entry.model_dump()}
+
+    @router.delete("/api/world-info/{book_id}/entries/{entry_id}")
+    async def delete_world_info_entry(book_id: str, entry_id: str):
+        await repo.delete_world_info_entry(entry_id)
+        return {"status": "success"}
+
+    # ==============================================================
+    # Room ↔ WorldInfo 绑定
+    # ==============================================================
+
+    @router.get("/api/rooms/{room_id}/world-info")
+    async def get_room_world_info(room_id: str):
+        books = await repo.load_room_worldinfo_books(room_id)
+        return [b.model_dump() for b in books]
+
+    @router.put("/api/rooms/{room_id}/world-info")
+    async def update_room_world_info(room_id: str, data: RoomWorldInfoRequest):
+        # 先解绑所有
+        current = await repo.load_room_worldinfo_books(room_id)
+        for b in current:
+            await repo.unbind_room_worldinfo(room_id, b.id)
+        # 再绑定指定的
+        for bid in data.book_ids:
+            await repo.bind_room_worldinfo(room_id, bid)
+        return {"status": "success"}
 
     return router
