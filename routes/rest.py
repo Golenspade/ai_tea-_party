@@ -59,6 +59,9 @@ class APIConfigRequest(BaseModel):
     api_base: Optional[str] = None
 
 
+class SettingsRequest(BaseModel):
+    response_length: str = "default"  # short / default / long
+
 class CreateRoomRequest(BaseModel):
     name: str
     description: str = ""
@@ -583,9 +586,6 @@ def setup_rest_routes(
     # ==================================================================
     # 生成设置
     # ==================================================================
-
-    class SettingsRequest(BaseModel):
-        response_length: str = "default"  # short / default / long
 
     @router.get("/api/settings")
     async def get_settings():
