@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sqlite3
 import re
 import shlex
 from dataclasses import dataclass
@@ -177,6 +178,26 @@ def _parse_command(content: str) -> tuple[str | None, list[str]]:
 class VariableCommandResult:
     handled: bool
     output: str = ""
+
+
+async def _variable_exists(
+    room_id: str | None,
+    name: str,
+    scope: VariableScope,
+) -> bool:
+    """安全地判断变量是否存在。
+
+    当变量表未初始化（如历史数据库路径）时返回 False，避免影响解析回退路径。
+    """
+    try:
+        if scope == "global":
+            return await repo.global_variable_exists(name)
+        if room_id is None:
+            return False
+        return await repo.room_variable_exists(room_id, name)
+    except sqlite3.OperationalError:
+        # 数据库 schema 未就绪时，按不存在处理并交由上层 fallback。
+        return False
 
 
 async def execute_variable_command(content: str, room_id: str) -> VariableCommandResult:
@@ -467,23 +488,25 @@ async def resolve_variable(
         return raw_name
 
     if scope == "global":
-        if not await repo.global_variable_exists(base_name):
+        if not await _variable_exists(None, base_name, "global"):
             return default if default is not None else raw_name
         resolved = await repo.get_global_variable(base_name)
     elif scope == "room":
-        if not await repo.room_variable_exists(room_id, base_name):
+        if not await _variable_exists(room_id, base_name, "room"):
             return default if default is not None else raw_name
         resolved = await repo.get_room_variable(room_id, base_name)
     else:
-        if await repo.room_variable_exists(room_id, base_name):
+        value_in_room = await _variable_exists(room_id, base_name, "room")
+        if value_in_room:
             resolved = await repo.get_room_variable(room_id, base_name)
-        elif await repo.global_variable_exists(base_name):
+        elif await _variable_exists(None, base_name, "global"):
             resolved = await repo.get_global_variable(base_name)
         else:
             return default if default is not None else raw_name
 
     if resolved is None:
-        return default if default is not None else raw_name
+        # 与 "缺失变量" 区分；显式 null 是可用值。
+        return None
 
     indexed = _extract_by_index(resolved, index)
     if indexed is None:
