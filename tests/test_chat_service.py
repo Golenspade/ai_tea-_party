@@ -5,8 +5,7 @@ tests/test_chat_service.py — ChatService 单元测试
 
 import pytest
 
-from core.llm import ChatRole
-from core.llm import ProviderRegistry
+from core.llm import ChatRole, ProviderRegistry
 from services.orchestrator import ChatOrchestrator
 
 

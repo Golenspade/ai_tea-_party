@@ -27,7 +27,7 @@ Modern React/Next.js frontend for AI Tea Party chatroom built with shadcn/ui com
 
 - Node.js 18+ 
 - npm or yarn
-- Backend server running on `http://localhost:8000`
+- Backend server running on `http://127.0.0.1:3004`
 
 ### Installation
 
@@ -43,7 +43,7 @@ npm install
 npm run dev
 ```
 
-3. Open [http://localhost:3000](http://localhost:3000) in your browser
+3. Open [http://127.0.0.1:3001](http://127.0.0.1:3001) in your browser
 
 ### Building for Production
 
@@ -137,6 +137,13 @@ To customize the theme, edit the CSS variables in `app/globals.css` or use the s
 - `npm run build` - Build for production
 - `npm start` - Start production server
 - `npm run lint` - Run ESLint
+- `npm run e2e` - Run Playwright E2E tests
+- `npm run e2e:smoke` - Run E2E smoke tests
+- `npm run e2e:ui` - Run Playwright UI mode
+
+### E2E Skill
+
+- `docs/E2E_TEST_SKILL.md` contains the runnable E2E workflow for variables.
 
 ### Environment Variables
 
@@ -155,7 +162,7 @@ Make sure the backend server is running on port 8000. Check browser console for 
 
 ### CORS Issues
 
-If you encounter CORS errors, ensure the backend has proper CORS configuration for `http://localhost:3000`.
+If you encounter CORS errors, ensure the backend has proper CORS configuration for `http://127.0.0.1:3001`.
 
 ## License
 

@@ -137,7 +137,6 @@ class ChatService:
             logger.info("处理变量命令: %s", content)
             return True
 
-            
         rendered_content = await render_variable_macros(content, room_id)
 
         message = Message(

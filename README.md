@@ -122,6 +122,16 @@ npm run dev
 - 前端界面：http://localhost:3001
 - 后端 API：http://localhost:3004
 
+### 7. E2E 变量命令回归（建议）
+
+可直接使用项目内 E2E Skill 文档启动 Playwright 冒烟测试：
+
+- `docs/E2E_TEST_SKILL.md`
+- 主要命令（在 `frontend/` 目录）：
+  - `npm run e2e:smoke`
+  - `npm run e2e`
+  - `npm run e2e:ui`
+
 ## 📁 项目结构
 
 ```

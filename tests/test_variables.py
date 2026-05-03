@@ -2,8 +2,9 @@
 tests/test_variables — 变量语义层测试
 """
 
-import pytest
 import json
+
+import pytest
 
 from core.llm import ChatRole
 from core.prompt.assembler import (
@@ -14,13 +15,13 @@ from core.prompt.assembler import (
 )
 from models.character import Character, Message
 from services.variables import (
-    execute_variable_command,
     add_variable,
     dec_variable,
+    execute_variable_command,
     get_variable_context,
     inc_variable,
-    render_variable_macros,
     parse_variable_expression,
+    render_variable_macros,
     resolve_variable,
 )
 
