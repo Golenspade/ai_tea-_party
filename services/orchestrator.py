@@ -27,6 +27,7 @@ from core.prompt.assembler import PromptAssembler
 from models.character import Character, ChatRoom, Message
 from models.persona import Persona
 from models.world_info import WorldInfoBook
+from services.variables import get_variable_context
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,10 @@ class ChatOrchestrator:
 
         # 2. 构建 ChatRequest
         provider = self.registry.get_provider(self.current_model_id)
-        chat_messages = self._build_openai_messages(character, messages_for_ai)
+        variable_context = await get_variable_context(room.id)
+        chat_messages = self._build_openai_messages(
+            character, messages_for_ai, variable_context=variable_context
+        )
 
         request = ChatRequest(
             model_id=self.current_model_id,
@@ -253,6 +257,7 @@ class ChatOrchestrator:
         persona: Persona | None = None,
         world_info_books: list[WorldInfoBook] | None = None,
         room_scenario: str = "",
+        variable_context: dict[str, dict[str, object]] | None = None,
     ) -> list[ChatMessage]:
         """构建 OpenAI 兼容的消息列表。
 
@@ -267,6 +272,7 @@ class ChatOrchestrator:
             world_info_books=world_info_books,
             room_scenario=room_scenario,
             response_length=self.response_length,
+            variable_context=variable_context,
         )
 
         # 追加角色记忆系统的上下文（补充知识）

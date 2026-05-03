@@ -5,6 +5,10 @@ tests/test_chat_service.py — ChatService 单元测试
 
 import pytest
 
+from core.llm import ChatRole
+from core.llm import ProviderRegistry
+from services.orchestrator import ChatOrchestrator
+
 
 @pytest.fixture
 def svc_with_room(chat_service, sample_character, mock_orchestrator):
@@ -97,6 +101,28 @@ class TestAIGeneration:
         chat_service.add_character_to_room(room.id, sample_character)
         result = await chat_service.generate_ai_response(room.id, sample_character.id)
         assert result is None
+
+    def test_orchestrator_build_messages_with_variable_context(self, sample_character):
+        orch = ChatOrchestrator(ProviderRegistry())
+        messages = orch._build_openai_messages(
+            character=sample_character,
+            conversation_history=[],
+            variable_context={
+                "room": {"mood": "calm"},
+                "global": {"site": "lobby"},
+            },
+        )
+        variable_block = next(
+            (
+                msg.content
+                for msg in messages
+                if msg.role == ChatRole.SYSTEM and "room.mood" in msg.content
+            ),
+            "",
+        )
+        assert variable_block
+        assert "room.mood = \"calm\"" in variable_block
+        assert "global.site = \"lobby\"" in variable_block
 
 
 class TestRoomSettings:

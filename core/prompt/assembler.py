@@ -9,8 +9,9 @@ core.prompt.assembler — Prompt 编排器
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from core.llm.types import ChatMessage, ChatRole
 from core.prompt.slots import PromptSlot, SlotContent
@@ -62,6 +63,7 @@ class PromptAssembler:
         world_info_books: Optional[List[WorldInfoBook]] = None,
         room_scenario: str = "",
         response_length: str = "default",
+        variable_context: Optional[dict[str, dict[str, Any]]] = None,
     ) -> List[ChatMessage]:
         """
         组装完整的 prompt messages 列表。
@@ -81,7 +83,12 @@ class PromptAssembler:
 
         # 2. 按槽位收集内容
         slots = self._collect_slots(
-            character, persona, scan_result, room_scenario, response_length
+            character,
+            persona,
+            scan_result,
+            room_scenario,
+            response_length,
+            variable_context=variable_context,
         )
 
         # 3. 组装为 ChatMessage 列表
@@ -147,6 +154,7 @@ class PromptAssembler:
         scan_result: ScanResult,
         room_scenario: str,
         response_length: str = "default",
+        variable_context: Optional[dict[str, dict[str, Any]]] = None,
     ) -> List[SlotContent]:
         """按定义顺序收集各槽位的内容"""
         slots: List[SlotContent] = []
@@ -229,6 +237,15 @@ class PromptAssembler:
                 source=f"character:{character.id}",
             ))
 
+        # VARIABLE_CONTEXT（变量上下文）
+        rendered_variables = self._format_variable_context(variable_context)
+        if rendered_variables:
+            slots.append(SlotContent(
+                slot=PromptSlot.VARIABLE_CONTEXT,
+                content=rendered_variables,
+                source="variables",
+            ))
+
         # LENGTH_GUIDANCE（回复长度约束，PHI 位置，权重最高）
         length_text = LENGTH_GUIDANCE.get(response_length, LENGTH_GUIDANCE["default"])
         slots.append(SlotContent(
@@ -270,6 +287,7 @@ class PromptAssembler:
                 PromptSlot.SCENARIO,
                 PromptSlot.WI_AFTER_CHAR,
                 PromptSlot.PERSONA,
+                PromptSlot.VARIABLE_CONTEXT,
             ):
                 system_parts.append(slot.content)
 
@@ -345,3 +363,22 @@ class PromptAssembler:
             ))
 
         return messages
+
+    @staticmethod
+    def _format_variable_context(
+        variable_context: Optional[dict[str, dict[str, Any]]],
+    ) -> str:
+        """将 room/global 变量上下文序列化为提示文本。"""
+        if not variable_context:
+            return ""
+
+        room_vars = variable_context.get("room", {}) or {}
+        global_vars = variable_context.get("global", {}) or {}
+
+        lines = ["[变量上下文]"]
+        for name in sorted(room_vars.keys()):
+            lines.append(f"room.{name} = {json.dumps(room_vars[name], ensure_ascii=False)}")
+        for name in sorted(global_vars.keys()):
+            lines.append(f"global.{name} = {json.dumps(global_vars[name], ensure_ascii=False)}")
+
+        return "\n".join(lines) if len(lines) > 1 else ""

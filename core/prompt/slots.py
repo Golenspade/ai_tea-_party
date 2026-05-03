@@ -23,6 +23,7 @@ class PromptSlot(str, Enum):
     SCENARIO = "scenario"
     WI_AFTER_CHAR = "wi_after_char"
     PERSONA = "persona"
+    VARIABLE_CONTEXT = "variable_context"
     EXAMPLE_DIALOGUES = "examples"
     CHAT_HISTORY = "chat_history"
     WI_DEPTH = "wi_depth"

@@ -4,7 +4,10 @@ tests/test_models.py — 数据模型单元测试
 
 from datetime import datetime, timedelta
 
+import pytest
+
 from models.character import Character, ChatRoom, Message
+from services.variables import parse_variable_expression, resolve_variable
 
 
 class TestCharacter:
@@ -121,3 +124,24 @@ class TestChatRoom:
     def test_stealth_mode(self):
         room = ChatRoom(name="测试聊天室", stealth_mode=True)
         assert room.stealth_mode is True
+
+
+class TestVariableHelpers:
+    def test_parse_variable_expression(self):
+        assert parse_variable_expression("mood") == ("mood", None, None)
+        assert parse_variable_expression("myarr::2") == ("myarr", 2, None)
+        assert parse_variable_expression("myobj::as::number") == ("myobj", None, "number")
+        assert parse_variable_expression("myarr::2::as::string") == (
+            "myarr",
+            2,
+            "string",
+        )
+
+    @pytest.mark.asyncio
+    async def test_resolve_variable_invalid_name_fallback(self, monkeypatch):
+        async def _missing_room_variable(*_args, **_kwargs):
+            return None
+
+        monkeypatch.setattr("db.repository.get_room_variable", _missing_room_variable)
+        # 未设置变量时返回表达式原值。
+        assert await resolve_variable("missing", "room-id") == "missing"
