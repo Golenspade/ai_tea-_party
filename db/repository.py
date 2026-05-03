@@ -5,7 +5,7 @@
 import json
 import logging
 from datetime import datetime
-from typing import List
+from typing import Any, List, Optional
 
 import aiosqlite
 
@@ -16,6 +16,31 @@ from models.world_info import WIPosition, WorldInfoBook, WorldInfoEntry
 
 logger = logging.getLogger(__name__)
 
+ROOM_SCOPE = "room"
+
+
+def _serialize_value(value: Any) -> str:
+    """统一将变量值序列化为 JSON 文本。"""
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _deserialize_value(value_json: str | None) -> Any:
+    """解析 JSON 文本，返回 None 表示字段不存在。"""
+    if value_json is None:
+        return None
+    return json.loads(value_json)
+
+
+def _current_ts() -> str:
+    return datetime.now().isoformat()
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _room_scope(scope: Optional[str] = None) -> str:
+    return scope or ROOM_SCOPE
 
 # ─── Room ────────────────────────────────────────────────────────────
 
@@ -413,6 +438,282 @@ async def load_room_worldinfo_books(room_id: str) -> List[WorldInfoBook]:
 
 
 # ─── Settings (KV) ───────────────────────────────────────────────────
+
+
+async def set_room_variable(
+    room_id: str,
+    name: str,
+    value: Any,
+    scope: str = ROOM_SCOPE,
+) -> None:
+    """设置房间变量。"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute(
+            """
+            INSERT INTO room_variables (room_id, scope, name, value_json, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(room_id, scope, name) DO UPDATE SET
+              value_json = excluded.value_json,
+              updated_at = excluded.updated_at
+            """,
+            (room_id, _room_scope(scope), name, _serialize_value(value), _current_ts()),
+        )
+        await db.commit()
+
+
+async def get_room_variable(
+    room_id: str,
+    name: str,
+    scope: str = ROOM_SCOPE,
+) -> Any:
+    """读取房间变量；不存在返回 None。"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            "SELECT value_json FROM room_variables WHERE room_id = ? AND scope = ? AND name = ?",
+            (room_id, _room_scope(scope), name),
+        )
+        row = await cursor.fetchone()
+        return _deserialize_value(row[0]) if row else None
+
+
+async def room_variable_exists(
+    room_id: str,
+    name: str,
+    scope: str = ROOM_SCOPE,
+) -> bool:
+    """检查房间变量是否存在。"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            """
+            SELECT 1
+            FROM room_variables
+            WHERE room_id = ? AND scope = ? AND name = ?
+            LIMIT 1
+            """,
+            (room_id, _room_scope(scope), name),
+        )
+        return await cursor.fetchone() is not None
+
+
+async def delete_room_variable(
+    room_id: str,
+    name: str,
+    scope: str = ROOM_SCOPE,
+) -> None:
+    """删除房间变量（幂等）。"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute(
+            "DELETE FROM room_variables WHERE room_id = ? AND scope = ? AND name = ?",
+            (room_id, _room_scope(scope), name),
+        )
+        await db.commit()
+
+
+async def list_room_variables(room_id: str, scope: str = ROOM_SCOPE) -> dict[str, Any]:
+    """列出房间变量，返回 name -> value 的映射。"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            """
+            SELECT name, value_json
+            FROM room_variables
+            WHERE room_id = ? AND scope = ?
+            ORDER BY updated_at DESC, name ASC
+            """,
+            (room_id, _room_scope(scope)),
+        )
+        rows = await cursor.fetchall()
+        return {
+            row[0]: _deserialize_value(row[1])
+            for row in rows
+        }
+
+
+async def add_room_variable(
+    room_id: str,
+    name: str,
+    value: Any,
+    scope: str = ROOM_SCOPE,
+) -> Any:
+    """room 变量 add 语义：
+    - 数字：加法
+    - 字符串：拼接
+    - 数组：push
+    - 其他类型：不匹配则返回原值，不抛异常
+    """
+    current = await get_room_variable(room_id, name, scope=_room_scope(scope))
+    if current is None:
+        next_value = value
+        await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
+        return next_value
+
+    if isinstance(current, list):
+        next_value = current + ([value] if not isinstance(value, list) else value)
+    elif _is_number(current) and _is_number(value):
+        next_value = current + value
+    elif isinstance(current, str) and isinstance(value, str):
+        next_value = current + value
+    else:
+        return current
+
+    await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
+    return next_value
+
+
+async def inc_room_variable(
+    room_id: str,
+    name: str,
+    delta: Any,
+    scope: str = ROOM_SCOPE,
+) -> Any:
+    """增量更新：只对数字生效，不匹配则返回原值。"""
+    current = await get_room_variable(room_id, name, scope=_room_scope(scope))
+    if not _is_number(current):
+        current_num = 0 if current is None else None
+        if current_num is None or not _is_number(delta):
+            return current
+    else:
+        current_num = current
+
+    if not _is_number(delta):
+        return current
+
+    next_value = current_num + delta
+    await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
+    return next_value
+
+
+async def dec_room_variable(
+    room_id: str,
+    name: str,
+    delta: Any,
+    scope: str = ROOM_SCOPE,
+) -> Any:
+    """递减更新：只对数字生效，不匹配则返回原值。"""
+    current = await get_room_variable(room_id, name, scope=_room_scope(scope))
+    if not _is_number(current):
+        current_num = 0 if current is None else None
+        if current_num is None or not _is_number(delta):
+            return current
+    else:
+        current_num = current
+
+    if not _is_number(delta):
+        return current
+
+    next_value = current_num - delta
+    await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
+    return next_value
+
+
+async def set_global_variable(name: str, value: Any) -> None:
+    """设置全局变量。"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute(
+            """
+            INSERT INTO global_variables (name, value_json, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(name) DO UPDATE SET
+              value_json = excluded.value_json,
+              updated_at = excluded.updated_at
+            """,
+            (name, _serialize_value(value), _current_ts()),
+        )
+        await db.commit()
+
+
+async def get_global_variable(name: str) -> Any:
+    """读取全局变量；不存在返回 None。"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            "SELECT value_json FROM global_variables WHERE name = ?",
+            (name,),
+        )
+        row = await cursor.fetchone()
+        return _deserialize_value(row[0]) if row else None
+
+
+async def global_variable_exists(name: str) -> bool:
+    """检查全局变量是否存在。"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            "SELECT 1 FROM global_variables WHERE name = ? LIMIT 1",
+            (name,),
+        )
+        return await cursor.fetchone() is not None
+
+
+async def delete_global_variable(name: str) -> None:
+    """删除全局变量（幂等）。"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await db.execute("DELETE FROM global_variables WHERE name = ?", (name,))
+        await db.commit()
+
+
+async def list_global_variables() -> dict[str, Any]:
+    """列出所有全局变量，返回 name -> value 的映射。"""
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        cursor = await db.execute(
+            "SELECT name, value_json FROM global_variables ORDER BY name ASC"
+        )
+        rows = await cursor.fetchall()
+        return {row[0]: _deserialize_value(row[1]) for row in rows}
+
+
+async def add_global_variable(name: str, value: Any) -> Any:
+    """全局变量 add 语义：同 room 变量。"""
+    current = await get_global_variable(name)
+    if current is None:
+        next_value = value
+        await set_global_variable(name, next_value)
+        return next_value
+
+    if isinstance(current, list):
+        next_value = current + ([value] if not isinstance(value, list) else value)
+    elif _is_number(current) and _is_number(value):
+        next_value = current + value
+    elif isinstance(current, str) and isinstance(value, str):
+        next_value = current + value
+    else:
+        return current
+
+    await set_global_variable(name, next_value)
+    return next_value
+
+
+async def inc_global_variable(name: str, delta: Any) -> Any:
+    """全局变量递增。"""
+    current = await get_global_variable(name)
+    if not _is_number(current):
+        current_num = 0 if current is None else None
+        if current_num is None or not _is_number(delta):
+            return current
+    else:
+        current_num = current
+
+    if not _is_number(delta):
+        return current
+
+    next_value = current_num + delta
+    await set_global_variable(name, next_value)
+    return next_value
+
+
+async def dec_global_variable(name: str, delta: Any) -> Any:
+    """全局变量递减。"""
+    current = await get_global_variable(name)
+    if not _is_number(current):
+        current_num = 0 if current is None else None
+        if current_num is None or not _is_number(delta):
+            return current
+    else:
+        current_num = current
+
+    if not _is_number(delta):
+        return current
+
+    next_value = current_num - delta
+    await set_global_variable(name, next_value)
+    return next_value
 
 
 async def get_setting(key: str, default: str = "") -> str:

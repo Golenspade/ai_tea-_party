@@ -35,12 +35,44 @@ def api_client():
         patch("db.repository.save_message", new_callable=AsyncMock),
         patch("db.repository.clear_messages", new_callable=AsyncMock),
         patch("db.repository.remove_character_from_room", new_callable=AsyncMock),
+        patch("db.repository.get_room_variable", new_callable=AsyncMock),
+        patch("db.repository.set_room_variable", new_callable=AsyncMock),
+        patch("db.repository.room_variable_exists", new_callable=AsyncMock, return_value=False),
+        patch("db.repository.add_room_variable", new_callable=AsyncMock),
+        patch("db.repository.inc_room_variable", new_callable=AsyncMock),
+        patch("db.repository.dec_room_variable", new_callable=AsyncMock),
+        patch("db.repository.delete_room_variable", new_callable=AsyncMock),
+        patch("db.repository.list_room_variables", new_callable=AsyncMock, return_value={} ),
+        patch("db.repository.get_global_variable", new_callable=AsyncMock),
+        patch("db.repository.set_global_variable", new_callable=AsyncMock),
+        patch("db.repository.delete_global_variable", new_callable=AsyncMock),
+        patch("db.repository.add_global_variable", new_callable=AsyncMock),
+        patch("db.repository.inc_global_variable", new_callable=AsyncMock),
+        patch("db.repository.dec_global_variable", new_callable=AsyncMock),
+        patch("db.repository.list_global_variables", new_callable=AsyncMock, return_value={} ),
     ):
         mock_db.save_room = AsyncMock()
         mock_db.save_character = AsyncMock()
         mock_db.save_message = AsyncMock()
         mock_db.remove_character_from_room = AsyncMock()
         mock_db.clear_messages = AsyncMock()
+
+        # 变量端点默认 Mock
+        repo.get_room_variable.return_value = None
+        repo.set_room_variable.return_value = None
+        repo.room_variable_exists.return_value = False
+        repo.add_room_variable.return_value = None
+        repo.inc_room_variable.return_value = None
+        repo.dec_room_variable.return_value = None
+        repo.delete_room_variable.return_value = None
+        repo.list_room_variables.return_value = {}
+        repo.get_global_variable.return_value = None
+        repo.set_global_variable.return_value = None
+        repo.delete_global_variable.return_value = None
+        repo.add_global_variable.return_value = None
+        repo.inc_global_variable.return_value = None
+        repo.dec_global_variable.return_value = None
+        repo.list_global_variables.return_value = {}
 
         svc = ChatService()
         # 创建默认聊天室并预设角色
@@ -267,3 +299,232 @@ class TestConfigEndpoints:
         assert resp.status_code == 200
         data = resp.json()
         assert "providers" in data
+
+
+class TestVariableApiEndpoints:
+    def test_list_room_variables(self, api_client, monkeypatch):
+        client, _, _ = api_client
+
+        async def list_vars(*_args, **_kwargs):
+            return {"mood": "calm", "counter": 3}
+
+        monkeypatch.setattr("db.repository.list_room_variables", list_vars)
+        resp = client.get("/api/rooms/default/variables")
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["scope"] == "room"
+        assert payload["room_id"] == "default"
+        assert len(payload["variables"]) == 2
+        vars_map = {v["name"]: v["value"] for v in payload["variables"]}
+        assert vars_map["mood"] == "calm"
+        assert vars_map["counter"] == 3
+
+    def test_create_room_variable(self, api_client, monkeypatch):
+        client, _, _ = api_client
+
+        state = {}
+
+        async def exists(room_id, name):
+            return name in state
+
+        async def set_var(room_id, name, value):
+            state[name] = value
+
+        async def list_vars(room_id):
+            return dict(state)
+
+        monkeypatch.setattr("db.repository.room_variable_exists", exists)
+        monkeypatch.setattr("db.repository.set_room_variable", set_var)
+        monkeypatch.setattr("db.repository.list_room_variables", list_vars)
+
+        r1 = client.post(
+            "/api/rooms/default/variables",
+            json={"name": "mode", "value": "tea"},
+        )
+        assert r1.status_code == 200
+        assert r1.json()["name"] == "mode"
+
+        r2 = client.post(
+            "/api/rooms/default/variables",
+            json={"name": "mode", "value": "duplicate"},
+        )
+        assert r2.status_code == 409
+
+    def test_set_room_variable(self, api_client, monkeypatch):
+        client, _, _ = api_client
+
+        state = {}
+
+        async def set_var(room_id, name, value):
+            state[name] = value
+
+        async def list_vars(room_id):
+            return dict(state)
+
+        monkeypatch.setattr("db.repository.set_room_variable", set_var)
+        monkeypatch.setattr("db.repository.list_room_variables", list_vars)
+
+        resp = client.post(
+            "/api/rooms/default/variables/set",
+            json={"name": "count", "value": 10},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["value"] == 10
+
+    def test_room_variable_add_inc_dec(self, api_client, monkeypatch):
+        client, _, _ = api_client
+
+        state = {"counter": 1}
+
+        async def add_var(room_id, name, value):
+            current = state.get(name)
+            if isinstance(current, int):
+                state[name] = current + value
+            return state.get(name)
+
+        async def inc_var(room_id, name, value):
+            current = state.get(name)
+            if current is None:
+                state[name] = value
+                return state[name]
+            if not isinstance(current, (int, float)):
+                return current
+            state[name] = current + value
+            return state[name]
+
+        async def dec_var(room_id, name, value):
+            current = state.get(name)
+            if current is None:
+                state[name] = -value
+                return state[name]
+            if not isinstance(current, (int, float)):
+                return current
+            state[name] = current - value
+            return state[name]
+
+        monkeypatch.setattr("db.repository.add_room_variable", add_var)
+        monkeypatch.setattr("db.repository.inc_room_variable", inc_var)
+        monkeypatch.setattr("db.repository.dec_room_variable", dec_var)
+
+        add_resp = client.post(
+            "/api/rooms/default/variables/add",
+            json={"name": "counter", "value": 2},
+        )
+        assert add_resp.status_code == 200
+        assert add_resp.json()["value"] == 3
+
+        inc_resp = client.post(
+            "/api/rooms/default/variables/inc",
+            json={"name": "counter", "value": 4},
+        )
+        assert inc_resp.status_code == 200
+        assert inc_resp.json()["value"] == 7
+
+        dec_resp = client.post(
+            "/api/rooms/default/variables/dec",
+            json={"name": "counter", "value": 1},
+        )
+        assert dec_resp.status_code == 200
+        assert dec_resp.json()["value"] == 6
+
+    def test_delete_room_variable(self, api_client, monkeypatch):
+        client, _, _ = api_client
+        deleted = []
+
+        async def delete_var(room_id, name):
+            deleted.append((room_id, name))
+
+        monkeypatch.setattr("db.repository.delete_room_variable", delete_var)
+        resp = client.delete("/api/rooms/default/variables/obsolete")
+        assert resp.status_code == 200
+        assert deleted == [("default", "obsolete")]
+
+    def test_variable_room_not_found(self, api_client):
+        client, _, _ = api_client
+        resp = client.get("/api/rooms/ghost/variables")
+        assert resp.status_code == 404
+
+    def test_global_variable_crud(self, api_client, monkeypatch):
+        client, _, _ = api_client
+        state = {}
+
+        async def set_global(name, value):
+            state[name] = value
+
+        async def add_global(name, value):
+            current = state.get(name)
+            if isinstance(current, (list, str)):
+                if isinstance(current, list) and not isinstance(value, list):
+                    state[name] = current + [value]
+                else:
+                    state[name] = current + value
+            elif isinstance(current, (int, float)):
+                state[name] = current + value
+            else:
+                state[name] = value if current is None else current
+            return state[name]
+
+        async def inc_global(name, value):
+            current = state.get(name)
+            if current is None:
+                state[name] = value
+                return state[name]
+            if not isinstance(current, (int, float)):
+                return current
+            state[name] = current + value
+            return state[name]
+
+        async def dec_global(name, value):
+            current = state.get(name)
+            if current is None:
+                state[name] = -value
+                return state[name]
+            if not isinstance(current, (int, float)):
+                return current
+            state[name] = current - value
+            return state[name]
+
+        async def delete_global(name):
+            state.pop(name, None)
+
+        async def list_globals():
+            return dict(state)
+
+        async def get_global(name):
+            return state.get(name)
+
+        monkeypatch.setattr("db.repository.set_global_variable", set_global)
+        monkeypatch.setattr("db.repository.add_global_variable", add_global)
+        monkeypatch.setattr("db.repository.inc_global_variable", inc_global)
+        monkeypatch.setattr("db.repository.dec_global_variable", dec_global)
+        monkeypatch.setattr("db.repository.delete_global_variable", delete_global)
+        monkeypatch.setattr("db.repository.list_global_variables", list_globals)
+        monkeypatch.setattr("db.repository.get_global_variable", get_global)
+
+        assert client.post("/api/variables/global/set", json={"name": "site", "value": 1}).status_code == 200
+        assert client.post("/api/variables/global/add", json={"name": "site", "value": 2}).status_code == 200
+        assert client.post("/api/variables/global/inc", json={"name": "site", "value": 3}).status_code == 200
+        assert client.post("/api/variables/global/dec", json={"name": "site", "value": 1}).status_code == 200
+
+        list_resp = client.get("/api/variables/global")
+        assert list_resp.status_code == 200
+        payload = list_resp.json()
+        assert payload["scope"] == "global"
+        assert payload["variables"][0]["name"] in {"site"}
+
+        delete_resp = client.delete("/api/variables/global/site")
+        assert delete_resp.status_code == 200
+
+    def test_global_bad_op(self, api_client):
+        client, _, _ = api_client
+        resp = client.post("/api/variables/global/unknown", json={"name": "site", "value": 1})
+        assert resp.status_code == 400
+
+    def test_invalid_variable_json(self, api_client):
+        client, _, _ = api_client
+        resp = client.post(
+            "/api/rooms/default/variables",
+            data="{invalid-json}",
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 422

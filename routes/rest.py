@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -68,6 +68,17 @@ class APIConfigRequest(BaseModel):
 
 class SettingsRequest(BaseModel):
     response_length: str = "default"  # short / default / long
+
+
+class VariableSetRequest(BaseModel):
+    name: str
+    value: Any
+
+
+class VariableOpRequest(BaseModel):
+    name: str
+    value: Any = 0
+
 
 class CreateRoomRequest(BaseModel):
     name: str
@@ -496,6 +507,131 @@ def setup_rest_routes(
         await db_repo.save_message(system_msg, room_id)
         await ws_manager.broadcast_message(room_id, system_msg)
         return {"message": "聊天记录已清空"}
+
+    # ==================================================================
+    # 变量管理
+    # ==================================================================
+
+    @router.get("/api/rooms/{room_id}/variables")
+    async def list_room_variables(room_id: str):
+        room = chat_service.get_chat_room(room_id)
+        if not room:
+            raise HTTPException(status_code=404, detail="聊天室不存在")
+        vars_map = await repo.list_room_variables(room_id)
+        return {
+            "scope": "room",
+            "room_id": room_id,
+            "variables": [
+                {"name": name, "value": value, "scope": "room"}
+                for name, value in vars_map.items()
+            ],
+        }
+
+    @router.post("/api/rooms/{room_id}/variables")
+    async def create_room_variable(room_id: str, data: VariableSetRequest):
+        room = chat_service.get_chat_room(room_id)
+        if not room:
+            raise HTTPException(status_code=404, detail="聊天室不存在")
+        if await repo.room_variable_exists(room_id, data.name):
+            raise HTTPException(status_code=409, detail="变量名已存在")
+        await repo.set_room_variable(room_id, data.name, data.value)
+        return {
+            "scope": "room",
+            "room_id": room_id,
+            "name": data.name,
+            "value": data.value,
+        }
+
+    @router.post("/api/rooms/{room_id}/variables/set")
+    async def set_room_variable(room_id: str, data: VariableSetRequest):
+        room = chat_service.get_chat_room(room_id)
+        if not room:
+            raise HTTPException(status_code=404, detail="聊天室不存在")
+        await repo.set_room_variable(room_id, data.name, data.value)
+        return {
+            "scope": "room",
+            "room_id": room_id,
+            "name": data.name,
+            "value": data.value,
+        }
+
+    @router.post("/api/rooms/{room_id}/variables/add")
+    async def add_room_variable(room_id: str, data: VariableOpRequest):
+        room = chat_service.get_chat_room(room_id)
+        if not room:
+            raise HTTPException(status_code=404, detail="聊天室不存在")
+        new_value = await repo.add_room_variable(room_id, data.name, data.value)
+        return {
+            "scope": "room",
+            "room_id": room_id,
+            "name": data.name,
+            "value": new_value,
+        }
+
+    @router.post("/api/rooms/{room_id}/variables/inc")
+    async def inc_room_variable(room_id: str, data: VariableOpRequest):
+        room = chat_service.get_chat_room(room_id)
+        if not room:
+            raise HTTPException(status_code=404, detail="聊天室不存在")
+        new_value = await repo.inc_room_variable(room_id, data.name, data.value)
+        return {
+            "scope": "room",
+            "room_id": room_id,
+            "name": data.name,
+            "value": new_value,
+        }
+
+    @router.post("/api/rooms/{room_id}/variables/dec")
+    async def dec_room_variable(room_id: str, data: VariableOpRequest):
+        room = chat_service.get_chat_room(room_id)
+        if not room:
+            raise HTTPException(status_code=404, detail="聊天室不存在")
+        new_value = await repo.dec_room_variable(room_id, data.name, data.value)
+        return {
+            "scope": "room",
+            "room_id": room_id,
+            "name": data.name,
+            "value": new_value,
+        }
+
+    @router.delete("/api/rooms/{room_id}/variables/{name}")
+    async def delete_room_variable(room_id: str, name: str):
+        room = chat_service.get_chat_room(room_id)
+        if not room:
+            raise HTTPException(status_code=404, detail="聊天室不存在")
+        await repo.delete_room_variable(room_id, name)
+        return {"scope": "room", "room_id": room_id, "name": name, "deleted": True}
+
+    @router.get("/api/variables/global")
+    async def list_global_variables():
+        vars_map = await repo.list_global_variables()
+        return {
+            "scope": "global",
+            "variables": [
+                {"name": name, "value": value, "scope": "global"}
+                for name, value in vars_map.items()
+            ],
+        }
+
+    @router.post("/api/variables/global/{op}")
+    async def operate_global_variable(op: str, data: VariableOpRequest):
+        if op == "set":
+            await repo.set_global_variable(data.name, data.value)
+            value = data.value
+        elif op == "add":
+            value = await repo.add_global_variable(data.name, data.value)
+        elif op == "inc":
+            value = await repo.inc_global_variable(data.name, data.value)
+        elif op == "dec":
+            value = await repo.dec_global_variable(data.name, data.value)
+        else:
+            raise HTTPException(status_code=400, detail="不支持的操作类型")
+        return {"scope": "global", "name": data.name, "value": value}
+
+    @router.delete("/api/variables/global/{name}")
+    async def delete_global_variable(name: str):
+        await repo.delete_global_variable(name)
+        return {"scope": "global", "name": name, "deleted": True}
 
     # ==================================================================
     # 自动聊天

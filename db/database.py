@@ -118,11 +118,30 @@ async def init_db():
                 value TEXT NOT NULL
             );
 
+            -- 变量系统（房间变量）
+            CREATE TABLE IF NOT EXISTS room_variables (
+                room_id TEXT NOT NULL,
+                scope TEXT NOT NULL DEFAULT 'room',
+                name TEXT NOT NULL,
+                value_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (room_id, scope, name)
+            );
+
+            -- 变量系统（全局变量）
+            CREATE TABLE IF NOT EXISTS global_variables (
+                name TEXT PRIMARY KEY,
+                value_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);
             CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
             CREATE INDEX IF NOT EXISTS idx_room_characters_room ON room_characters(room_id);
             CREATE INDEX IF NOT EXISTS idx_example_dialogues_char ON example_dialogues(character_id);
             CREATE INDEX IF NOT EXISTS idx_wi_entries_book ON world_info_entries(book_id);
+            CREATE INDEX IF NOT EXISTS idx_room_variables_room_name ON room_variables(room_id, name);
+            CREATE INDEX IF NOT EXISTS idx_room_variables_name ON room_variables(name);
         """)
         await db.commit()
 
