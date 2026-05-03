@@ -6,12 +6,15 @@ services.variables — 变量语义引擎
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 from typing import Any, Literal
 
 from db import repository as repo
 
 VariableScope = Literal["room", "global"]
+logger = logging.getLogger(__name__)
 
 
 def parse_variable_expression(raw: str) -> tuple[str, int | None, str | None]:
@@ -195,10 +198,26 @@ async def dec_variable(
 
 async def get_variable_context(room_id: str) -> dict[str, Any]:
     """返回 room + global 变量上下文（供 prompt 注入）。"""
-    room_vars = await repo.list_room_variables(room_id)
-    global_vars = await repo.list_global_variables()
+    room_vars, global_vars = await asyncio.gather(
+        repo.list_room_variables(room_id),
+        repo.list_global_variables(),
+        return_exceptions=True,
+    )
+
+    if isinstance(room_vars, Exception):
+        logger.warning("获取房间变量上下文失败: %s", room_vars)
+        room_vars = {}
+    if isinstance(global_vars, Exception):
+        logger.warning("获取全局变量上下文失败: %s", global_vars)
+        global_vars = {}
+
+    # 安全防御：确保异常类型不会污染下游类型推断
+    if not isinstance(room_vars, dict):
+        room_vars = {}
+    if not isinstance(global_vars, dict):
+        global_vars = {}
+
     return {
         "room": room_vars,
         "global": global_vars,
     }
-

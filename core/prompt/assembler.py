@@ -41,6 +41,11 @@ LENGTH_GUIDANCE = {
     "long": "[回复约束] 请充分展开你的想法，包含细节描述、故事、例子或深入分析。篇幅不限，鼓励深度表达。",
 }
 
+# 变量上下文注入保护，避免单个变量或总量过大导致 prompt 膨胀
+MAX_VARIABLE_CONTEXT_ENTRIES = 80
+MAX_VARIABLE_CONTEXT_TOTAL_CHARS = 4000
+MAX_VARIABLE_CONTEXT_VALUE_CHARS = 120
+
 
 class PromptAssembler:
     """
@@ -364,8 +369,8 @@ class PromptAssembler:
 
         return messages
 
-    @staticmethod
     def _format_variable_context(
+        self,
         variable_context: Optional[dict[str, dict[str, Any]]],
     ) -> str:
         """将 room/global 变量上下文序列化为提示文本。"""
@@ -376,9 +381,42 @@ class PromptAssembler:
         global_vars = variable_context.get("global", {}) or {}
 
         lines = ["[变量上下文]"]
-        for name in sorted(room_vars.keys()):
-            lines.append(f"room.{name} = {json.dumps(room_vars[name], ensure_ascii=False)}")
-        for name in sorted(global_vars.keys()):
-            lines.append(f"global.{name} = {json.dumps(global_vars[name], ensure_ascii=False)}")
+        emitted = 0
+
+        def emit_scope_block(scope: str, values: dict[str, Any]) -> bool:
+            nonlocal emitted
+            for name in sorted(values.keys()):
+                if emitted >= MAX_VARIABLE_CONTEXT_ENTRIES:
+                    return True
+
+                rendered = self._format_variable_value(values[name], MAX_VARIABLE_CONTEXT_VALUE_CHARS)
+                line = f"{scope}.{name} = {rendered}"
+                candidate = lines + [line]
+                if (
+                    len("\n".join(candidate))
+                    > MAX_VARIABLE_CONTEXT_TOTAL_CHARS
+                    and len(lines) > 1
+                ):
+                    return True
+
+                lines.append(line)
+                emitted += 1
+            return False
+
+        truncated = emit_scope_block("room", room_vars)
+
+        if not truncated:
+            truncated = emit_scope_block("global", global_vars)
+
+        if truncated and len(lines) > 1:
+            lines.append("...（变量上下文已截断）")
 
         return "\n".join(lines) if len(lines) > 1 else ""
+
+    @staticmethod
+    def _format_variable_value(value: Any, max_chars: int) -> str:
+        rendered = json.dumps(value, ensure_ascii=False)
+        if len(rendered) > max_chars:
+            prefix = rendered[: max_chars - 3]
+            return f"{prefix}..."
+        return rendered

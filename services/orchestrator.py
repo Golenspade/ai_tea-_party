@@ -129,7 +129,11 @@ class ChatOrchestrator:
 
         # 2. 构建 ChatRequest
         provider = self.registry.get_provider(self.current_model_id)
-        variable_context = await get_variable_context(room.id)
+        try:
+            variable_context = await get_variable_context(room.id)
+        except Exception as e:
+            logger.warning("获取变量上下文失败，回退为空上下文: %s", e)
+            variable_context = None
         chat_messages = self._build_openai_messages(
             character, messages_for_ai, variable_context=variable_context
         )

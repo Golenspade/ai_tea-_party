@@ -5,7 +5,12 @@ tests/test_variables — 变量语义层测试
 import pytest
 
 from core.llm import ChatRole
-from core.prompt.assembler import PromptAssembler
+from core.prompt.assembler import (
+    MAX_VARIABLE_CONTEXT_ENTRIES,
+    MAX_VARIABLE_CONTEXT_TOTAL_CHARS,
+    MAX_VARIABLE_CONTEXT_VALUE_CHARS,
+    PromptAssembler,
+)
 from models.character import Character, Message
 from services.variables import (
     add_variable,
@@ -113,3 +118,73 @@ def test_prompt_assembler_contains_variable_context():
     assert 'room.mood = "calm"' in variable_blocks[0]
     assert "global.site = \"lobby\"" in variable_blocks[0]
     assert "room.count = 3" in variable_blocks[0]
+
+
+def test_prompt_assembler_variable_context_truncates_entries():
+    character = Character(
+        name="阿茶",
+        personality="温和",
+        background="用于单元测试",
+    )
+
+    room_variables = {f"var_{i}": i for i in range(MAX_VARIABLE_CONTEXT_ENTRIES + 5)}
+
+    assembler = PromptAssembler()
+    built = assembler.assemble(
+        character=character,
+        chat_history=[],
+        variable_context={"room": room_variables, "global": {}},
+        response_length="default",
+    )
+
+    variable_blocks = [
+        msg.content
+        for msg in built
+        if msg.role == ChatRole.SYSTEM and "room." in msg.content and "[变量上下文]" in msg.content
+    ]
+    assert variable_blocks
+    block = variable_blocks[0]
+    lines = block.splitlines()
+    room_lines = [line for line in lines if line.startswith("room.")]
+    assert len(room_lines) <= MAX_VARIABLE_CONTEXT_ENTRIES
+    assert "...（变量上下文已截断）" in lines
+
+
+def test_prompt_assembler_variable_context_value_truncates():
+    character = Character(
+        name="阿茶",
+        personality="温和",
+        background="用于单元测试",
+    )
+
+    room_variables = {
+        "payload": "x" * (MAX_VARIABLE_CONTEXT_VALUE_CHARS + 50),
+    }
+    global_variables = {
+        "greeting": "y" * (MAX_VARIABLE_CONTEXT_VALUE_CHARS + 50),
+    }
+
+    assembler = PromptAssembler()
+    built = assembler.assemble(
+        character=character,
+        chat_history=[],
+        variable_context={"room": room_variables, "global": global_variables},
+        response_length="default",
+    )
+
+    variable_blocks = [
+        msg.content
+        for msg in built
+        if msg.role == ChatRole.SYSTEM and "[变量上下文]" in msg.content
+    ]
+    assert variable_blocks
+    block = variable_blocks[0]
+    room_line = next(line for line in block.splitlines() if line.startswith("room.payload"))
+    global_line = next(line for line in block.splitlines() if line.startswith("global.greeting"))
+    room_value = room_line.split(" = ", 1)[1]
+    global_value = global_line.split(" = ", 1)[1]
+    assert room_value.endswith("...")
+    assert global_value.endswith("...")
+    assert len(room_value) <= MAX_VARIABLE_CONTEXT_VALUE_CHARS
+    assert len(global_value) <= MAX_VARIABLE_CONTEXT_VALUE_CHARS
+    assert len(block) <= MAX_VARIABLE_CONTEXT_TOTAL_CHARS + len("...（变量上下文已截断）") + 10
