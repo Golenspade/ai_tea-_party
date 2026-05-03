@@ -3,6 +3,7 @@ tests/test_variables — 变量语义层测试
 """
 
 import pytest
+import json
 
 from core.llm import ChatRole
 from core.prompt.assembler import (
@@ -13,10 +14,12 @@ from core.prompt.assembler import (
 )
 from models.character import Character, Message
 from services.variables import (
+    execute_variable_command,
     add_variable,
     dec_variable,
     get_variable_context,
     inc_variable,
+    render_variable_macros,
     parse_variable_expression,
     resolve_variable,
 )
@@ -27,7 +30,62 @@ def test_parse_variable_expression():
     assert parse_variable_expression("myarr::2") == ("myarr", 2, None)
     assert parse_variable_expression("myjson::as::number") == ("myjson", None, "number")
     assert parse_variable_expression("myarr::2::as::string") == ("myarr", 2, "string")
+    assert parse_variable_expression("myarr::0::as::string::garbage") == (
+        "myarr::0::as::string::garbage",
+        None,
+        None,
+    )
     assert parse_variable_expression("invalid::as") == ("invalid::as", None, None)
+
+
+@pytest.mark.asyncio
+async def test_execute_variable_command_roundtrip(test_db):
+    room_id = "command-room"
+
+    set_result = await execute_variable_command("/setvar score 100", room_id)
+    assert set_result.handled is True
+    assert await resolve_variable("score", room_id) == 100
+
+    get_result = await execute_variable_command("/getvar score", room_id)
+    assert get_result.handled is True
+    assert get_result.output == "100"
+
+    add_result = await execute_variable_command("/addvar score 7", room_id)
+    assert add_result.handled is True
+    assert await resolve_variable("score", room_id) == 107
+
+    inc_result = await execute_variable_command("/incvar score", room_id)
+    assert inc_result.handled is True
+    assert await resolve_variable("score", room_id) == 108
+
+    dec_result = await execute_variable_command("/decvar score 3", room_id)
+    assert dec_result.handled is True
+    assert await resolve_variable("score", room_id) == 105
+
+    list_result = await execute_variable_command("/listvar", room_id)
+    assert list_result.handled is True
+    listed = json.loads(list_result.output)
+    assert listed["score"] == 105
+
+    flush_result = await execute_variable_command("/flushvar score", room_id)
+    assert flush_result.handled is True
+    assert await resolve_variable("score", room_id, default="missing") == "missing"
+
+    set_global_result = await execute_variable_command("/setglobalvar score 21", room_id)
+    assert set_global_result.handled is True
+    assert await resolve_variable("score", room_id, scope="global") == 21
+
+    get_global_result = await execute_variable_command("/getglobalvar score", room_id)
+    assert get_global_result.handled is True
+    assert get_global_result.output == "21"
+
+    inc_global_result = await execute_variable_command("/incglobalvar score 4", room_id)
+    assert inc_global_result.handled is True
+    assert await resolve_variable("score", room_id, scope="global") == 25
+
+    list_global_result = await execute_variable_command("/listglobalvar", room_id)
+    assert list_global_result.handled is True
+    assert json.loads(list_global_result.output)["score"] == 25
 
 
 @pytest.mark.asyncio
@@ -50,6 +108,8 @@ async def test_resolve_variable_scope_fallback_and_index_cast(test_db):
         "nested::as::number"
     )
     assert await resolve_variable("missing", room_id, default="fallback") == "fallback"
+    await repo.set_room_variable(room_id, "explicit_null", None)
+    assert await resolve_variable("explicit_null", room_id, default="fallback") is None
 
 
 @pytest.mark.asyncio
@@ -65,6 +125,23 @@ async def test_get_variable_context_returns_room_and_global(test_db):
         "room": {"mood": "calm"},
         "global": {"version": 1},
     }
+
+
+@pytest.mark.asyncio
+async def test_render_variable_macros_set_get_and_fallback(test_db):
+    room_id = "macro-room"
+
+    rendered = await render_variable_macros(
+        "准备 {{setvar::tone::neutral}} 然后 {{getvar::tone}}。", room_id
+    )
+    assert rendered == "准备  然后 neutral。"
+    assert await resolve_variable("tone", room_id) == "neutral"
+
+    no_name = await render_variable_macros("{{unknown::x}}", room_id)
+    assert no_name == "{{unknown::x}}"
+
+    invalid = await render_variable_macros("{{incvar::tone::bad_number}}", room_id)
+    assert invalid == "{{incvar::tone::bad_number}}"
 
 
 @pytest.mark.asyncio

@@ -85,6 +85,128 @@ class TestMessageHandling:
         result = await chat_service.send_message("no-room", "c1", "hello")
         assert result is False
 
+    @pytest.mark.asyncio
+    async def test_send_message_variable_command(self, svc_with_room, sample_character, monkeypatch):
+        svc, room = svc_with_room
+        state: dict[str, object] = {}
+
+        async def set_room_variable(room_id: str, name: str, value: object, scope: str = "room"):
+            state[name] = value
+
+        async def get_room_variable(room_id: str, name: str, scope: str = "room"):
+            return state.get(name)
+
+        async def delete_room_variable(room_id: str, name: str, scope: str = "room"):
+            state.pop(name, None)
+
+        async def list_room_variables(room_id: str, scope: str = "room"):
+            return dict(state)
+
+        async def room_variable_exists(room_id: str, name: str, scope: str = "room"):
+            return name in state
+
+        monkeypatch.setattr("services.variables.repo.set_room_variable", set_room_variable)
+        monkeypatch.setattr("services.variables.repo.get_room_variable", get_room_variable)
+        monkeypatch.setattr("services.variables.repo.delete_room_variable", delete_room_variable)
+        monkeypatch.setattr("services.variables.repo.list_room_variables", list_room_variables)
+        monkeypatch.setattr("services.variables.repo.room_variable_exists", room_variable_exists)
+
+        ok = await svc.send_message(room.id, sample_character.id, "/setvar score 3")
+        assert ok is True
+        assert room.messages[-1].is_system
+        assert "已设置变量 score" in room.messages[-1].content
+
+        ok = await svc.send_message(room.id, sample_character.id, "/getvar score")
+        assert ok is True
+        assert room.messages[-1].is_system
+        assert room.messages[-1].content == "3"
+
+        ok = await svc.send_message(room.id, sample_character.id, "/listvar")
+        assert ok is True
+        assert room.messages[-1].is_system
+        assert room.messages[-1].content == '{"score": 3}'
+
+        ok = await svc.send_message(room.id, sample_character.id, "/flushvar score")
+        assert ok is True
+        assert room.messages[-1].is_system
+        assert "已清空变量" in room.messages[-1].content
+
+        ok = await svc.send_message(room.id, sample_character.id, "normal / not-a-command")
+        assert ok is True
+        assert room.messages[-1].character_id == sample_character.id
+
+    @pytest.mark.asyncio
+    async def test_send_message_applies_variable_macros(self, svc_with_room, sample_character, monkeypatch):
+        svc, room = svc_with_room
+        state: dict[str, object] = {}
+
+        async def set_room_variable(room_id: str, name: str, value: object, scope: str = "room"):
+            state[name] = value
+
+        async def get_room_variable(room_id: str, name: str, scope: str = "room"):
+            return state.get(name)
+
+        async def add_room_variable(room_id: str, name: str, value: object, scope: str = "room"):
+            state[name] = value
+            return value
+
+        async def inc_room_variable(room_id: str, name: str, delta: object, scope: str = "room"):
+            current = state.get(name)
+            if not isinstance(current, (int, float)):
+                current = 0
+            if not isinstance(delta, (int, float)):
+                return current
+            next_value = current + delta
+            state[name] = next_value
+            return next_value
+
+        async def dec_room_variable(room_id: str, name: str, delta: object, scope: str = "room"):
+            current = state.get(name)
+            if not isinstance(current, (int, float)):
+                current = 0
+            if not isinstance(delta, (int, float)):
+                return current
+            next_value = current - delta
+            state[name] = next_value
+            return next_value
+
+        async def list_room_variables(room_id: str, scope: str = "room"):
+            return dict(state)
+
+        async def delete_room_variable(room_id: str, name: str, scope: str = "room"):
+            state.pop(name, None)
+
+        async def room_variable_exists(room_id: str, name: str, scope: str = "room"):
+            return name in state
+
+        monkeypatch.setattr("services.variables.repo.set_room_variable", set_room_variable)
+        monkeypatch.setattr("services.variables.repo.get_room_variable", get_room_variable)
+        monkeypatch.setattr("services.variables.repo.add_room_variable", add_room_variable)
+        monkeypatch.setattr("services.variables.repo.inc_room_variable", inc_room_variable)
+        monkeypatch.setattr("services.variables.repo.dec_room_variable", dec_room_variable)
+        monkeypatch.setattr("services.variables.repo.list_room_variables", list_room_variables)
+        monkeypatch.setattr("services.variables.repo.delete_room_variable", delete_room_variable)
+        monkeypatch.setattr("services.variables.repo.room_variable_exists", room_variable_exists)
+
+        ok = await svc.send_message(
+            room.id,
+            sample_character.id,
+            "tag {{setvar::mood::neutral}} {{getvar::mood}}",
+        )
+        assert ok is True
+        assert room.messages[-1].character_id == sample_character.id
+        assert room.messages[-1].content == "tag  neutral"
+        assert state["mood"] == "neutral"
+
+        ok = await svc.send_message(
+            room.id,
+            sample_character.id,
+            "{{incvar::mood::oops}}",
+        )
+        assert ok is True
+        assert room.messages[-1].character_id == sample_character.id
+        assert room.messages[-1].content == "{{incvar::mood::oops}}"
+
 
 class TestAIGeneration:
     @pytest.mark.asyncio

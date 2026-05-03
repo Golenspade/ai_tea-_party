@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, AsyncGenerator, Callable, Dict, List, Optional
 
 from db import repository as db
 from models.character import Character, ChatRoom, Message
+from services.variables import execute_variable_command, render_variable_macros
 
 if TYPE_CHECKING:
     from services.orchestrator import ChatOrchestrator
@@ -121,10 +122,28 @@ class ChatService:
         if not character:
             return False
 
+        command_result = await execute_variable_command(content, room_id)
+        if command_result.handled:
+            if command_result.output:
+                message = Message(
+                    character_id="system",
+                    character_name="系统",
+                    content=command_result.output,
+                    is_system=True,
+                )
+                room.add_message(message)
+                await db.save_message(message, room_id)
+                await self.notify_message_callbacks(room_id, message)
+            logger.info("处理变量命令: %s", content)
+            return True
+
+            
+        rendered_content = await render_variable_macros(content, room_id)
+
         message = Message(
             character_id=character_id,
             character_name=character.name,
-            content=content
+            content=rendered_content,
         )
 
         room.add_message(message)
