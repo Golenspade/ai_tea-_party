@@ -344,6 +344,8 @@ export function ChatLayout() {
 
           <ChatBottombar
             characters={characters}
+            roomVariables={roomVariables}
+            globalVariables={globalVariables}
             onSendMessage={handleSendMessage}
           />
         </main>
