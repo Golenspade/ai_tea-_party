@@ -142,6 +142,10 @@ class TestVariableHelpers:
         async def _missing_room_variable(*_args, **_kwargs):
             return None
 
+        async def _missing_global_variable(*_args, **_kwargs):
+            return None
+
         monkeypatch.setattr("db.repository.get_room_variable", _missing_room_variable)
+        monkeypatch.setattr("db.repository.get_global_variable", _missing_global_variable)
         # 未设置变量时返回表达式原值。
         assert await resolve_variable("missing", "room-id") == "missing"
