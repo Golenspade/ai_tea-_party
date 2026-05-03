@@ -8,11 +8,11 @@ tests/test_api.py — REST API 端点测试
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-import pytest
-from models.character import Message
 
+from models.character import Message
 from routes.rest import setup_rest_routes
 from routes.ws import WebSocketManager
 from services.chat_service import ChatService

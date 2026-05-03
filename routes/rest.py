@@ -26,6 +26,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# setup_rest_routes 在每次调用时会刷新以下运行时依赖，避免测试中重复挂载路由导致的旧闭包引用。
+orchestrator: ChatOrchestrator | None = None
+chat_service: ChatService | None = None
+ws_manager: WebSocketManager | None = None
+default_room_id = "default"
+
 
 # ------------------------------------------------------------------
 # 请求模型
@@ -351,12 +357,17 @@ _NO_PENALTY_PREFIXES = (
 
 
 def setup_rest_routes(
-    orchestrator: ChatOrchestrator,
-    chat_service: ChatService,
-    ws_manager: WebSocketManager,
+    orchestrator_instance: ChatOrchestrator,
+    chat_service_instance: ChatService,
+    ws_manager_instance: WebSocketManager,
     default_room_id: str = "default",
 ) -> APIRouter:
     """设置 REST 路由。"""
+    # 刷新运行时依赖，确保每次 setup_rest_routes 都使用传入实例。
+    globals()["orchestrator"] = orchestrator_instance
+    globals()["chat_service"] = chat_service_instance
+    globals()["ws_manager"] = ws_manager_instance
+    globals()["default_room_id"] = default_room_id
 
     # ==================================================================
     # 角色
