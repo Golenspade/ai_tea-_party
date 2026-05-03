@@ -33,6 +33,9 @@ export function ChatBottombar({ characters, onSendMessage }: ChatBottombarProps)
     setMessageInput("");
   };
 
+  const isVariableCommand = messageInput.trim().startsWith("/");
+  const isVariableMacro = messageInput.includes("{{") && messageInput.includes("::");
+
   const handleLengthChange = async (length: ResponseLength) => {
     setLength(length);
     try {
@@ -101,6 +104,11 @@ export function ChatBottombar({ characters, onSendMessage }: ChatBottombarProps)
             Submit
           </button>
         </div>
+        {(isVariableCommand || isVariableMacro) && (
+          <p className="text-[11px] text-[#7e766c] mt-2">
+            支持变量命令：/setvar、/getvar、/addvar、/incvar、/decvar、/listvar、/flushvar
+          </p>
+        )}
       </div>
     </div>
   );

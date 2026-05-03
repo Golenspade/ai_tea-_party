@@ -1,11 +1,19 @@
 "use client";
 
-import type { Character, CharacterFormData } from "@/lib/types";
+import type {
+  Character,
+  CharacterFormData,
+  VariableEntry,
+  VariablePatchRequest,
+  VariableScope,
+  VariableSetRequest,
+} from "@/lib/types";
 import { CharacterList } from "@/components/sidebar/character-list";
 import { RoomControls } from "@/components/sidebar/room-controls";
 import { AddCharacterDialog } from "@/components/dialogs/add-character-dialog";
 import { PersonaDialog } from "@/components/dialogs/persona-dialog";
 import { WorldInfoDialog } from "@/components/dialogs/world-info-dialog";
+import { VariablesPanel } from "@/components/sidebar/variables-panel";
 
 interface SidebarMainProps {
   characters: Character[];
@@ -16,6 +24,15 @@ interface SidebarMainProps {
   onStartAutoChat: () => void;
   onStopAutoChat: () => void;
   onClearMessages: () => void;
+  roomVariables: VariableEntry[];
+  globalVariables: VariableEntry[];
+  isLoadingVariables: boolean;
+  onRefreshVariables: () => void;
+  onSetVariable: (scope: VariableScope, data: VariableSetRequest) => Promise<void>;
+  onAddVariable: (scope: VariableScope, data: VariablePatchRequest) => Promise<void>;
+  onIncVariable: (scope: VariableScope, data: VariablePatchRequest) => Promise<void>;
+  onDecVariable: (scope: VariableScope, data: VariablePatchRequest) => Promise<void>;
+  onDeleteVariable: (scope: VariableScope, name: string) => Promise<void>;
 }
 
 export function SidebarMain({
@@ -27,6 +44,15 @@ export function SidebarMain({
   onStartAutoChat,
   onStopAutoChat,
   onClearMessages,
+  roomVariables,
+  globalVariables,
+  isLoadingVariables,
+  onRefreshVariables,
+  onSetVariable,
+  onAddVariable,
+  onIncVariable,
+  onDecVariable,
+  onDeleteVariable,
 }: SidebarMainProps) {
   return (
     <aside className="w-80 border-r border-[var(--theme-border)] flex flex-col pt-12 shrink-0 bg-[#fbf8f1] h-full z-10">
@@ -72,6 +98,20 @@ export function SidebarMain({
           onStartAutoChat={onStartAutoChat}
           onStopAutoChat={onStopAutoChat}
           onClearMessages={onClearMessages}
+        />
+
+        <div className="h-px bg-[var(--theme-border)] w-full opacity-50" />
+
+        <VariablesPanel
+          roomVariables={roomVariables}
+          globalVariables={globalVariables}
+          loading={isLoadingVariables}
+          onRefresh={onRefreshVariables}
+          onSet={onSetVariable}
+          onAdd={onAddVariable}
+          onInc={onIncVariable}
+          onDec={onDecVariable}
+          onDelete={onDeleteVariable}
         />
       </div>
     </aside>

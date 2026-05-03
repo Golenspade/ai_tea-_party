@@ -1,4 +1,16 @@
-import type { Character, CharacterFormData, ApiConfig, ProviderDef, Persona, WorldInfoBook, WorldInfoEntry } from "@/lib/types";
+import type {
+  Character,
+  CharacterFormData,
+  ApiConfig,
+  ProviderDef,
+  Persona,
+  WorldInfoBook,
+  WorldInfoEntry,
+  VariableEntry,
+  VariablePatchRequest,
+  VariableSetRequest,
+  VariableScope,
+} from "@/lib/types";
 
 const BASE_URL = "http://localhost:3004";
 
@@ -127,6 +139,130 @@ export async function setResponseLength(length: ResponseLength): Promise<void> {
     body: JSON.stringify({ response_length: length }),
   });
   if (!res.ok) throw new Error("Failed to update response length");
+}
+
+// --- 变量 API ---
+
+export async function fetchRoomVariables(roomId = "default"): Promise<VariableEntry[]> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/variables`);
+  if (!res.ok) throw new Error("Failed to fetch room variables");
+  const data = await res.json();
+  return data.variables || [];
+}
+
+export async function createRoomVariable(
+  roomId: string,
+  payload: VariableSetRequest,
+): Promise<VariableEntry> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/variables`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to create room variable");
+  return res.json();
+}
+
+export async function setVariable(
+  roomId: string,
+  scope: VariableScope,
+  payload: VariableSetRequest,
+): Promise<VariableEntry> {
+  if (scope === "global") {
+    const res = await fetch(`${BASE_URL}/api/variables/global/set`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Failed to set global variable");
+    return res.json();
+  }
+
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/variables/set`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to set room variable");
+  return res.json();
+}
+
+export async function addVariable(
+  roomId: string,
+  scope: VariableScope,
+  payload: VariablePatchRequest,
+): Promise<VariableEntry> {
+  const endpoint =
+    scope === "global"
+      ? `${BASE_URL}/api/variables/global/add`
+      : `${BASE_URL}/api/rooms/${roomId}/variables/add`;
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to add variable");
+  return res.json();
+}
+
+export async function incVariable(
+  roomId: string,
+  scope: VariableScope,
+  payload: VariablePatchRequest,
+): Promise<VariableEntry> {
+  const endpoint =
+    scope === "global"
+      ? `${BASE_URL}/api/variables/global/inc`
+      : `${BASE_URL}/api/rooms/${roomId}/variables/inc`;
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to increment variable");
+  return res.json();
+}
+
+export async function decVariable(
+  roomId: string,
+  scope: VariableScope,
+  payload: VariablePatchRequest,
+): Promise<VariableEntry> {
+  const endpoint =
+    scope === "global"
+      ? `${BASE_URL}/api/variables/global/dec`
+      : `${BASE_URL}/api/rooms/${roomId}/variables/dec`;
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to decrement variable");
+  return res.json();
+}
+
+export async function deleteVariable(
+  roomId: string,
+  scope: VariableScope,
+  name: string,
+): Promise<void> {
+  const endpoint =
+    scope === "global"
+      ? `${BASE_URL}/api/variables/global/${encodeURIComponent(name)}`
+      : `${BASE_URL}/api/rooms/${roomId}/variables/${encodeURIComponent(name)}`;
+
+  const res = await fetch(endpoint, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete variable");
+}
+
+export async function fetchGlobalVariables(): Promise<VariableEntry[]> {
+  const res = await fetch(`${BASE_URL}/api/variables/global`);
+  if (!res.ok) throw new Error("Failed to fetch global variables");
+  const data = await res.json();
+  return data.variables || [];
 }
 
 // --- Persona API ---

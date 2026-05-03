@@ -10,12 +10,16 @@ import { ChatMessageList } from "@/components/chat/chat-message-list";
 import { ChatBottombar } from "@/components/chat/chat-bottombar";
 import { ApiConfigDialog } from "@/components/dialogs/api-config-dialog";
 import { useEffect } from "react";
+import type { VariableEntry, VariablePatchRequest, VariableScope, VariableSetRequest } from "@/lib/types";
 
 export function ChatLayout() {
   // --- 核心状态 ---
   const [characters, setCharacters] = useState<Character[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isAutoChat, setIsAutoChat] = useState(false);
+  const [roomVariables, setRoomVariables] = useState<VariableEntry[]>([]);
+  const [globalVariables, setGlobalVariables] = useState<VariableEntry[]>([]);
+  const [variablesLoading, setVariablesLoading] = useState(false);
 
   // --- WebSocket ---
   const handleWsMessage = useCallback((msg: Message) => {
@@ -72,8 +76,25 @@ export function ChatLayout() {
     }
   };
 
+  const loadVariables = async () => {
+    setVariablesLoading(true);
+    try {
+      const [roomVars, globalVars] = await Promise.all([
+        api.fetchRoomVariables(),
+        api.fetchGlobalVariables(),
+      ]);
+      setRoomVariables(roomVars);
+      setGlobalVariables(globalVars);
+    } catch (error) {
+      console.error("Failed to fetch variables:", error);
+    } finally {
+      setVariablesLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadCharacters();
+    loadVariables();
   }, []);
 
   // --- 事件处理器 ---
@@ -98,9 +119,59 @@ export function ChatLayout() {
   const handleSendMessage = async (characterId: string, content: string) => {
     try {
       await api.sendMessage(characterId, content);
+      if (
+        content.trim().startsWith("/") ||
+        content.includes("{{") && content.includes("::")
+      ) {
+        void loadVariables();
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
     }
+  };
+
+  const refreshVariables = () => {
+    void loadVariables();
+  };
+
+  const handleVariableSet = async (
+    scope: VariableScope,
+    data: VariableSetRequest,
+  ): Promise<void> => {
+    await api.setVariable("default", scope, data);
+    await loadVariables();
+  };
+
+  const handleVariableAdd = async (
+    scope: VariableScope,
+    data: VariablePatchRequest,
+  ): Promise<void> => {
+    await api.addVariable("default", scope, data);
+    await loadVariables();
+  };
+
+  const handleVariableInc = async (
+    scope: VariableScope,
+    data: VariablePatchRequest,
+  ): Promise<void> => {
+    await api.incVariable("default", scope, data);
+    await loadVariables();
+  };
+
+  const handleVariableDec = async (
+    scope: VariableScope,
+    data: VariablePatchRequest,
+  ): Promise<void> => {
+    await api.decVariable("default", scope, data);
+    await loadVariables();
+  };
+
+  const handleVariableDelete = async (
+    scope: VariableScope,
+    name: string,
+  ): Promise<void> => {
+    await api.deleteVariable("default", scope, name);
+    await loadVariables();
   };
 
   // --- 打字机效果 ---
@@ -245,6 +316,15 @@ export function ChatLayout() {
           onStartAutoChat={handleStartAutoChat}
           onStopAutoChat={handleStopAutoChat}
           onClearMessages={handleClearMessages}
+          roomVariables={roomVariables}
+          globalVariables={globalVariables}
+          isLoadingVariables={variablesLoading}
+          onRefreshVariables={refreshVariables}
+          onSetVariable={handleVariableSet}
+          onAddVariable={handleVariableAdd}
+          onIncVariable={handleVariableInc}
+          onDecVariable={handleVariableDec}
+          onDeleteVariable={handleVariableDelete}
         />
 
         {/* Chat Area */}

@@ -59,6 +59,24 @@ export interface Message {
   is_system?: boolean;
 }
 
+export type VariableScope = "room" | "global";
+
+export interface VariableEntry {
+  name: string;
+  value: unknown;
+  scope: VariableScope;
+}
+
+export interface VariableSetRequest {
+  name: string;
+  value: unknown;
+}
+
+export interface VariablePatchRequest {
+  name: string;
+  value: unknown;
+}
+
 export interface ApiConfig {
   provider: string;
   apiKey: string;
