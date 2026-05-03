@@ -4,11 +4,12 @@ import asyncio
 
 async def main():
     # 1. 验证所有 import
-    from models.persona import Persona
-    from models.world_info import WorldInfoBook, WorldInfoEntry, WIPosition
     from core.prompt.assembler import PromptAssembler
     from core.prompt.world_info_scanner import WorldInfoScanner
     from db import repository as repo
+    from models.character import Character, ExampleDialogue
+    from models.persona import Persona
+    from models.world_info import WorldInfoBook, WorldInfoEntry, WIPosition
     print("[OK] All imports")
 
     # 2. WI Scanner 测试
@@ -22,7 +23,6 @@ async def main():
     print(f"[OK] Scanner: {r.total_activated} activated")
 
     # 3. Assembler 测试
-    from models.character import Character, ExampleDialogue
     c = Character(
         name="X", personality="p", background="b", description="d",
         example_dialogues=[ExampleDialogue(user_message="hi", character_response="hey")],

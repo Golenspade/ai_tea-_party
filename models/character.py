@@ -109,9 +109,16 @@ class ChatRoom(BaseModel):
         if len(self.messages) > self.max_history:
             self.messages = self.messages[-self.max_history:]
 
-    def get_recent_messages(self, count: int = 10) -> List[Message]:
+    def get_recent_messages(
+        self,
+        count: int = 10,
+        since: Optional[datetime] = None,
+    ) -> List[Message]:
         """获取最近的消息"""
-        return self.messages[-count:] if self.messages else []
+        messages = self.messages
+        if since is not None:
+            messages = [m for m in self.messages if m.timestamp > since]
+        return messages[-count:] if messages else []
 
     def get_active_characters(self) -> List[Character]:
         """获取激活的角色"""

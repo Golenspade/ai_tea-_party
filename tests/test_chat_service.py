@@ -36,6 +36,12 @@ class TestChatRoomManagement:
         rooms = chat_service.get_all_chat_rooms()
         assert len(rooms) == 2
 
+    def test_start_auto_chat_nonexistent_room(self, chat_service):
+        assert chat_service.start_auto_chat("no-room") is False
+
+    def test_stop_auto_chat_nonexistent_room(self, chat_service):
+        assert chat_service.stop_auto_chat("no-room") is False
+
 
 class TestCharacterManagement:
     def test_add_character(self, chat_service, sample_character):

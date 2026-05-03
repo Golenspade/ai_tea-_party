@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from db import repository as repo
 from models.character import Character, ExampleDialogue, Message
@@ -48,8 +49,8 @@ class CharacterRequest(BaseModel):
     post_instructions: Optional[str] = ""
     greeting: Optional[str] = ""
     creator_notes: Optional[str] = ""
-    tags: Optional[list] = []
-    example_dialogues: Optional[list] = []
+    tags: list[str] = Field(default_factory=list)
+    example_dialogues: list[ExampleDialogue] = Field(default_factory=list)
 
 
 class APIConfigRequest(BaseModel):
@@ -102,6 +103,24 @@ class WorldInfoEntryRequest(BaseModel):
 
 class RoomWorldInfoRequest(BaseModel):
     book_ids: list
+
+
+def _build_character_from_request(data: CharacterRequest) -> Character:
+    """将请求对象转为角色模型，避免重复定义字段"""
+    return Character(
+        name=data.name,
+        personality=data.personality,
+        background=data.background,
+        description=data.description or "",
+        scenario=data.scenario or "",
+        speaking_style=data.speaking_style or "",
+        system_prompt_override=data.system_prompt_override or "",
+        post_instructions=data.post_instructions or "",
+        greeting=data.greeting or "",
+        creator_notes=data.creator_notes or "",
+        tags=data.tags or [],
+        example_dialogues=data.example_dialogues or [],
+    )
 
 
 # ------------------------------------------------------------------
@@ -364,12 +383,7 @@ def setup_rest_routes(
     async def create_character_globally(data: CharacterRequest):
         if not orchestrator.is_configured():
             raise HTTPException(status_code=400, detail="AI服务未配置")
-        character = Character(
-            name=data.name,
-            personality=data.personality,
-            background=data.background,
-            speaking_style=data.speaking_style or "",
-        )
+        character = _build_character_from_request(data)
         success = chat_service.add_character_to_room(default_room_id, character)
         if not success:
             raise HTTPException(status_code=500, detail="无法将角色添加到默认聊天室")
@@ -382,12 +396,7 @@ def setup_rest_routes(
     async def add_character(room_id: str, data: CharacterRequest):
         if not orchestrator.is_configured():
             raise HTTPException(status_code=400, detail="AI服务未配置")
-        character = Character(
-            name=data.name,
-            personality=data.personality,
-            background=data.background,
-            speaking_style=data.speaking_style or "",
-        )
+        character = _build_character_from_request(data)
         success = chat_service.add_character_to_room(room_id, character)
         if not success:
             raise HTTPException(status_code=404, detail="聊天室不存在")
@@ -425,7 +434,17 @@ def setup_rest_routes(
         room = chat_service.get_chat_room(room_id)
         if not room:
             raise HTTPException(status_code=404, detail="聊天室不存在")
-        messages = room.get_recent_messages(limit)
+        since_dt = None
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                if since_dt.tzinfo is not None:
+                    since_dt = since_dt.astimezone(timezone.utc).replace(tzinfo=None)
+            except ValueError:
+                raise HTTPException(
+                    status_code=400, detail="since 参数格式无效，请使用 ISO 8601 时间格式"
+                )
+        messages = room.get_recent_messages(limit, since=since_dt)
         return [
             {
                 "id": msg.id,
@@ -476,13 +495,15 @@ def setup_rest_routes(
         if not orchestrator.is_configured():
             raise HTTPException(status_code=400, detail="AI服务未配置")
         interval = int(os.getenv("AUTO_CHAT_INTERVAL", "5"))
-        chat_service.start_auto_chat(room_id, interval)
+        if not chat_service.start_auto_chat(room_id, interval):
+            raise HTTPException(status_code=404, detail="聊天室不存在")
         await ws_manager.broadcast_room_status(room_id, {"is_auto_chat": True})
         return {"message": "自动聊天已开始"}
 
     @router.post("/api/rooms/{room_id}/auto-chat/stop")
     async def stop_auto_chat(room_id: str):
-        chat_service.stop_auto_chat(room_id)
+        if not chat_service.stop_auto_chat(room_id):
+            raise HTTPException(status_code=404, detail="聊天室不存在")
         await ws_manager.broadcast_room_status(room_id, {"is_auto_chat": False})
         return {"message": "自动聊天已停止"}
 

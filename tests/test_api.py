@@ -4,11 +4,14 @@ tests/test_api.py — REST API 端点测试
 使用 FastAPI TestClient 测试 API 端点，mock 掉 Orchestrator 和 WebSocket。
 """
 
+from datetime import datetime, timedelta
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from models.character import Message
 
 from routes.rest import setup_rest_routes
 from routes.ws import WebSocketManager
@@ -128,6 +131,33 @@ class TestCharacterEndpoints:
         assert resp.status_code == 200
         assert "character_id" in resp.json()
 
+    def test_add_character_with_extended_fields(self, api_client):
+        client, _, _ = api_client
+        resp = client.post(
+            "/api/characters",
+            json={
+                "name": "扩展角色",
+                "personality": "活泼",
+                "background": "默认背景",
+                "description": "详细描述",
+                "scenario": "茶室内景",
+                "system_prompt_override": "你是茶桌管理员",
+                "post_instructions": "回复长度 20 字以内",
+                "greeting": "欢迎来到茶室",
+                "creator_notes": "测试人物",
+                "tags": ["测试", "扩展"],
+                "example_dialogues": [
+                    {"user_message": "你好", "character_response": "在，您请"},
+                ],
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["description"] == "详细描述"
+        assert data["scenario"] == "茶室内景"
+        assert data["tags"] == ["测试", "扩展"]
+        assert data["example_dialogues"][0]["user_message"] == "你好"
+
     def test_add_character_nonexistent_room(self, api_client):
         client, _, _ = api_client
         resp = client.post(
@@ -150,6 +180,42 @@ class TestMessageEndpoints:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
+    def test_get_messages_with_since(self, api_client):
+        client, svc, _ = api_client
+        room = svc.get_chat_room("default")
+        assert room is not None
+        room.messages.clear()
+
+        now = datetime.now()
+        room.add_message(
+            Message(
+                character_id="preset-char",
+                character_name="预设角色",
+                content="旧消息",
+                timestamp=now - timedelta(minutes=1),
+            )
+        )
+        room.add_message(
+            Message(
+                character_id="preset-char",
+                character_name="预设角色",
+                content="新消息",
+                timestamp=now,
+            )
+        )
+
+        since = (now - timedelta(seconds=30)).isoformat()
+        resp = client.get(f"/api/rooms/default/messages?since={since}")
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert len(payload) == 1
+        assert payload[0]["content"] == "新消息"
+
+    def test_get_messages_invalid_since(self, api_client):
+        client, _, _ = api_client
+        resp = client.get("/api/rooms/default/messages?since=not-a-time")
+        assert resp.status_code == 400
+
     def test_get_messages_nonexistent_room(self, api_client):
         client, _, _ = api_client
         resp = client.get("/api/rooms/no-room/messages")
@@ -162,6 +228,35 @@ class TestMessageEndpoints:
             "/api/rooms/no-room/messages",
             json={"character_id": "preset-char", "content": "test"},
         )
+        assert resp.status_code == 404
+
+
+class TestAutoChatEndpoints:
+    def test_start_auto_chat(self, api_client):
+        client, svc, _ = api_client
+        room = svc.get_chat_room("default")
+        assert room is not None
+        resp = client.post("/api/rooms/default/auto-chat/start")
+        assert resp.status_code == 200
+        assert room.is_auto_chat is True
+
+    def test_stop_auto_chat(self, api_client):
+        client, svc, _ = api_client
+        room = svc.get_chat_room("default")
+        assert room is not None
+        room.is_auto_chat = True
+        resp = client.post("/api/rooms/default/auto-chat/stop")
+        assert resp.status_code == 200
+        assert room.is_auto_chat is False
+
+    def test_start_auto_chat_not_found(self, api_client):
+        client, _, _ = api_client
+        resp = client.post("/api/rooms/no-room/auto-chat/start")
+        assert resp.status_code == 404
+
+    def test_stop_auto_chat_not_found(self, api_client):
+        client, _, _ = api_client
+        resp = client.post("/api/rooms/no-room/auto-chat/stop")
         assert resp.status_code == 404
 
 

@@ -15,8 +15,7 @@ from typing import List, Optional
 from core.llm.types import ChatMessage, ChatRole
 from core.prompt.slots import PromptSlot, SlotContent
 from core.prompt.world_info_scanner import ScanResult, WorldInfoScanner
-from models.character import Character
-from models.character import Message
+from models.character import Character, Message
 from models.persona import Persona
 from models.world_info import WorldInfoBook
 

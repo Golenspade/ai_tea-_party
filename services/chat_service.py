@@ -328,22 +328,28 @@ class ChatService:
     def start_auto_chat(self, room_id: str, interval: int = 5):
         """开始自动聊天"""
         room = self.get_chat_room(room_id)
-        if room:
-            room.is_auto_chat = True
-            if room_id not in self.auto_chat_tasks:
-                task = asyncio.create_task(self.auto_chat_loop(room_id, interval))
-                self.auto_chat_tasks[room_id] = task
-                logger.info(f"开始自动聊天: {room.name}")
+        if not room:
+            return False
+
+        room.is_auto_chat = True
+        if room_id not in self.auto_chat_tasks:
+            task = asyncio.create_task(self.auto_chat_loop(room_id, interval))
+            self.auto_chat_tasks[room_id] = task
+            logger.info(f"开始自动聊天: {room.name}")
+        return True
 
     def stop_auto_chat(self, room_id: str):
         """停止自动聊天"""
         room = self.get_chat_room(room_id)
-        if room:
-            room.is_auto_chat = False
-            if room_id in self.auto_chat_tasks:
-                self.auto_chat_tasks[room_id].cancel()
-                del self.auto_chat_tasks[room_id]
-                logger.info(f"停止自动聊天: {room.name}")
+        if not room:
+            return False
+
+        room.is_auto_chat = False
+        if room_id in self.auto_chat_tasks:
+            self.auto_chat_tasks[room_id].cancel()
+            del self.auto_chat_tasks[room_id]
+            logger.info(f"停止自动聊天: {room.name}")
+        return True
 
 
 # 全局聊天服务实例

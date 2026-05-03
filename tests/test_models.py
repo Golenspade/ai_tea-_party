@@ -2,6 +2,8 @@
 tests/test_models.py — 数据模型单元测试
 """
 
+from datetime import datetime, timedelta
+
 from models.character import Character, ChatRoom, Message
 
 
@@ -86,6 +88,24 @@ class TestChatRoom:
         room.add_message(sample_message)
         recent = room.get_recent_messages(10)
         assert len(recent) == 1
+
+    def test_get_recent_messages_with_since(self):
+        room = ChatRoom(name="测试聊天室")
+        base_time = datetime.now()
+        old_message = Message(
+            character_id="c1", character_name="小茶", content="旧消息", timestamp=base_time
+        )
+        new_message = Message(
+            character_id="c1",
+            character_name="小茶",
+            content="新消息",
+            timestamp=base_time + timedelta(minutes=1),
+        )
+        room.add_message(old_message)
+        room.add_message(new_message)
+        assert len(room.get_recent_messages(since=base_time)) == 1
+        assert room.get_recent_messages(since=base_time)[0].content == "新消息"
+        assert len(room.get_recent_messages(since=base_time + timedelta(minutes=2))) == 0
 
     def test_get_active_characters(self, sample_character):
         room = ChatRoom(name="测试聊天室")
