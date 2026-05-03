@@ -4,7 +4,7 @@ tests/test_api.py — REST API 端点测试
 使用 FastAPI TestClient 测试 API 端点，mock 掉 Orchestrator 和 WebSocket。
 """
 
-
+from contextlib import ExitStack
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -27,62 +27,109 @@ def _noop_create_task(coro):
 @pytest.fixture
 def api_client():
     """创建一个测试用的 FastAPI 应用和客户端，mock 掉所有 DB 操作"""
-    with (
-        patch("services.chat_service.db") as mock_db,
-        patch("services.chat_service.asyncio.create_task", side_effect=_noop_create_task),
-        patch("db.repository.save_room", new_callable=AsyncMock),
-        patch("db.repository.save_character", new_callable=AsyncMock),
-        patch("db.repository.save_message", new_callable=AsyncMock),
-        patch("db.repository.clear_messages", new_callable=AsyncMock),
-        patch("db.repository.remove_character_from_room", new_callable=AsyncMock),
-        patch("db.repository.get_room_variable", new_callable=AsyncMock),
-        patch("db.repository.set_room_variable", new_callable=AsyncMock),
-        patch("db.repository.room_variable_exists", new_callable=AsyncMock, return_value=False),
-        patch("db.repository.add_room_variable", new_callable=AsyncMock),
-        patch("db.repository.inc_room_variable", new_callable=AsyncMock),
-        patch("db.repository.dec_room_variable", new_callable=AsyncMock),
-        patch("db.repository.delete_room_variable", new_callable=AsyncMock),
-        patch("db.repository.list_room_variables", new_callable=AsyncMock, return_value={} ),
-        patch("db.repository.get_global_variable", new_callable=AsyncMock),
-        patch("db.repository.set_global_variable", new_callable=AsyncMock),
-        patch("db.repository.delete_global_variable", new_callable=AsyncMock),
-        patch("db.repository.add_global_variable", new_callable=AsyncMock),
-        patch("db.repository.inc_global_variable", new_callable=AsyncMock),
-        patch("db.repository.dec_global_variable", new_callable=AsyncMock),
-        patch("db.repository.list_global_variables", new_callable=AsyncMock, return_value={} ),
-    ):
-        mock_db.save_room = AsyncMock()
-        mock_db.save_character = AsyncMock()
-        mock_db.save_message = AsyncMock()
-        mock_db.remove_character_from_room = AsyncMock()
-        mock_db.clear_messages = AsyncMock()
+    with ExitStack() as stack:
+        mock_db = stack.enter_context(
+            patch("services.chat_service.db")
+        )
+        stack.enter_context(
+            patch("services.chat_service.asyncio.create_task", side_effect=_noop_create_task)
+        )
 
-        # 变量端点默认 Mock
-        repo.get_room_variable.return_value = None
-        repo.set_room_variable.return_value = None
-        repo.room_variable_exists.return_value = False
-        repo.add_room_variable.return_value = None
-        repo.inc_room_variable.return_value = None
-        repo.dec_room_variable.return_value = None
-        repo.delete_room_variable.return_value = None
-        repo.list_room_variables.return_value = {}
-        repo.get_global_variable.return_value = None
-        repo.set_global_variable.return_value = None
-        repo.delete_global_variable.return_value = None
-        repo.add_global_variable.return_value = None
-        repo.inc_global_variable.return_value = None
-        repo.dec_global_variable.return_value = None
-        repo.list_global_variables.return_value = {}
+        get_room_variable = stack.enter_context(
+            patch("db.repository.get_room_variable", new_callable=AsyncMock)
+        )
+        set_room_variable = stack.enter_context(
+            patch("db.repository.set_room_variable", new_callable=AsyncMock)
+        )
+        room_variable_exists = stack.enter_context(
+            patch("db.repository.room_variable_exists", new_callable=AsyncMock)
+        )
+        add_room_variable = stack.enter_context(
+            patch("db.repository.add_room_variable", new_callable=AsyncMock)
+        )
+        inc_room_variable = stack.enter_context(
+            patch("db.repository.inc_room_variable", new_callable=AsyncMock)
+        )
+        dec_room_variable = stack.enter_context(
+            patch("db.repository.dec_room_variable", new_callable=AsyncMock)
+        )
+        delete_room_variable = stack.enter_context(
+            patch("db.repository.delete_room_variable", new_callable=AsyncMock)
+        )
+        list_room_variables = stack.enter_context(
+            patch("db.repository.list_room_variables", new_callable=AsyncMock)
+        )
+
+        get_global_variable = stack.enter_context(
+            patch("db.repository.get_global_variable", new_callable=AsyncMock)
+        )
+        set_global_variable = stack.enter_context(
+            patch("db.repository.set_global_variable", new_callable=AsyncMock)
+        )
+        delete_global_variable = stack.enter_context(
+            patch("db.repository.delete_global_variable", new_callable=AsyncMock)
+        )
+        add_global_variable = stack.enter_context(
+            patch("db.repository.add_global_variable", new_callable=AsyncMock)
+        )
+        inc_global_variable = stack.enter_context(
+            patch("db.repository.inc_global_variable", new_callable=AsyncMock)
+        )
+        dec_global_variable = stack.enter_context(
+            patch("db.repository.dec_global_variable", new_callable=AsyncMock)
+        )
+        list_global_variables = stack.enter_context(
+            patch("db.repository.list_global_variables", new_callable=AsyncMock)
+        )
+
+        # db.save_* 是 ChatService 使用的持久化写入入口
+        mock_db.save_room = stack.enter_context(
+            patch("db.repository.save_room", new_callable=AsyncMock)
+        )
+        mock_db.save_character = stack.enter_context(
+            patch("db.repository.save_character", new_callable=AsyncMock)
+        )
+        mock_db.save_message = stack.enter_context(
+            patch("db.repository.save_message", new_callable=AsyncMock)
+        )
+        mock_db.clear_messages = stack.enter_context(
+            patch("db.repository.clear_messages", new_callable=AsyncMock)
+        )
+        mock_db.remove_character_from_room = stack.enter_context(
+            patch("db.repository.remove_character_from_room", new_callable=AsyncMock)
+        )
+
+        # 默认 mock 行为
+        room_variable_exists.return_value = False
+        get_room_variable.return_value = None
+        set_room_variable.return_value = None
+        add_room_variable.return_value = None
+        inc_room_variable.return_value = None
+        dec_room_variable.return_value = None
+        delete_room_variable.return_value = None
+        list_room_variables.return_value = {}
+        get_global_variable.return_value = None
+        set_global_variable.return_value = None
+        delete_global_variable.return_value = None
+        add_global_variable.return_value = None
+        inc_global_variable.return_value = None
+        dec_global_variable.return_value = None
+        list_global_variables.return_value = {}
 
         svc = ChatService()
         # 创建默认聊天室并预设角色
         from models.character import Character as Char
+
         default_room = svc.create_chat_room("默认茶室")
         default_room.id = "default"
         svc.chat_rooms["default"] = default_room
 
-        # 预设一个角色用于测试（直接加入 model 层，避免 create_task）
-        preset_char = Char(id="preset-char", name="预设角色", personality="测试", background="测试")
+        preset_char = Char(
+            id="preset-char",
+            name="预设角色",
+            personality="测试",
+            background="测试",
+        )
         default_room.add_character(preset_char)
 
         orch = MagicMock()

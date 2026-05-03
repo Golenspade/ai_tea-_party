@@ -2,6 +2,7 @@
 数据库 CRUD 操作封装
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -17,6 +18,8 @@ from models.world_info import WIPosition, WorldInfoBook, WorldInfoEntry
 logger = logging.getLogger(__name__)
 
 ROOM_SCOPE = "room"
+_VAR_LOCKS: dict[tuple[str, str, str], asyncio.Lock] = {}
+_VAR_LOCKS_LOCK = asyncio.Lock()
 
 
 def _serialize_value(value: Any) -> str:
@@ -41,6 +44,23 @@ def _is_number(value: Any) -> bool:
 
 def _room_scope(scope: Optional[str] = None) -> str:
     return scope or ROOM_SCOPE
+
+
+def _room_lock_key(room_id: str, name: str, scope: str = ROOM_SCOPE) -> tuple[str, str, str]:
+    return (room_id, scope, name)
+
+
+def _global_lock_key(name: str) -> tuple[str, str, str]:
+    return ("__global__", "global", name)
+
+
+async def _acquire_variable_lock(key: tuple[str, str, str]) -> asyncio.Lock:
+    async with _VAR_LOCKS_LOCK:
+        lock = _VAR_LOCKS.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            _VAR_LOCKS[key] = lock
+        return lock
 
 # ─── Room ────────────────────────────────────────────────────────────
 
@@ -540,23 +560,28 @@ async def add_room_variable(
     - 数组：push
     - 其他类型：不匹配则返回原值，不抛异常
     """
-    current = await get_room_variable(room_id, name, scope=_room_scope(scope))
-    if current is None:
-        next_value = value
+    async with (
+        await _acquire_variable_lock(
+            _room_lock_key(room_id, name, _room_scope(scope)),
+        )
+    ):
+        current = await get_room_variable(room_id, name, scope=_room_scope(scope))
+        if current is None:
+            next_value = value
+            await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
+            return next_value
+
+        if isinstance(current, list):
+            next_value = current + ([value] if not isinstance(value, list) else value)
+        elif _is_number(current) and _is_number(value):
+            next_value = current + value
+        elif isinstance(current, str) and isinstance(value, str):
+            next_value = current + value
+        else:
+            return current
+
         await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
         return next_value
-
-    if isinstance(current, list):
-        next_value = current + ([value] if not isinstance(value, list) else value)
-    elif _is_number(current) and _is_number(value):
-        next_value = current + value
-    elif isinstance(current, str) and isinstance(value, str):
-        next_value = current + value
-    else:
-        return current
-
-    await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
-    return next_value
 
 
 async def inc_room_variable(
@@ -566,20 +591,25 @@ async def inc_room_variable(
     scope: str = ROOM_SCOPE,
 ) -> Any:
     """增量更新：只对数字生效，不匹配则返回原值。"""
-    current = await get_room_variable(room_id, name, scope=_room_scope(scope))
-    if not _is_number(current):
-        current_num = 0 if current is None else None
-        if current_num is None or not _is_number(delta):
+    async with (
+        await _acquire_variable_lock(
+            _room_lock_key(room_id, name, _room_scope(scope)),
+        )
+    ):
+        current = await get_room_variable(room_id, name, scope=_room_scope(scope))
+        if not _is_number(current):
+            current_num = 0 if current is None else None
+            if current_num is None or not _is_number(delta):
+                return current
+        else:
+            current_num = current
+
+        if not _is_number(delta):
             return current
-    else:
-        current_num = current
 
-    if not _is_number(delta):
-        return current
-
-    next_value = current_num + delta
-    await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
-    return next_value
+        next_value = current_num + delta
+        await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
+        return next_value
 
 
 async def dec_room_variable(
@@ -589,20 +619,25 @@ async def dec_room_variable(
     scope: str = ROOM_SCOPE,
 ) -> Any:
     """递减更新：只对数字生效，不匹配则返回原值。"""
-    current = await get_room_variable(room_id, name, scope=_room_scope(scope))
-    if not _is_number(current):
-        current_num = 0 if current is None else None
-        if current_num is None or not _is_number(delta):
+    async with (
+        await _acquire_variable_lock(
+            _room_lock_key(room_id, name, _room_scope(scope)),
+        )
+    ):
+        current = await get_room_variable(room_id, name, scope=_room_scope(scope))
+        if not _is_number(current):
+            current_num = 0 if current is None else None
+            if current_num is None or not _is_number(delta):
+                return current
+        else:
+            current_num = current
+
+        if not _is_number(delta):
             return current
-    else:
-        current_num = current
 
-    if not _is_number(delta):
-        return current
-
-    next_value = current_num - delta
-    await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
-    return next_value
+        next_value = current_num - delta
+        await set_room_variable(room_id, name, next_value, scope=_room_scope(scope))
+        return next_value
 
 
 async def set_global_variable(name: str, value: Any) -> None:
@@ -661,59 +696,68 @@ async def list_global_variables() -> dict[str, Any]:
 
 async def add_global_variable(name: str, value: Any) -> Any:
     """全局变量 add 语义：同 room 变量。"""
-    current = await get_global_variable(name)
-    if current is None:
-        next_value = value
+    async with (
+        await _acquire_variable_lock(_global_lock_key(name))
+    ):
+        current = await get_global_variable(name)
+        if current is None:
+            next_value = value
+            await set_global_variable(name, next_value)
+            return next_value
+
+        if isinstance(current, list):
+            next_value = current + ([value] if not isinstance(value, list) else value)
+        elif _is_number(current) and _is_number(value):
+            next_value = current + value
+        elif isinstance(current, str) and isinstance(value, str):
+            next_value = current + value
+        else:
+            return current
+
         await set_global_variable(name, next_value)
         return next_value
-
-    if isinstance(current, list):
-        next_value = current + ([value] if not isinstance(value, list) else value)
-    elif _is_number(current) and _is_number(value):
-        next_value = current + value
-    elif isinstance(current, str) and isinstance(value, str):
-        next_value = current + value
-    else:
-        return current
-
-    await set_global_variable(name, next_value)
-    return next_value
 
 
 async def inc_global_variable(name: str, delta: Any) -> Any:
     """全局变量递增。"""
-    current = await get_global_variable(name)
-    if not _is_number(current):
-        current_num = 0 if current is None else None
-        if current_num is None or not _is_number(delta):
+    async with (
+        await _acquire_variable_lock(_global_lock_key(name))
+    ):
+        current = await get_global_variable(name)
+        if not _is_number(current):
+            current_num = 0 if current is None else None
+            if current_num is None or not _is_number(delta):
+                return current
+        else:
+            current_num = current
+
+        if not _is_number(delta):
             return current
-    else:
-        current_num = current
 
-    if not _is_number(delta):
-        return current
-
-    next_value = current_num + delta
-    await set_global_variable(name, next_value)
-    return next_value
+        next_value = current_num + delta
+        await set_global_variable(name, next_value)
+        return next_value
 
 
 async def dec_global_variable(name: str, delta: Any) -> Any:
     """全局变量递减。"""
-    current = await get_global_variable(name)
-    if not _is_number(current):
-        current_num = 0 if current is None else None
-        if current_num is None or not _is_number(delta):
+    async with (
+        await _acquire_variable_lock(_global_lock_key(name))
+    ):
+        current = await get_global_variable(name)
+        if not _is_number(current):
+            current_num = 0 if current is None else None
+            if current_num is None or not _is_number(delta):
+                return current
+        else:
+            current_num = current
+
+        if not _is_number(delta):
             return current
-    else:
-        current_num = current
 
-    if not _is_number(delta):
-        return current
-
-    next_value = current_num - delta
-    await set_global_variable(name, next_value)
-    return next_value
+        next_value = current_num - delta
+        await set_global_variable(name, next_value)
+        return next_value
 
 
 async def get_setting(key: str, default: str = "") -> str:
