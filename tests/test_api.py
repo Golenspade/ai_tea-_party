@@ -4,11 +4,11 @@ tests/test_api.py — REST API 端点测试
 使用 FastAPI TestClient 测试 API 端点，mock 掉 Orchestrator 和 WebSocket。
 """
 
+import pytest
 from datetime import datetime, timedelta
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from models.character import Message

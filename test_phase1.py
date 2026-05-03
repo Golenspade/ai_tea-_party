@@ -1,15 +1,16 @@
 """Phase 1+2 验证脚本 — 验证人设/世界观系统的所有核心组件"""
 import asyncio
 
+from core.prompt.assembler import PromptAssembler
+from core.prompt.world_info_scanner import WorldInfoScanner
+from db import repository as repo
+from models.character import Character, ExampleDialogue
+from models.persona import Persona
+from models.world_info import WIPosition, WorldInfoBook, WorldInfoEntry
+
 
 async def main():
     # 1. 验证所有 import
-    from core.prompt.assembler import PromptAssembler
-    from core.prompt.world_info_scanner import WorldInfoScanner
-    from db import repository as repo
-    from models.character import Character, ExampleDialogue
-    from models.persona import Persona
-    from models.world_info import WorldInfoBook, WorldInfoEntry, WIPosition
     print("[OK] All imports")
 
     # 2. WI Scanner 测试
