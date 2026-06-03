@@ -14,6 +14,7 @@ export type {
   VariablePatchRequest,
   ProviderDef,
   PresenceUser,
+  WsMessage,
 } from "@ai-party/shared";
 
 // --- API 配置 ---
