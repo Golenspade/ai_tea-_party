@@ -198,7 +198,7 @@ export class AppRepository {
       id: roomId,
       name,
       description,
-      stealthMode: Number(options?.stealth_mode ?? false),
+      stealthMode: Boolean(options?.stealth_mode ?? false),
       userDescription: options?.user_description || "",
       personaId: undefined,
       createdAt,
@@ -250,7 +250,7 @@ export class AppRepository {
     > = {};
 
     if (updates.stealth_mode !== undefined) {
-      set.stealthMode = updates.stealth_mode ? 1 : 0;
+      set.stealthMode = Boolean(updates.stealth_mode);
     }
 
     if (updates.user_description !== undefined) {
@@ -341,30 +341,29 @@ export class AppRepository {
       .all();
 
     for (const row of rows) {
-      if (!result[row.characterId]) {
-        result[row.characterId] = [];
-      }
-      result[row.characterId].push({
+      const bucket = result[row.characterId] ?? [];
+      bucket.push({
         user_message: row.userMessage,
         character_response: row.characterResponse,
       });
+      result[row.characterId] = bucket;
     }
 
     return result;
   }
 
   getRoomMessages(roomId: string, sinceIso?: string, limit = 50): Message[] {
-    let query = this.db
+    const whereClause = sinceIso
+      ? and(eq(messages.roomId, roomId), gt(messages.timestamp, sinceIso))
+      : eq(messages.roomId, roomId);
+
+    const rows = this.db
       .select()
       .from(messages)
-      .where(eq(messages.roomId, roomId))
-      .orderBy(asc(messages.timestamp));
-
-    if (sinceIso) {
-      query = query.where(gt(messages.timestamp, sinceIso));
-    }
-
-    const rows = query.limit(limit).all();
+      .where(whereClause)
+      .orderBy(asc(messages.timestamp))
+      .limit(limit)
+      .all();
 
     return rows.map((item) => ({
       id: item.id,
@@ -386,7 +385,7 @@ export class AppRepository {
       characterId: message.character_id,
       characterName: message.character_name,
       content: message.content,
-      isSystem: Number(message.is_system ? 1 : 0),
+      isSystem: Boolean(message.is_system),
       timestamp: message.timestamp || nowIso(),
       senderType: message.sender_type || null,
       senderUserId: message.sender_user_id || null,
@@ -465,7 +464,7 @@ export class AppRepository {
         greeting: character.greeting || "",
         creatorNotes: character.creator_notes || "",
         tags: toJson(character.tags || []),
-        isActive: Number(character.is_active ? 1 : 0),
+        isActive: Boolean(character.is_active),
         avatar: character.avatar || null,
       })
       .onConflictDoUpdate({
@@ -482,7 +481,7 @@ export class AppRepository {
           greeting: character.greeting || "",
           creatorNotes: character.creator_notes || "",
           tags: toJson(character.tags || []),
-          isActive: Number(character.is_active ? 1 : 0),
+          isActive: Boolean(character.is_active),
           avatar: character.avatar || null,
         },
       })
@@ -705,14 +704,14 @@ export class AppRepository {
         id: persona.id,
         name: persona.name,
         description: persona.description,
-        isDefault: Number(persona.is_default ? 1 : 0),
+        isDefault: Boolean(persona.is_default),
       })
       .onConflictDoUpdate({
         target: personas.id,
         set: {
           name: persona.name,
           description: persona.description,
-          isDefault: Number(persona.is_default ? 1 : 0),
+          isDefault: Boolean(persona.is_default),
         },
       })
       .run();
@@ -767,7 +766,7 @@ export class AppRepository {
         id,
         name,
         description,
-        enabled: Number(enabled ? 1 : 0),
+        enabled: Boolean(enabled),
       })
       .run();
     return { id, name, description, enabled: Boolean(enabled), entries: [] };
@@ -780,14 +779,14 @@ export class AppRepository {
         id: book.id,
         name: book.name,
         description: book.description || "",
-        enabled: Number(book.enabled ? 1 : 0),
+        enabled: Boolean(book.enabled),
       })
       .onConflictDoUpdate({
         target: worldInfoBooks.id,
         set: {
           name: book.name,
           description: book.description || "",
-          enabled: Number(book.enabled ? 1 : 0),
+          enabled: Boolean(book.enabled),
         },
       })
       .run();
@@ -850,8 +849,8 @@ export class AppRepository {
         content: entry.content || "",
         position: entry.position || "after_char",
         depth: entry.depth || 4,
-        enabled: Number(entry.enabled ? 1 : 0),
-        constant: Number(entry.constant ? 1 : 0),
+        enabled: Boolean(entry.enabled),
+        constant: Boolean(entry.constant),
         sortOrder: entry.order ?? 100,
       })
       .onConflictDoUpdate({
@@ -864,8 +863,8 @@ export class AppRepository {
           content: entry.content || "",
           position: entry.position || "after_char",
           depth: entry.depth || 4,
-          enabled: Number(entry.enabled ? 1 : 0),
-          constant: Number(entry.constant ? 1 : 0),
+          enabled: Boolean(entry.enabled),
+          constant: Boolean(entry.constant),
           sortOrder: entry.order ?? 100,
         },
       })

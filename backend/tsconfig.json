@@ -2,11 +2,13 @@
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "target": "ES2022",
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@ai-party/shared": ["../packages/shared/src/index.ts"]
+    }
   },
   "include": ["src/**/*"]
 }

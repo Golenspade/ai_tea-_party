@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { appState } from "../store";
 import type { RoomSocketManager } from "../room-hub";
-import type { StreamingEvent } from "@ai-party/shared";
+import type { StreamingEvent, Character } from "@ai-party/shared";
 
 interface RoomIdParams {
   room_id: string;
@@ -13,11 +13,7 @@ interface GenerateRequestBody {
 }
 
 interface ResolvedGenerator {
-  character: {
-    id: string;
-    name: string;
-    greeting?: string;
-  };
+  character: Character;
 }
 
 function withValidCharacter(
@@ -40,10 +36,7 @@ function withValidCharacter(
   }
 
   return {
-    character: {
-      id: character.id,
-      name: character.name,
-    },
+    character,
   };
 }
 

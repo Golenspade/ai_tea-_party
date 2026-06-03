@@ -282,6 +282,9 @@ class AppState {
       if (ctx.scope === "global") {
         return this.repository.addGlobalVariable(key, value);
       }
+      if (!ctx.roomId) {
+        throw new Error("聊天室不存在");
+      }
       return this.repository.addRoomVariable(ctx.roomId, key, value);
     }
 
@@ -290,6 +293,10 @@ class AppState {
         return this.repository.incGlobalVariable(key, value);
       }
       return this.repository.decGlobalVariable(key, value);
+    }
+
+    if (!ctx.roomId) {
+      throw new Error("聊天室不存在");
     }
 
     if (mode === "inc") {
@@ -306,7 +313,7 @@ class AppState {
     }
 
     const character: Character = {
-      id: data.id || randomUUID(),
+      id: "id" in data && data.id ? data.id : randomUUID(),
       name: data.name,
       personality: data.personality,
       background: data.background,

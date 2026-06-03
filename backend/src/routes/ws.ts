@@ -14,10 +14,6 @@ interface WsQuery {
   nickname?: string;
 }
 
-interface WsConnection {
-  socket: WebSocket;
-}
-
 export function registerWsRoutes(
   app: FastifyInstance,
   { socketManager }: { socketManager: RoomSocketManager },
@@ -25,22 +21,22 @@ export function registerWsRoutes(
   app.get<{ Params: RoomIdParams; Querystring: WsQuery }>(
     "/ws/:room_id",
     { websocket: true },
-    (connection: WsConnection, request: FastifyRequest<{ Params: RoomIdParams; Querystring: WsQuery }>) => {
+    (socket: WebSocket, request: FastifyRequest<{ Params: RoomIdParams; Querystring: WsQuery }>) => {
       const roomId = request.params.room_id;
       const room = appState.getRoom(roomId);
       if (!room) {
-        connection.socket.close(1008, "聊天室不存在");
+        socket.close(1008, "聊天室不存在");
         return;
       }
 
       const userId = request.query?.user_id || randomUUID();
       const nickname = (request.query?.nickname || "茶话会用户").trim() || "茶话会用户";
 
-      socketManager.add(roomId, connection.socket, {
+      socketManager.add(roomId, socket, {
         user_id: userId,
         nickname,
         room_id: roomId,
-      } as const);
+      });
 
       void socketManager.send(roomId, {
         type: "room_status",
@@ -49,8 +45,8 @@ export function registerWsRoutes(
         },
       });
 
-      connection.socket.on("close", () => {
-        socketManager.remove(roomId, connection.socket);
+      socket.on("close", () => {
+        socketManager.remove(roomId, socket);
       });
     },
   );

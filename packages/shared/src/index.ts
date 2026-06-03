@@ -136,12 +136,15 @@ export const StreamingEventSchema = z.discriminatedUnion("type", [
     content: z.string(),
     request_id: z.string(),
     message_id: z.string().optional(),
+    character_id: z.string().optional(),
+    character_name: z.string().optional(),
   }),
   z.object({
     type: z.literal("error"),
     message: z.string(),
     message_id: z.string().optional(),
     character_id: z.string().optional(),
+    request_id: z.string().optional(),
   }),
   z.object({
     type: z.literal("tool_call_start"),

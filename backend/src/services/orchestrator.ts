@@ -1,10 +1,10 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { Agent } from "@earendil-works/pi-agent-core";
-import { Type, getModel } from "@earendil-works/pi-ai";
+import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
+import { Type, getModel, type KnownProvider, type Model } from "@earendil-works/pi-ai";
 import type { Character, ChatRoom, StreamingEvent } from "@ai-party/shared";
 
-import type { ResponseLength } from "./types";
+import type { ResponseLength } from "../types";
 
 export interface OrchestratorStreamSession {
   requestId: string;
@@ -277,11 +277,12 @@ export class ChatOrchestrator {
   ): AsyncGenerator<StreamingEvent> {
     const queue = new AsyncStreamingQueue<StreamingEvent>();
     const tools = this.createTools(runtime);
-    let model: unknown;
+    let model: Model<any>;
     let finalSent = false;
 
     try {
-      model = getModel(PROVIDER_MAP[runtime.provider] || runtime.provider, runtime.model);
+      const provider = (PROVIDER_MAP[runtime.provider] || runtime.provider) as KnownProvider;
+      model = getModel(provider, runtime.model as never);
     } catch (error) {
       queue.push({
         type: "error",
@@ -308,17 +309,23 @@ export class ChatOrchestrator {
         systemPrompt,
         model,
         tools,
-        messages: baseMessages,
+        messages: baseMessages.map((message) => ({
+          role: message.role,
+          content: message.content,
+          timestamp: Date.now(),
+        })) as never,
       },
       beforeToolCall: async ({ toolCall, args }) => {
         if (process.env.NODE_ENV !== "production") {
           console.info(`beforeToolCall: ${toolCall.name} ${JSON.stringify(args)}`);
         }
+        return undefined;
       },
       afterToolCall: async ({ toolCall, result }) => {
         if (process.env.NODE_ENV !== "production") {
           console.info(`afterToolCall: ${toolCall.name} ${JSON.stringify(result?.details ?? result)}`);
         }
+        return undefined;
       },
     });
 
@@ -461,7 +468,7 @@ export class ChatOrchestrator {
     yield* queue;
   }
 
-  private createTools(runtime: OrchestratorRuntime): Array<Record<string, unknown>> {
+  private createTools(runtime: OrchestratorRuntime): AgentTool[] {
     const parseName = (args: Record<string, unknown>): string => {
       if (typeof args.name !== "string") {
         throw new Error("变量名不能为空");
@@ -618,7 +625,7 @@ export class ChatOrchestrator {
           } as ToolResult;
         },
       },
-    ];
+    ] as AgentTool[];
   }
 
   private composeSystemPrompt(

@@ -8,6 +8,7 @@ import type {
   CharacterFormData,
   Message,
   Persona,
+  VariableEntry,
   WorldInfoBook,
   WorldInfoEntry,
 } from "@ai-party/shared";
@@ -23,6 +24,10 @@ type ApiConfigPayload = {
 
 interface RoomIdParams {
   room_id: string;
+}
+
+interface CharacterIdParams {
+  character_id: string;
 }
 
 interface NameParams {
@@ -270,7 +275,7 @@ export function registerRestRoutes(
     },
   );
 
-  app.delete<{ Params: RoomIdParams & NameParams }>(
+  app.delete<{ Params: RoomIdParams & CharacterIdParams }>(
     "/api/rooms/:room_id/characters/:character_id",
     async (request, reply) => {
       const { room_id, character_id } = request.params;
@@ -572,7 +577,7 @@ export function registerRestRoutes(
         return sendFailure(reply, 400, "变量名不能为空");
       }
 
-      let result: { name: string; value: unknown; scope: "global" };
+      let result: VariableEntry;
       if (op === "set") {
         result = appState.setVariable("global", "global", getTrimmedVariableName(request.body.name), request.body.value);
       } else if (op === "add") {
