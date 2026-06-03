@@ -21,7 +21,10 @@ test("变量命令冒烟：支持变量新增与 getvar 宏渲染", async ({ pag
   await submitBtn.click();
 
   // 变量列表应出现该变量（room scope）
-  await expect(page.getByText(variableName)).toBeVisible({ timeout: 15_000 });
+  const variablesPanel = page.getByRole("complementary");
+  await expect(
+    variablesPanel.getByRole("listitem").filter({ hasText: variableName }),
+  ).toBeVisible({ timeout: 15_000 });
   await expect(
     page.getByText(`已设置变量 ${variableName}`),
   ).toBeVisible({ timeout: 15_000 });
@@ -30,5 +33,7 @@ test("变量命令冒烟：支持变量新增与 getvar 宏渲染", async ({ pag
   await composer.fill(`当前值 {{getvar::${variableName}}}`);
   await submitBtn.click();
 
-  await expect(page.getByText("当前值 12")).toBeVisible({ timeout: 15_000 });
+  await expect(
+    page.getByRole("main").getByText("当前值 12").first(),
+  ).toBeVisible({ timeout: 15_000 });
 });

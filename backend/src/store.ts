@@ -25,6 +25,7 @@ import {
   type VariableOps,
 } from "./services/variables";
 import { ResponseLength } from "./types";
+import { loadAppConfig, toCharacterFormData } from "./utils/config-loader";
 
 const nowIso = () => new Date().toISOString();
 
@@ -125,6 +126,10 @@ class AppState {
   }
 
   private seedDefaults(): void {
+    if (this.repository.listRooms().length === 0) {
+      this.bootstrapFromConfigFile();
+    }
+
     const defaultRoom = this.getRoom(DEFAULT_ROOM_ID);
     if (!defaultRoom) {
       this.repository.createRoom(DEFAULT_ROOM_ID, "AI Tea Party 聊天室", "默认聊天室", {
@@ -174,6 +179,42 @@ class AppState {
 
       this.addCharacterToRoom(DEFAULT_ROOM_ID, introCharacter);
     }
+  }
+
+  private bootstrapFromConfigFile(): boolean {
+    const config = loadAppConfig();
+    const rooms = config?.rooms;
+    if (!rooms?.length) {
+      return false;
+    }
+
+    for (const roomConfig of rooms) {
+      const roomId = roomConfig.id?.trim();
+      if (!roomId) {
+        continue;
+      }
+
+      if (this.getRoom(roomId)) {
+        continue;
+      }
+
+      this.createRoom(roomConfig.name || "Unnamed Room", roomConfig.description || "", {
+        id: roomId,
+        stealth_mode: roomConfig.stealth_mode ?? false,
+        user_description: roomConfig.user_description || "",
+        max_history: 50,
+        created_at: nowIso(),
+      });
+
+      for (const characterConfig of roomConfig.characters || []) {
+        if (!characterConfig.name?.trim()) {
+          continue;
+        }
+        this.addCharacterToRoom(roomId, toCharacterFormData(characterConfig));
+      }
+    }
+
+    return true;
   }
 
   cloneRoomsSnapshot(): ChatRoom[] {
@@ -684,6 +725,7 @@ class AppState {
       incVariable: async (scope, name, value) => this.incVariable(scope, roomId, name, value),
       decVariable: async (scope, name, value) => this.decVariable(scope, roomId, name, value),
       listRoomWorldInfoBooks: async (id) => this.getRoomWorldInfo(id),
+      getDefaultPersona: () => this.listPersonas().find((persona) => persona.is_default) ?? null,
     };
   }
 }
