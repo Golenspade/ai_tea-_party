@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { Character, Message, CharacterFormData, ApiConfig } from "@/lib/types";
+import type {
+  Character,
+  Message,
+  CharacterFormData,
+  ApiConfig,
+  PresenceUser,
+} from "@/lib/types";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useTypewriter } from "@/hooks/use-typewriter";
 import * as api from "@/services/api";
@@ -20,6 +26,7 @@ export function ChatLayout() {
   const [roomVariables, setRoomVariables] = useState<VariableEntry[]>([]);
   const [globalVariables, setGlobalVariables] = useState<VariableEntry[]>([]);
   const [variablesLoading, setVariablesLoading] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
 
   // --- WebSocket ---
   const handleWsMessage = useCallback((msg: Message) => {
@@ -60,10 +67,15 @@ export function ChatLayout() {
     [],
   );
 
-  const { isConnected } = useWebSocket({
+  const handlePresence = useCallback((users: PresenceUser[]) => {
+    setOnlineUsers(users.filter((item) => item.is_online));
+  }, []);
+
+  const { isConnected, userId, nickname } = useWebSocket({
     onMessage: handleWsMessage,
     onCharacterUpdate: handleCharacterUpdate,
     onRoomStatus: handleRoomStatus,
+    onPresence: handlePresence,
   });
 
   // --- 数据加载 ---
@@ -92,9 +104,19 @@ export function ChatLayout() {
     }
   };
 
+  const loadPresence = async () => {
+    try {
+      const users = await api.fetchRoomPresence();
+      setOnlineUsers(users.filter((item) => item.is_online));
+    } catch (error) {
+      console.error("Failed to fetch presence:", error);
+    }
+  };
+
   useEffect(() => {
     loadCharacters();
     loadVariables();
+    loadPresence();
   }, []);
 
   // --- 事件处理器 ---
@@ -118,7 +140,11 @@ export function ChatLayout() {
 
   const handleSendMessage = async (characterId: string, content: string) => {
     try {
-      await api.sendMessage(characterId, content);
+      await api.sendMessage(characterId, content, "default", {
+        sender_type: "user",
+        sender_user_id: userId,
+        sender_user_name: nickname,
+      });
       if (
         content.trim().startsWith("/") ||
         content.includes("{{") && content.includes("::")
@@ -334,6 +360,15 @@ export function ChatLayout() {
             {isAutoChat && (
               <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold animate-pulse">
                 [Auto-Dialogue]
+              </span>
+            )}
+            {onlineUsers.length > 0 ? (
+              <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold">
+                [{onlineUsers.length} 人在场]
+              </span>
+            ) : (
+              <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-muted)]">
+                [无人连接]
               </span>
             )}
             <ApiConfigDialog onSave={handleSaveApiConfig} />

@@ -10,6 +10,7 @@ import type {
   VariablePatchRequest,
   VariableSetRequest,
   VariableScope,
+  PresenceUser,
 } from "@/lib/types";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3004").replace(/\/$/, "");
@@ -52,11 +53,22 @@ export async function sendMessage(
   characterId: string,
   content: string,
   roomId = "default",
+  sender?: {
+    sender_type?: "ai" | "user" | "system";
+    sender_user_id?: string;
+    sender_user_name?: string;
+  },
 ): Promise<void> {
+  const payload = {
+    character_id: characterId,
+    content,
+    ...sender,
+  };
+
   const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ character_id: characterId, content }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error("Failed to send message");
 }
@@ -65,6 +77,13 @@ export async function clearMessages(roomId = "default"): Promise<void> {
   await fetch(`${BASE_URL}/api/rooms/${roomId}/messages`, {
     method: "DELETE",
   });
+}
+
+export async function fetchRoomPresence(roomId = "default"): Promise<PresenceUser[]> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/presence`);
+  if (!res.ok) throw new Error("Failed to fetch room presence");
+  const data = await res.json();
+  return data.users || [];
 }
 
 // --- AI 流式生成 ---

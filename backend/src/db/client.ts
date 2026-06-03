@@ -178,6 +178,7 @@ export function ensureSchema(client: Database.Database): void {
   ensureColumn(client, "characters", "avatar", "TEXT");
   ensureColumn(client, "messages", "sender_type", "TEXT");
   ensureColumn(client, "messages", "sender_user_id", "TEXT");
+  ensureColumn(client, "messages", "sender_user_name", "TEXT");
 
   client.exec(`
     CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);

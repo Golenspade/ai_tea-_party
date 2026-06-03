@@ -20,15 +20,18 @@ export function CustomChatBubble({ message }: ChatBubbleProps) {
     );
   }
 
-  // Treat as user message if ID is "user" or it doesn't match an AI character
-  // Typically user messages come from the character selector, but let's assume default is user if missing
-  const isUser = message.character_id === "user" || message.character_id === "SYSTEM" || message.character_name === "You" || message.character_name === "我";
+  const isUser = message.sender_type === "user";
+  const messageAuthor = isUser
+    ? message.sender_user_name || message.character_name
+    : message.character_name;
 
   if (isUser) {
     return (
       <div className="pl-6 border-l border-[#e6dec1] ml-4 bg-[#fbf8f1] p-4 rounded-r-md shadow-sm">
         <div className="flex items-center gap-3 mb-2">
-          <span className="text-xs uppercase tracking-[0.1em] font-bold text-[#3b3631]">Inquiry /</span>
+          <span className="text-xs uppercase tracking-[0.1em] font-bold text-[#3b3631]">
+            {messageAuthor} /
+          </span>
           <span className="text-xs text-[#7e766c]">
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>

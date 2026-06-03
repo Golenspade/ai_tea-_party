@@ -37,6 +37,9 @@ interface GenericQuery {
 interface MessageRequestBody {
   character_id: string;
   content: string;
+  sender_type?: "ai" | "user" | "system";
+  sender_user_id?: string;
+  sender_user_name?: string;
 }
 
 type CharacterRequestBody = CharacterFormData & {
@@ -302,7 +305,13 @@ export function registerRestRoutes(
     "/api/rooms/:room_id/messages",
     async (request, reply) => {
       const roomId = request.params.room_id;
-      const { character_id, content } = request.body;
+      const {
+        character_id,
+        content,
+        sender_type,
+        sender_user_id,
+        sender_user_name,
+      } = request.body;
       const room = appState.getRoom(roomId);
       if (!room || !character_id) {
         return sendFailure(reply, 404, "聊天室或角色不存在");
@@ -320,8 +329,9 @@ export function registerRestRoutes(
         content: content || "",
         timestamp: nowIso(),
         is_system: false,
-        sender_type: "user",
-        sender_user_id: character.id,
+        sender_type: sender_type || "user",
+        sender_user_id: sender_user_id || "user",
+        sender_user_name,
       };
 
       appState.addRoomMessage(roomId, message);
@@ -330,6 +340,22 @@ export function registerRestRoutes(
       return { message: "消息发送成功" };
     },
   );
+
+  app.get<{ Params: RoomIdParams }>("/api/rooms/:room_id/presence", (request, reply) => {
+    const roomId = request.params.room_id;
+    const room = appState.getRoom(roomId);
+    if (!room) {
+      return sendFailure(reply, 404, "聊天室不存在");
+    }
+
+    const users = socketManager.getPresence(roomId);
+
+    return {
+      room_id: roomId,
+      users,
+      count: users.length,
+    };
+  });
 
   app.delete<{ Params: RoomIdParams }>(
     "/api/rooms/:room_id/messages",

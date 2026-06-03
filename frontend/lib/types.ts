@@ -13,6 +13,7 @@ export type {
   VariableSetRequest,
   VariablePatchRequest,
   ProviderDef,
+  PresenceUser,
 } from "@ai-party/shared";
 
 // --- API 配置 ---

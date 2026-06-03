@@ -375,6 +375,7 @@ export class AppRepository {
       is_system: toBool(item.isSystem),
       sender_type: item.senderType as Message["sender_type"],
       sender_user_id: item.senderUserId || undefined,
+      sender_user_name: item.senderUserName || undefined,
     }));
   }
 
@@ -389,6 +390,7 @@ export class AppRepository {
       timestamp: message.timestamp || nowIso(),
       senderType: message.sender_type || null,
       senderUserId: message.sender_user_id || null,
+      senderUserName: message.sender_user_name || null,
     } as const;
 
     this.db
@@ -405,6 +407,7 @@ export class AppRepository {
           timestamp: values.timestamp,
           senderType: values.senderType,
           senderUserId: values.senderUserId,
+          senderUserName: values.senderUserName,
         },
       })
       .run();

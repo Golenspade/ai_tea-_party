@@ -59,6 +59,7 @@ export const messages = sqliteTable(
     timestamp: text("timestamp").notNull(),
     senderType: text("sender_type"),
     senderUserId: text("sender_user_id"),
+    senderUserName: text("sender_user_name"),
   },
   (table) => ({
     roomIdx: index("idx_messages_room_id").on(table.roomId),

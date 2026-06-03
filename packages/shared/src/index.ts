@@ -9,6 +9,15 @@ export const MessageSchema = z.object({
   is_system: z.boolean().optional().default(false),
   sender_type: z.enum(["ai", "user", "system"]).optional(),
   sender_user_id: z.string().optional(),
+  sender_user_name: z.string().optional(),
+});
+
+export const PresenceUserSchema = z.object({
+  user_id: z.string(),
+  nickname: z.string(),
+  room_id: z.string(),
+  is_online: z.boolean(),
+  joined_at: z.string(),
 });
 
 export const ExampleDialogueSchema = z.object({
@@ -171,13 +180,7 @@ export const WsMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("presence"),
     room_id: z.string(),
-    users: z.array(z.object({
-      user_id: z.string(),
-      nickname: z.string(),
-      room_id: z.string(),
-      is_online: z.boolean(),
-      joined_at: z.string(),
-    })),
+    users: z.array(PresenceUserSchema),
   }),
 ]);
 
@@ -185,6 +188,7 @@ export type ExampleDialogue = z.infer<typeof ExampleDialogueSchema>;
 export type Character = z.infer<typeof CharacterSchema>;
 export type CharacterFormData = z.infer<typeof CharacterFormDataSchema>;
 export type Message = z.infer<typeof MessageSchema>;
+export type PresenceUser = z.infer<typeof PresenceUserSchema>;
 export type Persona = z.infer<typeof PersonaSchema>;
 export type WorldInfoEntry = z.infer<typeof WorldInfoEntrySchema>;
 export type WorldInfoBook = z.infer<typeof WorldInfoBookSchema>;
