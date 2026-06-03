@@ -403,3 +403,44 @@ export async function updateRoomWorldInfo(roomId: string, bookIds: string[]): Pr
 }
 
 export { BASE_URL };
+
+// --- Room Bar ---
+
+export async function fetchRoomBar(roomId = "default") {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/bar`);
+  if (!res.ok) throw new Error("Failed to fetch room bar");
+  return res.json();
+}
+
+// --- Ask ---
+
+export async function fetchPendingAsk(roomId = "default") {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/asks/pending`);
+  if (!res.ok) throw new Error("Failed to fetch pending ask");
+  const data = await res.json();
+  return data.ask as import("@/lib/types").PendingAskPublic | null;
+}
+
+export async function answerPendingAsk(
+  askId: string,
+  answer: import("@/lib/types").AskAnswer,
+  roomId = "default",
+): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/asks/${askId}/answer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(answer),
+  });
+  if (!res.ok) throw new Error("Failed to answer ask");
+}
+
+export function streamAIResponseResume(
+  askId: string,
+  roomId = "default",
+): Promise<Response> {
+  return fetch(`${BASE_URL}/api/rooms/${roomId}/generate/stream/resume`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ask_id: askId }),
+  });
+}

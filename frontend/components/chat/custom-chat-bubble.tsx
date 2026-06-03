@@ -3,10 +3,47 @@
 import type { Character, Message } from "@/lib/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { parseMarkdownBlocks } from "@/lib/markdown-blocks";
 
 interface ChatBubbleProps {
   message: Message;
   characters: Character[];
+}
+
+function MarkdownBody({ content }: { content: string }) {
+  const blocks = parseMarkdownBlocks(content);
+
+  return (
+    <>
+      {blocks.map((block, index) => {
+        if (block.type === "text") {
+          if (!block.content.trim()) return null;
+          return (
+            <ReactMarkdown key={`text-${index}`} remarkPlugins={[remarkGfm]}>
+              {block.content}
+            </ReactMarkdown>
+          );
+        }
+
+        if (block.language === "mermaid" && !block.complete) {
+          return (
+            <p key={`mermaid-pending-${index}`} className="text-xs text-[#7e766c] italic my-2">
+              图表渲染中…
+            </p>
+          );
+        }
+
+        return (
+          <pre
+            key={`code-${index}`}
+            className="my-2 overflow-x-auto rounded-sm bg-[#f5f1e8] px-3 py-2 text-xs"
+          >
+            <code>{block.content}</code>
+          </pre>
+        );
+      })}
+    </>
+  );
 }
 
 export function CustomChatBubble({ message }: ChatBubbleProps) {
@@ -63,9 +100,7 @@ export function CustomChatBubble({ message }: ChatBubbleProps) {
       
       <div className="font-book text-[1.05rem] leading-8 text-[#3b3631] text-justify">
         <div className="prose prose-sm md:prose-base lg:prose-lg max-w-none text-inherit leading-8 drop-cap marker:text-[#a35d40] prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-headings:font-book prose-headings:text-[#3b3631]">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {message.content}
-          </ReactMarkdown>
+          <MarkdownBody content={message.content} />
         </div>
       </div>
     </div>

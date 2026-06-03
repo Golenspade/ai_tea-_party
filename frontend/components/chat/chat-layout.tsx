@@ -7,7 +7,11 @@ import type {
   CharacterFormData,
   ApiConfig,
   PresenceUser,
+  PendingAskPublic,
+  AskAnswer,
+  RoomBarSnapshot,
 } from "@/lib/types";
+import { RoomStatusBar } from "@/components/chat/room-status-bar";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useTypewriter } from "@/hooks/use-typewriter";
 import * as api from "@/services/api";
@@ -33,11 +37,12 @@ export function ChatLayout() {
   });
   const [isRenaming, setIsRenaming] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState(displayNickname);
+  const [roomBar, setRoomBar] = useState<Pick<RoomBarSnapshot, "content" | "label" | "version"> | null>(null);
+  const [pendingAsk, setPendingAsk] = useState<PendingAskPublic | null>(null);
+  const [isAskSubmitting, setIsAskSubmitting] = useState(false);
 
-  // --- WebSocket ---
-  const handleWsMessage = useCallback((msg: Message) => {
+  const appendRoomMessage = useCallback((msg: Message) => {
     setMessages((prev) => {
-      // 1. ID 精确匹配 → 更新内容（WS 补齐等场景）
       const existsById = prev.find((m) => m.id === msg.id);
       if (existsById) {
         return prev.map((m) =>
@@ -46,23 +51,27 @@ export function ChatLayout() {
             : m,
         );
       }
-      // 2. 去重：如果同一个角色的相同内容已经通过 SSE 流写入了，则跳过 WS 广播
+
       const duplicate = prev.find(
         (m) =>
           m.character_id === msg.character_id &&
           m.content === msg.content &&
           !m.is_system &&
-          (
-            (m.sender_type !== "user") ||
-            (m.sender_type === "user" && m.sender_user_id === msg.sender_user_id)
-          ),
+          ((m.sender_type !== "user") ||
+            (m.sender_type === "user" && m.sender_user_id === msg.sender_user_id)),
       );
       if (duplicate) {
         return prev;
       }
+
       return [...prev, msg];
     });
   }, []);
+
+  // --- WebSocket ---
+  const handleWsMessage = useCallback((msg: Message) => {
+    appendRoomMessage(msg);
+  }, [appendRoomMessage]);
 
   const handleCharacterUpdate = useCallback(() => {
     loadCharacters();
@@ -81,11 +90,26 @@ export function ChatLayout() {
     setOnlineUsers(users.filter((item) => item.is_online));
   }, []);
 
+  const handleBarUpdate = useCallback((bar: Pick<RoomBarSnapshot, "content" | "label" | "version">) => {
+    setRoomBar(bar);
+  }, []);
+
+  const handleAskPending = useCallback((ask: PendingAskPublic) => {
+    setPendingAsk(ask);
+  }, []);
+
+  const handleAskResolved = useCallback((askId: string) => {
+    setPendingAsk((prev) => (prev?.id === askId ? null : prev));
+  }, []);
+
   const { isConnected, userId } = useWebSocket({
     onMessage: handleWsMessage,
     onCharacterUpdate: handleCharacterUpdate,
     onRoomStatus: handleRoomStatus,
     onPresence: handlePresence,
+    onBarUpdate: handleBarUpdate,
+    onAskPending: handleAskPending,
+    onAskResolved: (askId) => handleAskResolved(askId),
     preferredNickname: displayNickname,
   });
 
@@ -154,11 +178,37 @@ export function ChatLayout() {
     }
   };
 
+  const loadRoomBar = async () => {
+    try {
+      const bar = await api.fetchRoomBar();
+      if (bar?.content) {
+        setRoomBar({
+          content: bar.content,
+          label: bar.label,
+          version: bar.version,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch room bar:", error);
+    }
+  };
+
+  const loadPendingAsk = async () => {
+    try {
+      const ask = await api.fetchPendingAsk();
+      setPendingAsk(ask);
+    } catch (error) {
+      console.error("Failed to fetch pending ask:", error);
+    }
+  };
+
   useEffect(() => {
     loadCharacters();
     loadMessages();
     loadVariables();
     loadPresence();
+    loadRoomBar();
+    loadPendingAsk();
   }, []);
 
   useEffect(() => {
@@ -262,24 +312,45 @@ export function ChatLayout() {
   );
   const { enqueue, flush, stop: stopTypewriter } = useTypewriter(typewriterUpdate);
 
-  const handleAISpeech = async (characterId: string) => {
-    const targetCharacter = characters.find((c) => c.id === characterId);
-    const tempId = `stream-${Date.now()}`;
-    const placeholder: Message = {
-      id: tempId,
-      character_id: characterId,
-      character_name: targetCharacter?.name || "AI",
-      content: "",
-      timestamp: new Date().toISOString(),
-    };
+  const processSseEvent = useCallback(
+    (
+      parsed: Record<string, unknown>,
+      tempId: string,
+      ctx: {
+        finalRequestId: { current: string | null };
+        awaitingUser: { current: boolean };
+      },
+    ) => {
+      if (parsed.type === "delta" && typeof parsed.content === "string") {
+        enqueue(tempId, parsed.content);
+      } else if (parsed.type === "room_message" && parsed.message) {
+        appendRoomMessage(parsed.message as Message);
+      } else if (parsed.type === "bar_update") {
+        setRoomBar({
+          content: String(parsed.content || ""),
+          label: String(parsed.label || "当前形势"),
+          version: Number(parsed.version || 0),
+        });
+      } else if (parsed.type === "ask_pending") {
+        void loadPendingAsk();
+      } else if (parsed.type === "awaiting_user") {
+        ctx.awaitingUser.current = true;
+        stopTypewriter(tempId);
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+      } else if (parsed.type === "final" && parsed.request_id) {
+        ctx.finalRequestId.current = String(parsed.request_id);
+      } else if (parsed.type === "tool_call_end") {
+        void loadVariables();
+      } else if (parsed.type === "error") {
+        stopTypewriter(tempId);
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+      }
+    },
+    [appendRoomMessage, enqueue, stopTypewriter],
+  );
 
-    setMessages((prev) => [...prev, placeholder]);
-
-    let finalRequestId: string | null = null;
-
-    try {
-      const response = await api.streamAIResponse(characterId);
-
+  const consumeSseResponse = useCallback(
+    async (response: Response, tempId: string) => {
       if (!response.ok || !response.body) {
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
         return;
@@ -288,6 +359,8 @@ export function ChatLayout() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      const finalRequestId = { current: null as string | null };
+      const awaitingUser = { current: false };
 
       const processSSELine = (line: string) => {
         if (!line.startsWith("data:")) return;
@@ -295,16 +368,10 @@ export function ChatLayout() {
         if (!payload) return;
 
         try {
-          const parsed = JSON.parse(payload);
-          if (parsed.type === "delta" && parsed.content) {
-            // 推入打字机队列，逐字显示
-            enqueue(tempId, parsed.content);
-          } else if (parsed.type === "final" && parsed.request_id) {
-            finalRequestId = parsed.request_id;
-          } else if (parsed.type === "error") {
-            stopTypewriter(tempId);
-            setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
-          }
+          processSseEvent(JSON.parse(payload) as Record<string, unknown>, tempId, {
+            finalRequestId,
+            awaitingUser,
+          });
         } catch {
           // ignore parse errors
         }
@@ -321,24 +388,81 @@ export function ChatLayout() {
         if (done) break;
       }
 
-      // 处理缓冲区残留
       if (buffer.trim()) {
         buffer.split("\n\n").forEach((ev) => processSSELine(ev.trim()));
       }
 
-      // 流结束 → flush 队列里剩余字符，然后替换临时 ID
+      if (awaitingUser.current) {
+        return;
+      }
+
       flush(tempId);
-      if (finalRequestId) {
+      if (finalRequestId.current) {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.id === tempId ? { ...msg, id: finalRequestId! } : msg,
+            msg.id === tempId ? { ...msg, id: finalRequestId.current! } : msg,
           ),
         );
       }
+    },
+    [flush, processSseEvent],
+  );
+
+  const handleAISpeech = async (characterId: string) => {
+    const targetCharacter = characters.find((c) => c.id === characterId);
+    const tempId = `stream-${Date.now()}`;
+    const placeholder: Message = {
+      id: tempId,
+      character_id: characterId,
+      character_name: targetCharacter?.name || "AI",
+      content: "",
+      timestamp: new Date().toISOString(),
+      is_system: false,
+      sender_type: "ai",
+    };
+
+    setMessages((prev) => [...prev, placeholder]);
+
+    try {
+      const response = await api.streamAIResponse(characterId);
+      await consumeSseResponse(response, tempId);
     } catch (error) {
       console.error("Error generating AI message:", error);
       stopTypewriter(tempId);
       setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+    }
+  };
+
+  const handleAskSubmit = async (askId: string, answer: AskAnswer) => {
+    setIsAskSubmitting(true);
+    const characterId = pendingAsk?.character_id;
+    try {
+      await api.answerPendingAsk(askId, answer);
+      setPendingAsk(null);
+
+      if (!characterId) {
+        return;
+      }
+
+      const targetCharacter = characters.find((c) => c.id === characterId);
+      const tempId = `stream-resume-${Date.now()}`;
+      const placeholder: Message = {
+        id: tempId,
+        character_id: characterId,
+        character_name: targetCharacter?.name || "AI",
+        content: "",
+        timestamp: new Date().toISOString(),
+        is_system: false,
+        sender_type: "ai",
+      };
+
+      setMessages((prev) => [...prev, placeholder]);
+      const response = await api.streamAIResponseResume(askId);
+      await consumeSseResponse(response, tempId);
+    } catch (error) {
+      console.error("Failed to submit ask answer:", error);
+    } finally {
+      setIsAskSubmitting(false);
     }
   };
 
@@ -400,6 +524,9 @@ export function ChatLayout() {
           onIncVariable={handleVariableInc}
           onDecVariable={handleVariableDec}
           onDeleteVariable={handleVariableDelete}
+          pendingAsk={pendingAsk}
+          onAskSubmit={handleAskSubmit}
+          isAskSubmitting={isAskSubmitting}
         />
 
         {/* Chat Area */}
@@ -464,6 +591,8 @@ export function ChatLayout() {
             <ApiConfigDialog onSave={handleSaveApiConfig} />
             <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? "bg-green-700/70" : "bg-red-700/70"} shadow-[0_0_8px_rgba(0,0,0,0.1)]`} title={isConnected ? "Connected" : "Disconnected"} />
           </div>
+
+          <RoomStatusBar bar={roomBar} />
 
           <ChatMessageList messages={messages} characters={characters} />
 

@@ -2,7 +2,16 @@ import { randomBytes, randomUUID } from "node:crypto";
 
 import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
 import { Type, type Model } from "@earendil-works/pi-ai";
-import type { Character, ChatRoom, Persona, StreamingEvent, WorldInfoBook } from "@ai-party/shared";
+import type {
+  Character,
+  ChatRoom,
+  Message,
+  PendingAsk,
+  Persona,
+  RoomBarSnapshot,
+  StreamingEvent,
+  WorldInfoBook,
+} from "@ai-party/shared";
 
 import type { ResponseLength } from "../types";
 import {
@@ -12,6 +21,9 @@ import {
 } from "./character-memory";
 import { PromptAssembler } from "./prompt-assembler";
 import { resolvePiModel } from "./resolve-pi-model";
+import { parseAskUserInput, formatAskAnswer } from "./ask-user";
+import { parseWriteToRoomInput, type WriteToRoomInput } from "./write-to-room";
+import { parseWriteToBarInput, type WriteToBarInput } from "./write-to-bar";
 
 export interface OrchestratorStreamSession {
   requestId: string;
@@ -40,6 +52,21 @@ export interface OrchestratorRuntime {
   decVariable: (scope: VariableScope, name: string, value: unknown) => Promise<VariableEntryLike> | VariableEntryLike;
   listRoomWorldInfoBooks: (roomId: string) => Promise<WorldInfoBook[]> | WorldInfoBook[];
   getDefaultPersona?: () => Persona | null | undefined;
+  speakingCharacterId: string;
+  speakingCharacterName: string;
+  listRoomCharacters: () => Character[];
+  writeToRoom: (input: WriteToRoomInput) => Promise<Message>;
+  writeToBar: (input: WriteToBarInput) => Promise<RoomBarSnapshot>;
+  createPendingAsk: (input: {
+    requestId: string;
+    toolCallId: string;
+    question: string;
+    choices: string[];
+    allowCustom: boolean;
+    multiple: boolean;
+    agentMessagesJson: string;
+    systemPrompt: string;
+  }) => Promise<PendingAsk>;
 }
 
 interface StreamContext {
@@ -53,6 +80,11 @@ interface ToolResult {
   content?: Array<{ type: string; text?: string }>;
   details?: Record<string, unknown>;
   terminate?: boolean;
+}
+
+interface AgentContextAccessor {
+  getMessages: () => unknown[];
+  getSystemPrompt: () => string;
 }
 
 class AsyncStreamingQueue<T> {
@@ -260,6 +292,39 @@ export class ChatOrchestrator {
     };
   }
 
+  async generateResumeStream(
+    room: ChatRoom,
+    character: Character,
+    pendingAsk: PendingAsk,
+    responseLength: ResponseLength,
+    runtime: OrchestratorRuntime,
+  ): Promise<OrchestratorStreamSession> {
+    const requestId = randomBytes(8).toString("hex");
+    const messageId = randomUUID();
+
+    const events = this.streamResumeEvents(
+      {
+        requestId,
+        messageId,
+        characterId: character.id,
+        characterName: character.name,
+      },
+      room,
+      character,
+      pendingAsk,
+      responseLength,
+      runtime,
+    );
+
+    return {
+      requestId,
+      messageId,
+      characterId: character.id,
+      characterName: character.name,
+      events,
+    };
+  }
+
   private async *streamEvents(
     runContext: StreamContext,
     room: ChatRoom,
@@ -268,11 +333,11 @@ export class ChatOrchestrator {
     runtime: OrchestratorRuntime,
   ): AsyncGenerator<StreamingEvent> {
     const queue = new AsyncStreamingQueue<StreamingEvent>();
-    const tools = this.createTools(runtime);
-    let model: Model<any>;
     let finalSent = false;
+    let awaitingUser = false;
+    let pendingAskId: string | null = null;
 
-    model = resolvePiModel(runtime.provider, runtime.model);
+    let model = resolvePiModel(runtime.provider, runtime.model);
     if (!model) {
       queue.push({
         type: "error",
@@ -311,6 +376,26 @@ export class ChatOrchestrator {
     );
     const baseMessages = [...assembled.messages, ...supplementalMessages];
 
+    const agentContext: AgentContextAccessor = {
+      getMessages: () => [],
+      getSystemPrompt: () => systemPrompt,
+    };
+
+    const tools = this.createTools(
+      runtime,
+      (event) => {
+        queue.push(event);
+      },
+      runContext,
+      agentContext,
+      () => {
+        awaitingUser = true;
+      },
+      (askId) => {
+        pendingAskId = askId;
+      },
+    );
+
     const agent = new Agent({
       initialState: {
         systemPrompt,
@@ -335,6 +420,11 @@ export class ChatOrchestrator {
         return undefined;
       },
     });
+
+    agentContext.getMessages = () => {
+      const state = (agent as { state?: { messages?: unknown[] } }).state;
+      return state?.messages ?? [];
+    };
 
     const unsubscribe = agent.subscribe(async (event: unknown) => {
       const payload = event as AgentEventLike;
@@ -413,6 +503,17 @@ export class ChatOrchestrator {
         }
 
         case "agent_end": {
+          if (awaitingUser && pendingAskId) {
+            finalSent = true;
+            queue.push({
+              type: "awaiting_user",
+              request_id: runContext.requestId,
+              ask_id: pendingAskId,
+            });
+            queue.close();
+            break;
+          }
+
           const finalContent = this.extractFinalAssistantMessage(payload.messages);
           const normalized = stripCharacterPrefix(finalContent, runContext.characterName);
 
@@ -461,6 +562,183 @@ export class ChatOrchestrator {
       unsubscribe();
       if (!finalSent) {
         finalSent = true;
+        if (awaitingUser && pendingAskId) {
+          queue.push({
+            type: "awaiting_user",
+            request_id: runContext.requestId,
+            ask_id: pendingAskId,
+          });
+        } else {
+          queue.push({
+            type: "final",
+            request_id: runContext.requestId,
+            message_id: runContext.messageId,
+            character_id: runContext.characterId,
+            character_name: runContext.characterName,
+            content: "",
+          });
+        }
+        queue.close();
+      }
+    }
+
+    yield* queue;
+  }
+
+  private async *streamResumeEvents(
+    runContext: StreamContext,
+    room: ChatRoom,
+    character: Character,
+    pendingAsk: PendingAsk,
+    responseLength: ResponseLength,
+    runtime: OrchestratorRuntime,
+  ): AsyncGenerator<StreamingEvent> {
+    const queue = new AsyncStreamingQueue<StreamingEvent>();
+    let finalSent = false;
+
+    const provider = pendingAsk.provider || runtime.provider;
+    const modelId = pendingAsk.model || runtime.model;
+    const model = resolvePiModel(provider, modelId);
+    if (!model) {
+      queue.push({
+        type: "error",
+        request_id: runContext.requestId,
+        message_id: runContext.messageId,
+        character_id: runContext.characterId,
+        message: `未找到可用模型：${provider}/${modelId}`,
+      });
+      queue.close();
+      yield* queue;
+      return;
+    }
+
+    const systemPrompt = pendingAsk.system_prompt || "";
+    let restoredMessages: unknown[] = [];
+    try {
+      restoredMessages = JSON.parse(pendingAsk.agent_messages_json || "[]") as unknown[];
+    } catch {
+      restoredMessages = [];
+    }
+
+    const answerText = formatAskAnswer(pendingAsk.answer || {});
+    const agentContext: AgentContextAccessor = {
+      getMessages: () => [],
+      getSystemPrompt: () => systemPrompt,
+    };
+
+    const tools = this.createTools(
+      runtime,
+      (event) => queue.push(event),
+      runContext,
+      agentContext,
+      () => undefined,
+      () => undefined,
+    );
+
+    const agent = new Agent({
+      initialState: {
+        systemPrompt,
+        model,
+        tools,
+        messages: restoredMessages as never,
+      },
+      beforeToolCall: async () => undefined,
+      afterToolCall: async () => undefined,
+    });
+
+    agentContext.getMessages = () => {
+      const state = (agent as { state?: { messages?: unknown[] } }).state;
+      return state?.messages ?? [];
+    };
+
+    const unsubscribe = agent.subscribe(async (event: unknown) => {
+      const payload = event as AgentEventLike;
+      if (!payload?.type) {
+        return;
+      }
+
+      switch (payload.type) {
+        case "message_update": {
+          const assistantEvent = payload.assistantMessageEvent;
+          if (assistantEvent?.type === "text_delta" && typeof assistantEvent.delta === "string") {
+            queue.push({
+              type: "delta",
+              request_id: runContext.requestId,
+              message_id: runContext.messageId,
+              character_id: runContext.characterId,
+              character_name: runContext.characterName,
+              content: assistantEvent.delta,
+            });
+          }
+          break;
+        }
+
+        case "tool_execution_start":
+        case "tool_execution_update":
+        case "tool_execution_end":
+          break;
+
+        case "error": {
+          queue.push({
+            type: "error",
+            request_id: runContext.requestId,
+            message_id: runContext.messageId,
+            character_id: runContext.characterId,
+            message: String(payload.error || "agent 执行出错"),
+          });
+          break;
+        }
+
+        case "agent_end": {
+          const finalContent = this.extractFinalAssistantMessage(payload.messages);
+          const normalized = stripCharacterPrefix(finalContent, runContext.characterName);
+          finalSent = true;
+          queue.push({
+            type: "final",
+            request_id: runContext.requestId,
+            message_id: runContext.messageId,
+            character_id: runContext.characterId,
+            character_name: runContext.characterName,
+            content: normalized,
+          });
+          queue.close();
+          break;
+        }
+
+        default:
+          break;
+      }
+    });
+
+    try {
+      await agent.prompt(
+        `用户已回答：\n${answerText}\n\n请根据用户选择继续推进剧情。对白与旁白请使用 write_to_room；形势摘要请使用 write_to_bar。遵循${responseLength}风格。`,
+      );
+    } catch (error) {
+      queue.push({
+        type: "error",
+        request_id: runContext.requestId,
+        message_id: runContext.messageId,
+        character_id: runContext.characterId,
+        message: error instanceof Error ? error.message : "agent 运行失败",
+      });
+      if (!finalSent) {
+        finalSent = true;
+        queue.push({
+          type: "final",
+          request_id: runContext.requestId,
+          message_id: runContext.messageId,
+          character_id: runContext.characterId,
+          character_name: runContext.characterName,
+          content: "",
+        });
+      }
+      queue.close();
+    } finally {
+      await agent.waitForIdle().catch(() => undefined);
+      unsubscribe();
+      if (!finalSent) {
+        finalSent = true;
         queue.push({
           type: "final",
           request_id: runContext.requestId,
@@ -476,7 +754,14 @@ export class ChatOrchestrator {
     yield* queue;
   }
 
-  private createTools(runtime: OrchestratorRuntime): AgentTool[] {
+  private createTools(
+    runtime: OrchestratorRuntime,
+    emitEvent: (event: StreamingEvent) => void,
+    runContext?: Pick<StreamContext, "requestId">,
+    agentContext?: AgentContextAccessor,
+    markAwaitingUser?: () => void,
+    setPendingAskId?: (askId: string) => void,
+  ): AgentTool[] {
     const parseName = (args: Record<string, unknown>): string => {
       if (typeof args.name !== "string") {
         throw new Error("变量名不能为空");
@@ -519,6 +804,127 @@ export class ChatOrchestrator {
     };
 
     return [
+      {
+        name: "write_to_room",
+        label: "写入房间消息",
+        description:
+          "将剧情对白、角色发言或旁白写入房间正中消息流。对白用 sender_type=ai；旁白/叙述用 sender_type=system；不要在此写入场景摘要（那是 write_to_bar 的职责）。",
+        parameters: Type.Object({
+          content: Type.String({ description: "要写入房间的消息正文" }),
+          character_id: Type.Optional(
+            Type.String({ description: "发言角色 ID；省略则使用当前发言角色" }),
+          ),
+          sender_type: Type.Optional(
+            Type.Union([Type.Literal("ai"), Type.Literal("user"), Type.Literal("system")]),
+          ),
+        }),
+        execute: async (_toolCallId: string, args: Record<string, unknown>) => {
+          const input = parseWriteToRoomInput(args);
+          const message = await Promise.resolve(runtime.writeToRoom(input));
+
+          if (runContext?.requestId) {
+            emitEvent({
+              type: "room_message",
+              request_id: runContext.requestId,
+              message,
+            });
+          }
+
+          return {
+            content: [{ type: "text", text: `已写入房间消息 ${message.id}` }],
+            details: {
+              message_id: message.id,
+              character_id: message.character_id,
+              character_name: message.character_name,
+              sender_type: message.sender_type,
+            },
+          } as ToolResult;
+        },
+      },
+      {
+        name: "write_to_bar",
+        label: "写入状态栏",
+        description:
+          "更新房间顶栏的形势摘要（地点、时间、当前局面等）。不要写入对白或旁白（那是 write_to_room 的职责）。",
+        parameters: Type.Object({
+          content: Type.String({ description: "状态栏 Markdown 或纯文本内容" }),
+          label: Type.Optional(Type.String({ description: "栏目标题，默认「当前形势」" })),
+        }),
+        execute: async (_toolCallId: string, args: Record<string, unknown>) => {
+          const input = parseWriteToBarInput(args);
+          const snapshot = await Promise.resolve(runtime.writeToBar(input));
+
+          if (runContext?.requestId) {
+            emitEvent({
+              type: "bar_update",
+              request_id: runContext.requestId,
+              room_id: snapshot.room_id,
+              content: snapshot.content,
+              label: snapshot.label,
+              version: snapshot.version,
+            });
+          }
+
+          return {
+            content: [{ type: "text", text: `已更新状态栏 v${snapshot.version}` }],
+            details: {
+              version: snapshot.version,
+              label: snapshot.label,
+            },
+          } as ToolResult;
+        },
+      },
+      {
+        name: "ask_user",
+        label: "询问用户",
+        description:
+          "当剧情需要用户做抉择时调用。提供 question 与 choices；可选 allow_custom / multiple。调用后 Agent 将挂起等待用户回答。",
+        parameters: Type.Object({
+          question: Type.String({ description: "向用户提出的问题" }),
+          choices: Type.Array(Type.String(), { description: "可选答案列表" }),
+          allow_custom: Type.Optional(Type.Boolean({ description: "是否允许自由输入" })),
+          multiple: Type.Optional(Type.Boolean({ description: "是否允许多选" })),
+        }),
+        execute: async (toolCallId: string, args: Record<string, unknown>) => {
+          const parsed = parseAskUserInput(args);
+          const agentMessagesJson = JSON.stringify(agentContext?.getMessages() ?? []);
+          const systemPrompt = agentContext?.getSystemPrompt() ?? "";
+
+          const pending = await Promise.resolve(
+            runtime.createPendingAsk({
+              requestId: runContext?.requestId || randomBytes(8).toString("hex"),
+              toolCallId,
+              question: parsed.question,
+              choices: parsed.choices,
+              allowCustom: parsed.allowCustom,
+              multiple: parsed.multiple,
+              agentMessagesJson,
+              systemPrompt,
+            }),
+          );
+
+          markAwaitingUser?.();
+          setPendingAskId?.(pending.id);
+
+          if (runContext?.requestId) {
+            emitEvent({
+              type: "ask_pending",
+              request_id: runContext.requestId,
+              ask_id: pending.id,
+              question: pending.question,
+              choices: pending.choices,
+              allow_custom: pending.allow_custom,
+              multiple: pending.multiple,
+            });
+          }
+
+          return {
+            content: [{ type: "text", text: "已挂起，等待用户回答" }],
+            details: { ask_id: pending.id },
+            terminate: true,
+          } as ToolResult;
+        },
+      },
       {
         name: "get_variable",
         label: "读取变量",
@@ -637,7 +1043,7 @@ export class ChatOrchestrator {
   }
 
   private buildSeedPrompt(characterName: string, responseLength: ResponseLength): string {
-    return `继续发言，以「${characterName}」身份进行对话，遵循${responseLength}风格，不要重复角色前缀。`;
+    return `继续推进剧情。角色对白与旁白请优先使用 write_to_room 工具写入（旁白 sender_type=system）；场景形势请使用 write_to_bar；需要用户抉择时使用 ask_user。遵循${responseLength}风格。若已通过 write_to_room 发布正文，回复中不要重复相同内容，可留空或仅作简短说明。`;
   }
 
   private extractFinalAssistantMessage(messages: unknown[] | undefined): string {

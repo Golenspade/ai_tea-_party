@@ -7,7 +7,10 @@ import type {
   VariablePatchRequest,
   VariableScope,
   VariableSetRequest,
+  PendingAskPublic,
+  AskAnswer,
 } from "@/lib/types";
+import { AskPanel } from "@/components/sidebar/ask-panel";
 import { CharacterList } from "@/components/sidebar/character-list";
 import { RoomControls } from "@/components/sidebar/room-controls";
 import { AddCharacterDialog } from "@/components/dialogs/add-character-dialog";
@@ -33,6 +36,9 @@ interface SidebarMainProps {
   onIncVariable: (scope: VariableScope, data: VariablePatchRequest) => Promise<void>;
   onDecVariable: (scope: VariableScope, data: VariablePatchRequest) => Promise<void>;
   onDeleteVariable: (scope: VariableScope, name: string) => Promise<void>;
+  pendingAsk: PendingAskPublic | null;
+  onAskSubmit: (askId: string, answer: AskAnswer) => Promise<void>;
+  isAskSubmitting?: boolean;
 }
 
 export function SidebarMain({
@@ -53,6 +59,9 @@ export function SidebarMain({
   onIncVariable,
   onDecVariable,
   onDeleteVariable,
+  pendingAsk,
+  onAskSubmit,
+  isAskSubmitting,
 }: SidebarMainProps) {
   return (
     <aside className="w-80 border-r border-[var(--theme-border)] flex flex-col pt-12 shrink-0 bg-[#fbf8f1] h-full z-10">
@@ -101,6 +110,12 @@ export function SidebarMain({
         />
 
         <div className="h-px bg-[var(--theme-border)] w-full opacity-50" />
+
+        <AskPanel
+          pendingAsk={pendingAsk}
+          onSubmit={onAskSubmit}
+          isSubmitting={isAskSubmitting}
+        />
 
         <VariablesPanel
           roomVariables={roomVariables}

@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phase 1 改动说明 · AI Tea Party</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f6f3ed;
+      --paper: #fffdf9;
+      --ink: #2c2824;
+      --ink-soft: #5c564e;
+      --ink-muted: #8a8378;
+      --line: #e6dec8;
+      --accent: #a35d40;
+      --accent-soft: #f5ebe3;
+      --teal: #2d6a6a;
+      --teal-soft: #e8f4f4;
+      --blue: #3d5a80;
+      --blue-soft: #eef3f8;
+      --green: #2d6a4f;
+      --green-soft: #e8f3ec;
+      --amber: #9a6700;
+      --amber-soft: #fff8e6;
+      --red: #b42318;
+      --red-soft: #fef3f2;
+      --shadow: 0 1px 2px rgba(44, 40, 36, 0.06), 0 8px 24px rgba(44, 40, 36, 0.06);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ── */
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+
+    .hero {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 40px 44px;
+      box-shadow: var(--shadow);
+      margin-bottom: 40px;
+    }
+
+    .hero-eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .hero h1 {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: clamp(1.75rem, 4vw, 2.25rem);
+      font-weight: 700;
+      line-height: 1.2;
+      color: var(--ink);
+      margin-bottom: 16px;
+    }
+
+    .hero-lead {
+      font-size: 1.05rem;
+      color: var(--ink-soft);
+      max-width: 52em;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--bg);
+      color: var(--ink-soft);
+    }
+
+    .badge.warn {
+      background: var(--amber-soft);
+      border-color: #f5d88a;
+      color: var(--amber);
+    }
+
+    /* ── Nav pills ── */
+    .toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 36px;
+    }
+
+    .toc a {
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink-soft);
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      transition: all 0.15s ease;
+    }
+
+    .toc a:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    /* ── Sections ── */
+    .section {
+      margin-bottom: 48px;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .section-num {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .section-title {
+      font-family: "Source Serif 4", Georgia, serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    .section-desc {
+      font-size: 15px;
+      color: var(--ink-muted);
+      margin-top: 6px;
+    }
+
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }
+
+    .card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      margin-bottom: 16px;
+    }
+
+    .card p, .card li {
+      font-size: 15px;
+      color: var(--ink-soft);
+    }
+
+    .card ul { padding-left: 1.25em; margin-top: 8px; }
+    .card li { margin-bottom: 6px; }
+    .card li strong { color: var(--ink); font-weight: 600; }
+
+    /* ── Pipeline cards (三条主链路) ── */
+    .pipeline {
+      display: grid;
+      gap: 16px;
+    }
+
+    @media (min-width: 720px) {
+      .pipeline { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .pipe-card {
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      border: 1px solid var(--line);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pipe-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+    }
+
+    .pipe-card.room { background: var(--accent-soft); }
+    .pipe-card.room::before { background: var(--accent); }
+    .pipe-card.bar { background: var(--teal-soft); }
+    .pipe-card.bar::before { background: var(--teal); }
+    .pipe-card.ask { background: var(--blue-soft); }
+    .pipe-card.ask::before { background: var(--blue); }
+
+    .pipe-card .tool-name {
+      font-family: ui-monospace, "SF Mono", monospace;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .pipe-card.room .tool-name { color: var(--accent); }
+    .pipe-card.bar .tool-name { color: var(--teal); }
+    .pipe-card.ask .tool-name { color: var(--blue); }
+
+    .pipe-card .pipe-title {
+      font-weight: 700;
+      font-size: 17px;
+      color: var(--ink);
+      margin-bottom: 10px;
+    }
+
+    .pipe-card .pipe-flow {
+      font-size: 14px;
+      color: var(--ink-soft);
+      line-height: 1.5;
+    }
+
+    .pipe-card .pipe-ui {
+      margin-top: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── File grid ── */
+    .file-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    @media (min-width: 640px) {
+      .file-grid.two { grid-template-columns: 1fr 1fr; }
+    }
+
+    .file-group {
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 16px 18px;
+    }
+
+    .file-group-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      margin-bottom: 10px;
+    }
+
+    .file-item {
+      font-family: ui-monospace, "SF Mono", monospace;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: var(--ink);
+      padding: 4px 0;
+      border-bottom: 1px dashed transparent;
+    }
+
+    .file-item + .file-item { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 4px; }
+    .file-item .hint {
+      display: block;
+      font-family: "DM Sans", sans-serif;
+      font-size: 12px;
+      color: var(--ink-muted);
+      margin-top: 2px;
+    }
+
+    /* ── API table ── */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      background: var(--bg);
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      color: var(--ink-soft);
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    td code {
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      background: var(--bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    /* ── Big picture diagram ── */
+    .roadmap-ladder {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .roadmap-step {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 20px;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--line);
+      align-items: start;
+    }
+
+    .roadmap-step:last-child { border-bottom: none; }
+
+    @media (max-width: 560px) {
+      .roadmap-step { grid-template-columns: 1fr; gap: 8px; }
+    }
+
+    .roadmap-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .roadmap-step.current .roadmap-label { color: var(--accent); }
+    .roadmap-step.future .roadmap-label { color: var(--ink-muted); }
+    .roadmap-step.base .roadmap-label { color: var(--teal); }
+
+    .roadmap-step.current {
+      background: linear-gradient(90deg, var(--accent-soft) 0%, transparent 100%);
+      margin: 0 -28px;
+      padding: 20px 28px;
+      border-radius: var(--radius-sm);
+      border-bottom: none;
+    }
+
+    .roadmap-body h4 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+
+    .roadmap-body p {
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+
+    .tag-inline {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    .tag-inline.you { background: var(--accent); color: #fff; }
+
+    /* ── Architecture flow (CSS boxes) ── */
+    .arch-flow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      padding: 8px 0;
+    }
+
+    .arch-box {
+      width: 100%;
+      max-width: 520px;
+      text-align: center;
+      padding: 16px 20px;
+      border-radius: var(--radius-sm);
+      border: 2px solid var(--line);
+      background: var(--paper);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    .arch-box.highlight {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      box-shadow: 0 0 0 4px rgba(163, 93, 64, 0.12);
+    }
+
+    .arch-box.muted {
+      background: var(--bg);
+      font-weight: 500;
+      color: var(--ink-soft);
+      font-size: 13px;
+    }
+
+    .arch-arrow {
+      width: 2px;
+      height: 28px;
+      background: var(--line);
+      position: relative;
+    }
+
+    .arch-arrow::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: var(--ink-muted);
+      border-bottom: none;
+    }
+
+    .arch-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      width: 100%;
+      max-width: 640px;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 520px) {
+      .arch-split { grid-template-columns: 1fr; }
+    }
+
+    .arch-split .arch-box { max-width: none; font-size: 13px; }
+
+    /* ── Status checklist ── */
+    .checklist {
+      display: grid;
+      gap: 10px;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 16px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--line);
+      background: var(--paper);
+    }
+
+    .check-icon {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .check-item.done .check-icon {
+      background: var(--green-soft);
+      color: var(--green);
+    }
+
+    .check-item.partial .check-icon {
+      background: var(--amber-soft);
+      color: var(--amber);
+    }
+
+    .check-item.miss .check-icon {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .check-body { flex: 1; min-width: 0; }
+
+    .check-body strong {
+      display: block;
+      font-size: 15px;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    .check-body span {
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+
+    .callout {
+      margin-top: 20px;
+      padding: 16px 20px;
+      border-radius: var(--radius-sm);
+      background: var(--amber-soft);
+      border: 1px solid #f5d88a;
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+
+    .callout strong { color: var(--amber); }
+
+    footer {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--line);
+      font-size: 13px;
+      color: var(--ink-muted);
+    }
+
+    footer a { color: var(--accent); font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <header class="hero">
+      <p class="hero-eyebrow">AI Tea Party · 工作区未提交改动</p>
+      <h1>Phase 1 改动说明</h1>
+      <p class="hero-lead">
+        从「带变量 Tool 的流式 Chatbot」迈向「叙事 Agent 平台」的第一块落地：
+        Ask 侧栏、Write Room、Write Bar，以及配套的顶栏、变量条与文档规格。
+      </p>
+      <div class="hero-meta">
+        <span class="badge">2026-06-03</span>
+        <span class="badge warn">尚未 git commit</span>
+        <span class="badge">约 +1525 / −110 行</span>
+        <span class="badge">18 改 · 14 新文件</span>
+      </div>
+    </header>
+
+    <nav class="toc">
+      <a href="#s1">① 详细改动</a>
+      <a href="#s2">② Big Picture 位置</a>
+      <a href="#s3">③ 做了 / 没做</a>
+    </nav>
+
+    <!-- ═══════════════════════════════════════ -->
+    <section class="section" id="s1">
+      <div class="section-head">
+        <div class="section-num">1</div>
+        <div>
+          <h2 class="section-title">本次的详细改动</h2>
+          <p class="section-desc">三条 Agent 主链路 + 共享协议 + 前后端文件清单</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>三条主链路</h3>
+        <div class="pipeline">
+          <div class="pipe-card room">
+            <div class="tool-name">write_to_room</div>
+            <div class="pipe-title">写入正中消息流</div>
+            <p class="pipe-flow">对白、角色发言、旁白（system）→ messages 表 → WS + SSE</p>
+            <div class="pipe-ui">UI：聊天区气泡</div>
+          </div>
+          <div class="pipe-card bar">
+            <div class="tool-name">write_to_bar</div>
+            <div class="pipe-title">写入外在形势条</div>
+            <p class="pipe-flow">场景摘要、时间地点 → room_bar 表（version++）→ bar_update 事件</p>
+            <div class="pipe-ui">UI：顶栏 Status Bar</div>
+          </div>
+          <div class="pipe-card ask">
+            <div class="tool-name">ask_user</div>
+            <div class="pipe-title">挂起并询问用户</div>
+            <p class="pipe-flow">pending_asks → awaiting_user → 侧栏作答 → resume 新流继续</p>
+            <div class="pipe-ui">UI：侧栏 Ask Panel</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>新建文件（14）</h3>
+        <div class="file-grid two">
+          <div class="file-group">
+            <div class="file-group-label">文档</div>
+            <div class="file-item">phase-1-implementation-spec.md<span class="hint">施工规格 v0.1</span></div>
+            <div class="file-item">wireframes/ ×5<span class="hint">布局、Ask、Status Bar、gauge、DM 占位</span></div>
+          </div>
+          <div class="file-group">
+            <div class="file-group-label">后端</div>
+            <div class="file-item">write-to-room.ts + .test.ts<span class="hint">4 条单测</span></div>
+            <div class="file-item">write-to-bar.ts + .test.ts<span class="hint">2 条单测</span></div>
+            <div class="file-item">ask-user.ts<span class="hint">解析 / 格式化回答</span></div>
+          </div>
+          <div class="file-group">
+            <div class="file-group-label">前端</div>
+            <div class="file-item">room-status-bar.tsx</div>
+            <div class="file-item">ask-panel.tsx</div>
+            <div class="file-item">markdown-blocks.ts</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>主要修改（18 个文件）</h3>
+        <ul>
+          <li><strong>packages/shared</strong> — SSE/WS 新事件类型；RoomBar、PendingAsk、AskAnswer 的 Zod  schema</li>
+          <li><strong>db</strong> — schema / client / repository：room_bar、pending_asks 表与 CRUD</li>
+          <li><strong>orchestrator</strong> — 三个 Tool；awaiting_user 流；generateResumeStream</li>
+          <li><strong>store + room-hub + routes</strong> — hooks 广播；REST/SSE 新端点</li>
+          <li><strong>prompt-assembler</strong> — AGENT_TOOL_GUIDANCE 行为书片段</li>
+          <li><strong>前端</strong> — chat-layout SSE 全事件；api / websocket / 侧栏 / gauge / 气泡分块</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>新增 API 与事件</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>类型</th>
+                <th>名称</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>REST</td>
+                <td><code>GET .../bar</code></td>
+                <td>进入房间时加载形势条</td>
+              </tr>
+              <tr>
+                <td>REST</td>
+                <td><code>GET .../asks/pending</code></td>
+                <td>刷新后恢复未答 Ask</td>
+              </tr>
+              <tr>
+                <td>REST</td>
+                <td><code>POST .../asks/:id/answer</code></td>
+                <td>提交用户选择</td>
+              </tr>
+              <tr>
+                <td>REST</td>
+                <td><code>POST .../stream/resume</code></td>
+                <td>Ask 回答后继续生成</td>
+              </tr>
+              <tr>
+                <td>SSE</td>
+                <td><code>room_message</code> · <code>bar_update</code></td>
+                <td>消息流 / 顶栏实时更新</td>
+              </tr>
+              <tr>
+                <td>SSE</td>
+                <td><code>ask_pending</code> · <code>awaiting_user</code></td>
+                <td>侧栏展示；流结束但不落 final 空消息</td>
+              </tr>
+              <tr>
+                <td>WS</td>
+                <td><code>bar_update</code> · <code>ask_*</code></td>
+                <td>多端同步</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout">
+          <strong>关于 24 条测试：</strong> 只有 6 条是本次新增的纯函数单测（write_to_room 4 + write_to_bar 2）。
+          其余 18 条是项目原有的变量、世界书、Pi 模型等测试，一起跑所以显示 24 pass。
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════ -->
+    <section class="section" id="s2">
+      <div class="section-head">
+        <div class="section-num">2</div>
+        <div>
+          <h2 class="section-title">在 Big Picture 里的位置</h2>
+          <p class="section-desc">相对终态「叙事 Agent 平台」，Phase 1 是第一段可交付能力</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>一句话目标</h3>
+        <p style="font-size: 17px; color: var(--ink); font-weight: 500; line-height: 1.5;">
+          <strong style="color: var(--accent);">现在：</strong> Pi Agent + 变量 Tool 的流式 Chatbot<br />
+          <strong style="color: var(--teal);">目标：</strong> DM 调度、Write/Ask/变量/Compact，房间是「稿本 + 消息」混合体
+        </p>
+      </div>
+
+      <div class="card">
+        <h3>路线图阶段</h3>
+        <div class="roadmap-ladder">
+          <div class="roadmap-step base">
+            <div class="roadmap-label">已有基座</div>
+            <div class="roadmap-body">
+              <h4>Pi Agent · 变量 Tool · World Info · REST/SSE/WS</h4>
+              <p>在 Phase 1 之前已接入；本次在其上扩展 Tool 与 UI。</p>
+            </div>
+          </div>
+          <div class="roadmap-step current">
+            <div class="roadmap-label">Phase 1</div>
+            <div class="roadmap-body">
+              <h4>Ask + Write Room + Write Bar <span class="tag-inline you">本次</span></h4>
+              <p>侧栏决策、顶栏形势、变量 gauge、Mermaid buffer 浅 spike、wireframe 与施工规格文档。</p>
+            </div>
+          </div>
+          <div class="roadmap-step future">
+            <div class="roadmap-label">Phase 2</div>
+            <div class="roadmap-body">
+              <h4>Patch 动画 · DM Orchestrator · 四书 (b)(c)</h4>
+              <p>Speak 演进为「指定发言者」；DM 不写正文，只调度写手 Agent。</p>
+            </div>
+          </div>
+          <div class="roadmap-step future">
+            <div class="roadmap-label">Phase 3</div>
+            <div class="roadmap-body">
+              <h4>Compact / Archive · 变量分支剧情 · Template 化</h4>
+              <p>Big Scale 首发形态：按 room 归档；与社区 Locus 类方案对齐调研。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>数据与 UI 落点（四书 · 双通道）</h3>
+        <div class="arch-flow">
+          <div class="arch-box muted">Pi Agent + Tools</div>
+          <div class="arch-arrow"></div>
+          <div class="arch-split">
+            <div class="arch-box highlight">write_to_bar<br /><span style="font-weight:400;font-size:12px;color:var(--ink-muted)">room_bar · 顶栏</span></div>
+            <div class="arch-box highlight" style="border-color: var(--teal); background: var(--teal-soft);">write_to_room<br /><span style="font-weight:400;font-size:12px;color:var(--ink-muted)">messages · 正中流</span></div>
+          </div>
+          <div class="arch-arrow"></div>
+          <div class="arch-box" style="border-color: var(--blue); background: var(--blue-soft);">ask_user → 侧栏 → resume stream</div>
+          <div class="arch-arrow"></div>
+          <div class="arch-box muted">SQLite：messages · variables · room_bar · pending_asks</div>
+        </div>
+        <p style="margin-top: 16px; font-size: 14px; color: var(--ink-muted);">
+          Phase 1 数据侧重 <strong style="color:var(--ink)">(d) 当前交互内容</strong>；四书 (b)(c) 与 Current Scale 正式选型留到 Phase 2。
+        </p>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════ -->
+    <section class="section" id="s3">
+      <div class="section-head">
+        <div class="section-num">3</div>
+        <div>
+          <h2 class="section-title">做了什么 · 还没做什么</h2>
+          <p class="section-desc">功能代码与文档 vs 验收测试、深度 spike、后续阶段</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>已完成（工作区）</h3>
+        <div class="checklist">
+          <div class="check-item done">
+            <div class="check-icon">✓</div>
+            <div class="check-body">
+              <strong>M0 Write to Room</strong>
+              <span>Tool、SSE room_message、旁白样式、调试 REST、4 条单测</span>
+            </div>
+          </div>
+          <div class="check-item done">
+            <div class="check-icon">✓</div>
+            <div class="check-body">
+              <strong>M1 Write to Bar</strong>
+              <span>room_bar 表、Tool、GET bar、SSE/WS bar_update</span>
+            </div>
+          </div>
+          <div class="check-item done">
+            <div class="check-icon">✓</div>
+            <div class="check-body">
+              <strong>M2 Status Bar UI</strong>
+              <span>room-status-bar、进房 hydrate、实时更新</span>
+            </div>
+          </div>
+          <div class="check-item done">
+            <div class="check-icon">✓</div>
+            <div class="check-body">
+              <strong>M3–M4 Ask 全栈</strong>
+              <span>pending_asks、ask_user、answer/resume、侧栏 + SSE/WS 联调路径</span>
+            </div>
+          </div>
+          <div class="check-item done">
+            <div class="check-icon">✓</div>
+            <div class="check-body">
+              <strong>M5 变量 gauge</strong>
+              <span>数值条、*_pct 约定、tool 结束后刷新变量</span>
+            </div>
+          </div>
+          <div class="check-item done">
+            <div class="check-icon">✓</div>
+            <div class="check-body">
+              <strong>M6 + 文档</strong>
+              <span>markdown 分块占位；施工规格 + 5 页 wireframe</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>未完成或不完整</h3>
+        <div class="checklist">
+          <div class="check-item miss">
+            <div class="check-icon">×</div>
+            <div class="check-body">
+              <strong>集成 / E2E 测试</strong>
+              <span>Ask resume、bar upsert、SSE 路由、Playwright 侧栏与顶栏 — 规格里有，代码里没有</span>
+            </div>
+          </div>
+          <div class="check-item partial">
+            <div class="check-icon">~</div>
+            <div class="check-body">
+              <strong>Ask resume 实现方式</strong>
+              <span>当前：快照 JSON + 拼 user 消息 + prompt 续写；非严格 Pi toolResult 格式</span>
+            </div>
+          </div>
+          <div class="check-item partial">
+            <div class="check-icon">~</div>
+            <div class="check-body">
+              <strong>Mermaid</strong>
+              <span>仅有「图表渲染中…」占位，未接入 mermaid 渲染库</span>
+            </div>
+          </div>
+          <div class="check-item miss">
+            <div class="check-icon">×</div>
+            <div class="check-body">
+              <strong>工程交付</strong>
+              <span>改动尚未 commit；缺少完整手测 / 联调记录</span>
+            </div>
+          </div>
+          <div class="check-item miss">
+            <div class="check-icon">×</div>
+            <div class="check-body">
+              <strong>Phase 2+（路线图明确不做在 P1）</strong>
+              <span>Patch 动画、DM Orchestrator、Compact/Archive、变量分支、四书 (b)(c)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>对照表（实现后状态）</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>能力</th>
+                <th>工作区</th>
+                <th>备注</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Ask + 侧栏</td>
+                <td style="color:var(--green);font-weight:600">代码已有</td>
+                <td>缺 E2E</td>
+              </tr>
+              <tr>
+                <td>Write to Room</td>
+                <td style="color:var(--green);font-weight:600">代码已有</td>
+                <td>4 条单测 only</td>
+              </tr>
+              <tr>
+                <td>Write to Bar + 顶栏</td>
+                <td style="color:var(--green);font-weight:600">代码已有</td>
+                <td>2 条单测 only</td>
+              </tr>
+              <tr>
+                <td>wireframe</td>
+                <td style="color:var(--green);font-weight:600">已完成</td>
+                <td>docs/plans/wireframes/</td>
+              </tr>
+              <tr>
+                <td>Mermaid Buffer</td>
+                <td style="color:var(--amber);font-weight:600">浅 spike</td>
+                <td>无真实渲染</td>
+              </tr>
+              <tr>
+                <td>DM / Patch / Compact</td>
+                <td style="color:var(--red);font-weight:600">未做</td>
+                <td>Phase 2+</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      相关文档：
+      <a href="../architecture-map.html">architecture-map.html</a> ·
+      <a href="agent-platform-roadmap.md">agent-platform-roadmap.md</a> ·
+      <a href="phase-1-implementation-spec.md">phase-1-implementation-spec.md</a>
+    </footer>
+  </div>
+</body>
+</html>

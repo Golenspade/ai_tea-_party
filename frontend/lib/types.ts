@@ -15,7 +15,22 @@ export type {
   ProviderDef,
   PresenceUser,
   WsMessage,
+  RoomBarSnapshot,
+  AskAnswer,
 } from "@ai-party/shared";
+
+export type PendingAskPublic = {
+  id: string;
+  room_id: string;
+  request_id: string;
+  character_id: string;
+  question: string;
+  choices: string[];
+  allow_custom: boolean;
+  multiple: boolean;
+  status: "pending" | "resolved" | "expired";
+  created_at: string;
+};
 
 // --- API 配置 ---
 

@@ -123,4 +123,46 @@ export class RoomSocketManager {
       users,
     });
   }
+
+  async broadcastBarUpdate(
+    roomId: string,
+    payload: { content: string; label: string; version: number },
+  ): Promise<void> {
+    await this.send(roomId, {
+      type: "bar_update",
+      room_id: roomId,
+      content: payload.content,
+      label: payload.label,
+      version: payload.version,
+    });
+  }
+
+  async broadcastAskPending(
+    roomId: string,
+    ask: {
+      id: string;
+      room_id: string;
+      request_id: string;
+      character_id: string;
+      question: string;
+      choices: string[];
+      allow_custom: boolean;
+      multiple: boolean;
+      status: "pending" | "resolved" | "expired";
+      created_at: string;
+    },
+  ): Promise<void> {
+    await this.send(roomId, {
+      type: "ask_pending",
+      ask,
+    });
+  }
+
+  async broadcastAskResolved(roomId: string, askId: string, answer: { selected?: string[]; custom?: string }): Promise<void> {
+    await this.send(roomId, {
+      type: "ask_resolved",
+      ask_id: askId,
+      answer,
+    });
+  }
 }

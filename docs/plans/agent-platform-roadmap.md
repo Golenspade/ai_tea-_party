@@ -28,9 +28,9 @@
 
 | 能力 | 目标行为 | 当前状态 |
 |------|----------|----------|
-| **Write to Room** | Agent 通过 Tool 写入房间，前端即时展示 | ❌ 未实现（仅 LLM 生成一条 message） |
+| **Write to Room** | Agent 通过 Tool 写入房间，前端即时展示 | ✅ Phase 1（Tool + SSE/WS） |
 | **Modify / Patch** | 删改已有段落，前端带动画 diff | ❌ 未规划实现 |
-| **Ask** | 暂停叙事，询问用户剧情走向（侧栏决策） | ❌ 未实现 |
+| **Ask** | 暂停叙事，询问用户剧情走向（侧栏决策） | ✅ Phase 1（侧栏 + resume stream） |
 | **变量系统** | 行为影响变量 → 分支剧情；短期 DB + 可视化 | ⚠️ 有 setvar/getvar Tool + SQLite，无分支叙事与 **变量测量 UI** |
 | **Summary / Compact** | 压缩上下文、选择性落盘，长剧情可持续 | ❌ 未实现 |
 | **DM Orchestrator** | 像跑团 DM：只调度写手/交互 Agent，不写正文 | ❌ 单 Agent 直出 |
@@ -247,12 +247,12 @@
 | 变量 Tool (set/get/list…) | ✅ | 无分支叙事 |
 | World Info 扫描 | ✅ | 世界书雏形 |
 | Presence / WS / SSE | ✅ | 需 chart buffer spike |
-| **Ask Tool + 侧栏 UI** | ❌ | Phase 1 |
-| **Write to Room Tool** | ❌ | Phase 1 |
-| **Write to Bar + Status Bar** | ❌ | Phase 1 |
-| **前端 wireframe（并行）** | ❌ | Phase 1 并行 |
-| **变量测量 UI (gauge)** | ❌ | Phase 1 |
-| **chart/Mermaid Buffer** | ❌ | Phase 1 spike |
+| **Ask Tool + 侧栏 UI** | ✅ 工作区已实现 | 缺 Ask E2E；answer 已校验 |
+| **Write to Room Tool** | ✅ 工作区已实现 | 见 phase-1-implementation-spec.md |
+| **Write to Bar + Status Bar** | ✅ 工作区已实现 | room_bar 表 + 顶栏 |
+| **前端 wireframe（并行）** | ✅ | docs/plans/wireframes/ |
+| **变量测量 UI (gauge)** | ✅ 工作区已实现 | variables-panel 数值条 |
+| **chart/Mermaid Buffer** | ⚠️ spike | 未闭合占位；无 mermaid 渲染库 |
 | DM 多 Agent 调度 | ❌ | Phase 2 |
 | Patch + 动画 | ❌ | Phase 2 |
 | Compact / Summary | ❌ | Phase 3 |
@@ -268,11 +268,12 @@
 | # | 问题 | 状态 |
 |---|------|------|
 | 1 | Ask 侧栏在窄屏是否改为 bottom sheet | ⏳ wireframe 阶段 |
-| 2 | `write_to_bar` 存储表结构（JSON 列 vs 独立表） | ⏳ 技术选型 |
+| 2 | ~~`write_to_bar` 存储表结构~~ | ✅ 独立 `room_bar` 表（每 room 一行 upsert） |
 | 3 | 「Locus」是否专指 Oracle Locus SDK | ⏳ 请产品确认名词 |
 | 4 | DM 显式指定入口的 UI 文案与快捷键 | ⏳ wireframe |
+| 5 | ~~Ask resume 模式~~ | ✅ 挂起 + `POST generate/stream/resume` 新流 |
 
-已关闭：Ask 用侧栏；旁白走 write_to_room；DM 指定发言者；wireframe 并行；Big Scale 先调研（倾向 Archive 首发）。
+已关闭：Ask 用侧栏；旁白走 write_to_room；DM 指定发言者；wireframe 并行；Big Scale 先调研；bar 独立表；Ask new stream resume。
 
 ---
 
@@ -282,7 +283,8 @@
 |------|------|
 | `docs/fixes/2026-06-03-pi-agent-connectivity.md` | 联调修复记录（非 Agent 能力） |
 | `docs/architecture-map.html` | 当前全站结构可视化（偏现状） |
-| `docs/plans/chatbox-config-reference.md` | Chatbox 配置与持久化调研（初稿） |
+| `docs/plans/phase-1-implementation-spec.md` | Phase 1 施工规格（API/表/事件） |
+| `docs/plans/wireframes/` | Phase 1 布局 wireframe |
 | `docs/plans/research-community-agent-patterns.md` | Locus / Pi / StoryWriter / Big Scale 调研 |
 
 ---

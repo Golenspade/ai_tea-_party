@@ -164,7 +164,67 @@ export const StreamingEventSchema = z.discriminatedUnion("type", [
     tool: z.string(),
     output: z.record(z.unknown()),
   }),
+  z.object({
+    type: z.literal("room_message"),
+    request_id: z.string(),
+    message: MessageSchema,
+  }),
+  z.object({
+    type: z.literal("bar_update"),
+    request_id: z.string(),
+    room_id: z.string(),
+    content: z.string(),
+    label: z.string(),
+    version: z.number().int(),
+  }),
+  z.object({
+    type: z.literal("ask_pending"),
+    request_id: z.string(),
+    ask_id: z.string(),
+    question: z.string(),
+    choices: z.array(z.string()),
+    allow_custom: z.boolean().optional(),
+    multiple: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal("awaiting_user"),
+    request_id: z.string(),
+    ask_id: z.string(),
+  }),
 ]);
+
+export const RoomBarSnapshotSchema = z.object({
+  room_id: z.string(),
+  content: z.string(),
+  label: z.string(),
+  version: z.number().int(),
+  updated_at: z.string(),
+});
+
+export const AskAnswerSchema = z.object({
+  selected: z.array(z.string()).optional(),
+  custom: z.string().optional(),
+});
+
+export const PendingAskSchema = z.object({
+  id: z.string(),
+  room_id: z.string(),
+  request_id: z.string(),
+  character_id: z.string(),
+  tool_call_id: z.string(),
+  question: z.string(),
+  choices: z.array(z.string()),
+  allow_custom: z.boolean(),
+  multiple: z.boolean(),
+  status: z.enum(["pending", "resolved", "expired"]),
+  answer: AskAnswerSchema.optional(),
+  agent_messages_json: z.string().optional(),
+  system_prompt: z.string().optional(),
+  provider: z.string().optional(),
+  model: z.string().optional(),
+  created_at: z.string(),
+  resolved_at: z.string().optional(),
+});
 
 export const WsMessageSchema = z.discriminatedUnion("type", [
   z.object({
@@ -184,6 +244,33 @@ export const WsMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("presence"),
     room_id: z.string(),
     users: z.array(PresenceUserSchema),
+  }),
+  z.object({
+    type: z.literal("bar_update"),
+    room_id: z.string(),
+    content: z.string(),
+    label: z.string(),
+    version: z.number().int(),
+  }),
+  z.object({
+    type: z.literal("ask_pending"),
+    ask: PendingAskSchema.pick({
+      id: true,
+      room_id: true,
+      request_id: true,
+      character_id: true,
+      question: true,
+      choices: true,
+      allow_custom: true,
+      multiple: true,
+      status: true,
+      created_at: true,
+    }),
+  }),
+  z.object({
+    type: z.literal("ask_resolved"),
+    ask_id: z.string(),
+    answer: AskAnswerSchema,
   }),
 ]);
 
@@ -216,3 +303,6 @@ export type VariablePatchRequest = {
 
 export type StreamingEvent = z.infer<typeof StreamingEventSchema>;
 export type WsMessage = z.infer<typeof WsMessageSchema>;
+export type RoomBarSnapshot = z.infer<typeof RoomBarSnapshotSchema>;
+export type AskAnswer = z.infer<typeof AskAnswerSchema>;
+export type PendingAsk = z.infer<typeof PendingAskSchema>;

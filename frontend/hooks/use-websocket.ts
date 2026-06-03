@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Message, PresenceUser, WsMessage } from "@/lib/types";
+import type { Message, PresenceUser, WsMessage, RoomBarSnapshot, PendingAskPublic, AskAnswer } from "@/lib/types";
 
 function generateUserId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -17,6 +17,9 @@ interface UseWebSocketOptions {
   onCharacterUpdate: () => void;
   onRoomStatus: (data: { is_auto_chat?: boolean }) => void;
   onPresence?: (users: PresenceUser[]) => void;
+  onBarUpdate?: (bar: Pick<RoomBarSnapshot, "content" | "label" | "version">) => void;
+  onAskPending?: (ask: PendingAskPublic) => void;
+  onAskResolved?: (askId: string, answer: AskAnswer) => void;
   roomId?: string;
   preferredNickname?: string;
   preferredUserId?: string;
@@ -27,6 +30,9 @@ export function useWebSocket({
   onCharacterUpdate,
   onRoomStatus,
   onPresence,
+  onBarUpdate,
+  onAskPending,
+  onAskResolved,
   roomId = "default",
   preferredNickname,
   preferredUserId,
@@ -42,12 +48,18 @@ export function useWebSocket({
     onCharacterUpdate,
     onRoomStatus,
     onPresence,
+    onBarUpdate,
+    onAskPending,
+    onAskResolved,
   });
   callbacksRef.current = {
     onMessage,
     onCharacterUpdate,
     onRoomStatus,
     onPresence,
+    onBarUpdate,
+    onAskPending,
+    onAskResolved,
   };
 
   useEffect(() => {
@@ -104,6 +116,16 @@ export function useWebSocket({
         callbacksRef.current.onRoomStatus(data.data);
       } else if (data.type === "presence") {
         callbacksRef.current.onPresence?.(data.users);
+      } else if (data.type === "bar_update") {
+        callbacksRef.current.onBarUpdate?.({
+          content: data.content,
+          label: data.label,
+          version: data.version,
+        });
+      } else if (data.type === "ask_pending") {
+        callbacksRef.current.onAskPending?.(data.ask);
+      } else if (data.type === "ask_resolved") {
+        callbacksRef.current.onAskResolved?.(data.ask_id, data.answer);
       }
     };
 

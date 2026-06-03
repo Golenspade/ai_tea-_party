@@ -11,7 +11,10 @@ import type {
   VariableEntry,
   WorldInfoBook,
   WorldInfoEntry,
+  AskAnswer,
 } from "@ai-party/shared";
+import { parseWriteToRoomInput } from "../services/write-to-room";
+import { pendingAskToPublic, validateAskAnswer } from "../services/ask-user";
 
 type ResponseLength = "short" | "default" | "long";
 
@@ -643,8 +646,14 @@ export function registerRestRoutes(
         targetRoom.characters[Math.floor(Math.random() * targetRoom.characters.length)];
 
       try {
-        const { message } = await appState.generateAiReply(roomId, character.id);
-        await socketManager.broadcastMessage(roomId, message);
+        const { message } = await appState.generateAiReply(roomId, character.id, {
+          onRoomMessage: async (roomMessage) => {
+            await socketManager.broadcastMessage(roomId, roomMessage);
+          },
+        });
+        if (message) {
+          await socketManager.broadcastMessage(roomId, message);
+        }
       } catch (error) {
         request.log.warn({ err: error, roomId }, "auto-chat tick failed");
       }
@@ -1040,4 +1049,103 @@ export function registerRestRoutes(
       return { status: "success" };
     },
   );
+
+  app.get<{ Params: RoomIdParams }>("/api/rooms/:room_id/bar", (request, reply) => {
+    const room = appState.getRoom(request.params.room_id);
+    if (!room) {
+      return sendFailure(reply, 404, "聊天室不存在");
+    }
+
+    const bar = appState.getRoomBar(request.params.room_id);
+    return bar ?? {
+      room_id: request.params.room_id,
+      content: "",
+      label: "当前形势",
+      version: 0,
+      updated_at: new Date(0).toISOString(),
+    };
+  });
+
+  app.get<{ Params: RoomIdParams }>("/api/rooms/:room_id/asks/pending", (request, reply) => {
+    const room = appState.getRoom(request.params.room_id);
+    if (!room) {
+      return sendFailure(reply, 404, "聊天室不存在");
+    }
+
+    const pending = appState.getRoomPendingAsk(request.params.room_id);
+    return {
+      ask: pending ? pendingAskToPublic(pending) : null,
+    };
+  });
+
+  app.post<{ Params: RoomIdParams & { ask_id: string }; Body: AskAnswer }>(
+    "/api/rooms/:room_id/asks/:ask_id/answer",
+    async (request, reply) => {
+      const roomId = request.params.room_id;
+      const askId = request.params.ask_id;
+      const pending = appState.getPendingAsk(askId);
+
+      if (!pending || pending.room_id !== roomId) {
+        return sendFailure(reply, 404, "Ask 不存在");
+      }
+
+      if (pending.status !== "pending") {
+        return sendFailure(reply, 400, "Ask 已处理");
+      }
+
+      const answer: AskAnswer = {
+        selected: request.body?.selected,
+        custom: request.body?.custom,
+      };
+
+      try {
+        validateAskAnswer(pending, answer);
+      } catch (error) {
+        return sendFailure(
+          reply,
+          400,
+          error instanceof Error ? error.message : "回答无效",
+        );
+      }
+
+      const resolved = appState.answerPendingAsk(askId, answer);
+      if (!resolved) {
+        return sendFailure(reply, 400, "无法处理 Ask");
+      }
+
+      await socketManager.broadcastAskResolved(roomId, askId, answer);
+      return { status: "success", ask: pendingAskToPublic(resolved) };
+    },
+  );
+
+  if (process.env.NODE_ENV !== "production") {
+  app.post<{ Params: RoomIdParams; Body: { content: string; character_id?: string; sender_type?: "ai" | "user" | "system" } }>(
+    "/api/rooms/:room_id/agent/write-to-room",
+    async (request, reply) => {
+      const room = appState.getRoom(request.params.room_id);
+      if (!room) {
+        return sendFailure(reply, 404, "聊天室不存在");
+      }
+
+      try {
+        const input = parseWriteToRoomInput(request.body as Record<string, unknown>);
+        const characterId = request.body?.character_id || room.characters[0]?.id;
+        const character = room.characters.find((item) => item.id === characterId);
+        if (!character) {
+          return sendFailure(reply, 404, "角色不存在");
+        }
+
+        const message = appState.writeAgentRoomMessage(request.params.room_id, character, input);
+        await socketManager.broadcastMessage(request.params.room_id, message);
+        return { status: "success", message };
+      } catch (error) {
+        return sendFailure(
+          reply,
+          400,
+          error instanceof Error ? error.message : "写入失败",
+        );
+      }
+    },
+  );
+  }
 }

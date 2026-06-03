@@ -11,6 +11,9 @@ import type {
   WorldInfoBook,
   WorldInfoEntry,
   ProviderDef,
+  RoomBarSnapshot,
+  PendingAsk,
+  AskAnswer,
 } from "@ai-party/shared";
 
 import { AppRepository } from "./db/repository";
@@ -18,6 +21,14 @@ import {
   ChatOrchestrator,
   type OrchestratorRuntime,
 } from "./services/orchestrator";
+import {
+  buildWriteToRoomMessage,
+  type WriteToRoomInput,
+} from "./services/write-to-room";
+import {
+  buildRoomBarSnapshot,
+  type WriteToBarInput,
+} from "./services/write-to-bar";
 import {
   entriesToVariableRecord,
   executeVariableCommand,
@@ -29,6 +40,12 @@ import { parseEnvAiProvider } from "./services/resolve-pi-model";
 import { bootstrapRoomsFromConfig } from "./utils/config-bootstrap";
 
 const nowIso = () => new Date().toISOString();
+
+export interface AgentSessionHooks {
+  onRoomMessage?: (message: Message) => void | Promise<void>;
+  onBarUpdate?: (snapshot: RoomBarSnapshot) => void | Promise<void>;
+  onAskPending?: (ask: PendingAsk) => void | Promise<void>;
+}
 
 const DEFAULT_ROOM_ID = "default";
 
@@ -558,7 +575,11 @@ class AppState {
     return this.repository.getRoomMessages(roomId, sinceIso, limit).map((item) => ({ ...item }));
   }
 
-  async generateAiReply(roomId: string, characterId: string): Promise<{ message: Message; requestId: string }> {
+  async generateAiReply(
+    roomId: string,
+    characterId: string,
+    hooks?: AgentSessionHooks,
+  ): Promise<{ message: Message | null; requestId: string }> {
     const room = this.getRoom(roomId);
     if (!room) {
       throw new Error("聊天室不存在");
@@ -569,8 +590,13 @@ class AppState {
       throw new Error("角色不存在");
     }
 
-    const runtime = this.getAgentRuntime(roomId);
+    const runtime = this.getAgentRuntime(roomId, character, hooks);
     const reply = await this.orchestrator.generateReply(room, character, this.responseLength, runtime);
+
+    if (!reply.content.trim()) {
+      return { message: null, requestId: reply.requestId };
+    }
+
     const message: Message = {
       id: reply.messageId,
       character_id: character.id,
@@ -586,9 +612,127 @@ class AppState {
     return { message, requestId: reply.requestId };
   }
 
+  writeAgentRoomMessage(roomId: string, speakingCharacter: Character, input: WriteToRoomInput): Message {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      throw new Error("聊天室不存在");
+    }
+
+    const message = buildWriteToRoomMessage(input, {
+      roomId,
+      speakingCharacter,
+      characters: room.characters,
+      now: nowIso,
+    });
+    this.addRoomMessage(roomId, message);
+    return message;
+  }
+
+  getRoomBar(roomId: string): RoomBarSnapshot | null {
+    return this.repository.getRoomBar(roomId);
+  }
+
+  writeAgentBar(roomId: string, input: WriteToBarInput): RoomBarSnapshot {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      throw new Error("聊天室不存在");
+    }
+
+    const previous = this.repository.getRoomBar(roomId);
+    const snapshot = buildRoomBarSnapshot(roomId, input, previous?.version ?? 0, nowIso);
+    return this.repository.upsertRoomBar(snapshot);
+  }
+
+  getRoomPendingAsk(roomId: string): PendingAsk | undefined {
+    return this.repository.getRoomPendingAsk(roomId);
+  }
+
+  answerPendingAsk(askId: string, answer: AskAnswer): PendingAsk | undefined {
+    return this.repository.resolvePendingAsk(askId, answer, nowIso());
+  }
+
+  getPendingAsk(askId: string): PendingAsk | undefined {
+    return this.repository.getPendingAsk(askId);
+  }
+
+  async startAiResumeStream(
+    roomId: string,
+    askId: string,
+    hooks?: AgentSessionHooks,
+  ): Promise<{
+    characterName: string;
+    requestId: string;
+    messageId: string;
+    events: AsyncGenerator<StreamingEvent>;
+  }> {
+    const pending = this.getPendingAsk(askId);
+    if (!pending || pending.status !== "resolved" || !pending.answer) {
+      throw new Error("Ask 不存在或尚未回答");
+    }
+
+    const room = this.getRoom(roomId);
+    if (!room) {
+      throw new Error("聊天室不存在");
+    }
+
+    const character = room.characters.find((item) => item.id === pending.character_id);
+    if (!character) {
+      throw new Error("角色不存在");
+    }
+
+    const runtime = this.getAgentRuntime(roomId, character, hooks);
+    const stream = await this.orchestrator.generateResumeStream(
+      room,
+      character,
+      pending,
+      this.responseLength,
+      runtime,
+    );
+
+    return {
+      characterName: stream.characterName,
+      requestId: stream.requestId,
+      messageId: stream.messageId,
+      events: stream.events,
+    };
+  }
+
+  createPendingAskForAgent(
+    roomId: string,
+    speakingCharacter: Character,
+    input: {
+      requestId: string;
+      toolCallId: string;
+      question: string;
+      choices: string[];
+      allowCustom: boolean;
+      multiple: boolean;
+      agentMessagesJson: string;
+      systemPrompt: string;
+    },
+  ): PendingAsk {
+    return this.repository.createPendingAsk({
+      id: randomUUID(),
+      roomId,
+      requestId: input.requestId,
+      characterId: speakingCharacter.id,
+      toolCallId: input.toolCallId,
+      question: input.question,
+      choices: input.choices,
+      allowCustom: input.allowCustom,
+      multiple: input.multiple,
+      agentMessagesJson: input.agentMessagesJson,
+      systemPrompt: input.systemPrompt,
+      provider: this.currentProvider,
+      model: this.currentModel,
+      createdAt: nowIso(),
+    });
+  }
+
   async startAiReplyStream(
     roomId: string,
     characterId: string,
+    hooks?: AgentSessionHooks,
   ): Promise<{
     characterName: string;
     requestId: string;
@@ -605,7 +749,7 @@ class AppState {
       throw new Error("角色不存在");
     }
 
-    const runtime = this.getAgentRuntime(roomId);
+    const runtime = this.getAgentRuntime(roomId, character, hooks);
     const stream = await this.orchestrator.generateReplyStream(
       room,
       character,
@@ -713,11 +857,35 @@ class AppState {
     };
   }
 
-  private getAgentRuntime(roomId: string): OrchestratorRuntime {
+  private getAgentRuntime(
+    roomId: string,
+    speakingCharacter: Character,
+    hooks?: AgentSessionHooks,
+  ): OrchestratorRuntime {
+    const room = this.getRoom(roomId);
+
     return {
       roomId,
       provider: this.currentProvider,
       model: this.currentModel,
+      speakingCharacterId: speakingCharacter.id,
+      speakingCharacterName: speakingCharacter.name,
+      listRoomCharacters: () => room?.characters ?? [],
+      writeToRoom: async (input) => {
+        const message = this.writeAgentRoomMessage(roomId, speakingCharacter, input);
+        await hooks?.onRoomMessage?.(message);
+        return message;
+      },
+      writeToBar: async (input) => {
+        const snapshot = this.writeAgentBar(roomId, input);
+        await hooks?.onBarUpdate?.(snapshot);
+        return snapshot;
+      },
+      createPendingAsk: async (input) => {
+        const pending = this.createPendingAskForAgent(roomId, speakingCharacter, input);
+        await hooks?.onAskPending?.(pending);
+        return pending;
+      },
       listRoomVariables: async (id) => this.listRoomVariables(id),
       listGlobalVariables: async () => this.listGlobalVariables(),
       setVariable: async (scope, name, value) => this.setVariable(scope, roomId, name, value),

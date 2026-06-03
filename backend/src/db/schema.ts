@@ -164,3 +164,38 @@ export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+export const roomBar = sqliteTable("room_bar", {
+  roomId: text("room_id").primaryKey(),
+  content: text("content").notNull().default(""),
+  label: text("label").notNull().default("当前形势"),
+  version: integer("version").notNull().default(0),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const pendingAsks = sqliteTable(
+  "pending_asks",
+  {
+    id: text("id").primaryKey(),
+    roomId: text("room_id").notNull(),
+    requestId: text("request_id").notNull(),
+    characterId: text("character_id").notNull(),
+    toolCallId: text("tool_call_id").notNull(),
+    question: text("question").notNull(),
+    choicesJson: text("choices_json").notNull().default("[]"),
+    allowCustom: integer("allow_custom", { mode: "boolean" }).notNull().default(false),
+    multiple: integer("multiple", { mode: "boolean" }).notNull().default(false),
+    status: text("status").notNull().default("pending"),
+    answerJson: text("answer_json"),
+    agentMessagesJson: text("agent_messages_json").notNull().default("[]"),
+    systemPrompt: text("system_prompt").notNull().default(""),
+    provider: text("provider").notNull().default(""),
+    model: text("model").notNull().default(""),
+    createdAt: text("created_at").notNull(),
+    resolvedAt: text("resolved_at"),
+  },
+  (table) => ({
+    roomIdx: index("idx_pending_asks_room").on(table.roomId),
+    statusIdx: index("idx_pending_asks_status").on(table.status),
+  }),
+);

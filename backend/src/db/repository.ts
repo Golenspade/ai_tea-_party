@@ -10,6 +10,9 @@ import type {
   VariableEntry,
   WorldInfoBook,
   WorldInfoEntry,
+  RoomBarSnapshot,
+  PendingAsk,
+  AskAnswer,
 } from "@ai-party/shared";
 import { createDatabase, ensureSchema } from "./client";
 import {
@@ -25,6 +28,8 @@ import {
   rooms,
   worldInfoBooks,
   worldInfoEntries,
+  roomBar,
+  pendingAsks,
 } from "./schema";
 
 const toJson = (value: unknown): string => {
@@ -973,5 +978,174 @@ export class AppRepository {
         },
       })
       .run();
+  }
+
+  getRoomBar(roomId: string): RoomBarSnapshot | null {
+    const row = this.db.select().from(roomBar).where(eq(roomBar.roomId, roomId)).get();
+    if (!row) {
+      return null;
+    }
+
+    return {
+      room_id: row.roomId,
+      content: row.content,
+      label: row.label,
+      version: row.version,
+      updated_at: row.updatedAt,
+    };
+  }
+
+  upsertRoomBar(snapshot: RoomBarSnapshot): RoomBarSnapshot {
+    this.db
+      .insert(roomBar)
+      .values({
+        roomId: snapshot.room_id,
+        content: snapshot.content,
+        label: snapshot.label,
+        version: snapshot.version,
+        updatedAt: snapshot.updated_at,
+      })
+      .onConflictDoUpdate({
+        target: roomBar.roomId,
+        set: {
+          content: snapshot.content,
+          label: snapshot.label,
+          version: snapshot.version,
+          updatedAt: snapshot.updated_at,
+        },
+      })
+      .run();
+
+    return snapshot;
+  }
+
+  private mapPendingAskRow(row: typeof pendingAsks.$inferSelect): PendingAsk {
+    let choices: string[] = [];
+    try {
+      choices = JSON.parse(row.choicesJson) as string[];
+    } catch {
+      choices = [];
+    }
+
+    let answer: AskAnswer | undefined;
+    if (row.answerJson) {
+      try {
+        answer = JSON.parse(row.answerJson) as AskAnswer;
+      } catch {
+        answer = undefined;
+      }
+    }
+
+    return {
+      id: row.id,
+      room_id: row.roomId,
+      request_id: row.requestId,
+      character_id: row.characterId,
+      tool_call_id: row.toolCallId,
+      question: row.question,
+      choices,
+      allow_custom: Boolean(row.allowCustom),
+      multiple: Boolean(row.multiple),
+      status: row.status as PendingAsk["status"],
+      answer,
+      agent_messages_json: row.agentMessagesJson,
+      system_prompt: row.systemPrompt,
+      provider: row.provider,
+      model: row.model,
+      created_at: row.createdAt,
+      resolved_at: row.resolvedAt || undefined,
+    };
+  }
+
+  expireRoomPendingAsks(roomId: string, expiredAt: string): number {
+    const result = this.db
+      .update(pendingAsks)
+      .set({
+        status: "expired",
+        resolvedAt: expiredAt,
+      })
+      .where(and(eq(pendingAsks.roomId, roomId), eq(pendingAsks.status, "pending")))
+      .run();
+
+    return result.changes;
+  }
+
+  createPendingAsk(input: {
+    id: string;
+    roomId: string;
+    requestId: string;
+    characterId: string;
+    toolCallId: string;
+    question: string;
+    choices: string[];
+    allowCustom: boolean;
+    multiple: boolean;
+    agentMessagesJson: string;
+    systemPrompt: string;
+    provider: string;
+    model: string;
+    createdAt: string;
+  }): PendingAsk {
+    this.expireRoomPendingAsks(input.roomId, input.createdAt);
+
+    this.db
+      .insert(pendingAsks)
+      .values({
+        id: input.id,
+        roomId: input.roomId,
+        requestId: input.requestId,
+        characterId: input.characterId,
+        toolCallId: input.toolCallId,
+        question: input.question,
+        choicesJson: JSON.stringify(input.choices),
+        allowCustom: input.allowCustom,
+        multiple: input.multiple,
+        status: "pending",
+        agentMessagesJson: input.agentMessagesJson,
+        systemPrompt: input.systemPrompt,
+        provider: input.provider,
+        model: input.model,
+        createdAt: input.createdAt,
+      })
+      .run();
+
+    const row = this.db.select().from(pendingAsks).where(eq(pendingAsks.id, input.id)).get();
+    return this.mapPendingAskRow(row!);
+  }
+
+  getPendingAsk(askId: string): PendingAsk | undefined {
+    const row = this.db.select().from(pendingAsks).where(eq(pendingAsks.id, askId)).get();
+    return row ? this.mapPendingAskRow(row) : undefined;
+  }
+
+  getRoomPendingAsk(roomId: string): PendingAsk | undefined {
+    const row = this.db
+      .select()
+      .from(pendingAsks)
+      .where(and(eq(pendingAsks.roomId, roomId), eq(pendingAsks.status, "pending")))
+      .orderBy(asc(pendingAsks.createdAt))
+      .all()
+      .at(-1);
+
+    return row ? this.mapPendingAskRow(row) : undefined;
+  }
+
+  resolvePendingAsk(askId: string, answer: AskAnswer, resolvedAt: string): PendingAsk | undefined {
+    const row = this.db.select().from(pendingAsks).where(eq(pendingAsks.id, askId)).get();
+    if (!row || row.status !== "pending") {
+      return undefined;
+    }
+
+    this.db
+      .update(pendingAsks)
+      .set({
+        status: "resolved",
+        answerJson: JSON.stringify(answer),
+        resolvedAt,
+      })
+      .where(eq(pendingAsks.id, askId))
+      .run();
+
+    return this.getPendingAsk(askId);
   }
 }

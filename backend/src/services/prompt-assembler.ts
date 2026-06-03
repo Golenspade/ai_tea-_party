@@ -21,6 +21,12 @@ const LENGTH_GUIDANCE: Record<ResponseLength, string> = {
   long: "[回复约束] 请充分展开你的想法，包含细节描述、故事、例子或深入分析。篇幅不限，鼓励深度表达。",
 };
 
+export const AGENT_TOOL_GUIDANCE = `[Agent 工具规则]
+- write_to_room：剧情对白、角色发言、旁白（旁白使用 sender_type=system）。不要在 final 文本中重复已写入的内容。
+- write_to_bar：当前形势、场景摘要、地点/时间等外在状态（不要写入消息流）。
+- ask_user：需要用户做剧情抉择时使用；提供 question 与 choices。
+- 变量变更请使用 set_variable / inc_variable 等变量工具。`;
+
 const MAX_VARIABLE_CONTEXT_ENTRIES = 80;
 const MAX_VARIABLE_CONTEXT_TOTAL_CHARS = 4000;
 const MAX_VARIABLE_CONTEXT_VALUE_CHARS = 120;
@@ -190,6 +196,7 @@ export class PromptAssembler {
 
     const lengthText = LENGTH_GUIDANCE[responseLength] || LENGTH_GUIDANCE.default;
     parts.push(`${lengthText}\n\n请以${character.name}的身份自然回复：`);
+    parts.push(AGENT_TOOL_GUIDANCE);
 
     for (const activated of scanResult.system_bottom) {
       parts.push(activated.entry.content);

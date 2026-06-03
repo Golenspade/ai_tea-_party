@@ -45,6 +45,20 @@ function formatValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function isGaugeVariable(name: string, value: unknown): value is number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return false;
+  }
+  return name.endsWith("_pct") || (value >= 0 && value <= 100);
+}
+
+function gaugeBounds(name: string, value: number): { min: number; max: number } {
+  if (name.endsWith("_pct")) {
+    return { min: 0, max: 100 };
+  }
+  return { min: 0, max: Math.max(100, value) };
+}
+
 function scopeTitle(scope: VariableScope): string {
   return scope === "global" ? "Global" : "Room";
 }
@@ -117,9 +131,29 @@ export function VariablesPanel({
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="font-medium text-[var(--text)] truncate">{item.name}</p>
-                <p className="mt-1 text-[var(--theme-accent)] break-words">
-                  {formatValue(item.value)}
-                </p>
+                {isGaugeVariable(item.name, item.value) ? (
+                  <div className="mt-2">
+                    {(() => {
+                      const { min, max } = gaugeBounds(item.name, item.value);
+                      const pct = max > min ? ((item.value - min) / (max - min)) * 100 : 0;
+                      return (
+                        <>
+                          <div className="h-1.5 rounded-full bg-[#ece6d8] overflow-hidden">
+                            <div
+                              className="h-full bg-[#a35d40]/80 transition-all duration-300"
+                              style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                            />
+                          </div>
+                          <p className="mt-1 text-[var(--theme-accent)]">{item.value}</p>
+                        </>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-[var(--theme-accent)] break-words">
+                    {formatValue(item.value)}
+                  </p>
+                )}
               </div>
               <button
                 type="button"

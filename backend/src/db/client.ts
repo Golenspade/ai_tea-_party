@@ -166,6 +166,39 @@ export function ensureSchema(client: Database.Database): void {
       value TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS room_bar (
+      room_id TEXT PRIMARY KEY,
+      content TEXT NOT NULL DEFAULT '',
+      label TEXT NOT NULL DEFAULT '当前形势',
+      version INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS pending_asks (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      character_id TEXT NOT NULL,
+      tool_call_id TEXT NOT NULL,
+      question TEXT NOT NULL,
+      choices_json TEXT NOT NULL DEFAULT '[]',
+      allow_custom INTEGER NOT NULL DEFAULT 0,
+      multiple INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'pending',
+      answer_json TEXT,
+      agent_messages_json TEXT NOT NULL DEFAULT '[]',
+      system_prompt TEXT NOT NULL DEFAULT '',
+      provider TEXT NOT NULL DEFAULT '',
+      model TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      resolved_at TEXT,
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_pending_asks_room ON pending_asks(room_id);
+    CREATE INDEX IF NOT EXISTS idx_pending_asks_status ON pending_asks(status);
+
     CREATE INDEX IF NOT EXISTS idx_room_characters_room ON room_characters(room_id);
     CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);
     CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
