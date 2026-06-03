@@ -206,11 +206,11 @@
 
 ### 7.6 配置与 Chatbox 调研（Phase 1 文档任务）
 
-- 调研 [Chatbox](https://github.com/Bin-Huang/chatbox)（开源）的：  
+- 调研 [Chatbox](https://github.com/chatboxai/chatbox)（开源，原 `Bin-Huang/chatbox`）的：  
   - provider/model 配置存储路径与 schema  
   - 本地持久化 vs 云端  
   - 导入导出  
-- 输出：`docs/plans/chatbox-config-reference.md`（待写）  
+- 输出：`docs/plans/chatbox-config-reference.md`（**初稿已完成**，见 §11 开放问题）  
 
 ---
 
@@ -258,7 +258,7 @@
 | Compact / Summary | ❌ | Phase 3 |
 | Current Scale 存储选型 | ❌ | 待决 §6 |
 | 四书 (b)(c) 数据模型 | ❌ | Phase 2+ |
-| Chatbox 配置调研文档 | ❌ | Phase 1 文档 |
+| Chatbox 配置调研文档 | ✅ 初稿 | Phase 1 文档 |
 | REST 全面 audit | ⏸ | 按需 |
 
 ---
@@ -282,7 +282,7 @@
 |------|------|
 | `docs/fixes/2026-06-03-pi-agent-connectivity.md` | 联调修复记录（非 Agent 能力） |
 | `docs/architecture-map.html` | 当前全站结构可视化（偏现状） |
-| `docs/plans/chatbox-config-reference.md` | **待写** — Chatbox 配置调研 |
+| `docs/plans/chatbox-config-reference.md` | Chatbox 配置与持久化调研（初稿） |
 | `docs/plans/research-community-agent-patterns.md` | Locus / Pi / StoryWriter / Big Scale 调研 |
 
 ---

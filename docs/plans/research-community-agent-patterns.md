@@ -103,7 +103,7 @@ flowchart LR
 
 ## 6. 待继续调研
 
-- [ ] [Chatbox](https://github.com/Bin-Huang/chatbox) 配置与持久化（见 `chatbox-config-reference.md`）  
+- [x] [Chatbox](https://github.com/chatboxai/chatbox) 配置与持久化（见 `chatbox-config-reference.md` 初稿）  
 - [ ] Pi mono `packages/agent` 是否新增 narrative 示例（跟踪 upstream main）  
 - [ ] 确认产品所说的「Locus」是否专指 Oracle Locus，或另有内部/中文社区名词  
 
