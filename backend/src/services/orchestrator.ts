@@ -510,7 +510,7 @@ export class ChatOrchestrator {
         description: "读取房间变量或全局变量",
         parameters: Type.Object({
           name: Type.String(),
-          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")], {})),
+          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")])),
         }),
         execute: async (_toolCallId: string, args: Record<string, unknown>) => {
           const name = parseName(args);
@@ -529,7 +529,7 @@ export class ChatOrchestrator {
         parameters: Type.Object({
           name: Type.String(),
           value: Type.Any(),
-          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")], {})),
+          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")])),
         }),
         execute: async (_toolCallId: string, args: Record<string, unknown>) => {
           const name = parseName(args);
@@ -549,7 +549,7 @@ export class ChatOrchestrator {
         parameters: Type.Object({
           name: Type.String(),
           value: Type.Any(),
-          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")], {})),
+          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")])),
         }),
         execute: async (_toolCallId: string, args: Record<string, unknown>) => {
           const name = parseName(args);
@@ -569,7 +569,7 @@ export class ChatOrchestrator {
         parameters: Type.Object({
           name: Type.String(),
           delta: Type.Optional(Type.Any()),
-          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")], {})),
+          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")])),
         }),
         execute: async (_toolCallId: string, args: Record<string, unknown>) => {
           const name = parseName(args);
@@ -589,7 +589,7 @@ export class ChatOrchestrator {
         parameters: Type.Object({
           name: Type.String(),
           delta: Type.Optional(Type.Any()),
-          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")], {})),
+          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")])),
         }),
         execute: async (_toolCallId: string, args: Record<string, unknown>) => {
           const name = parseName(args);
@@ -607,7 +607,7 @@ export class ChatOrchestrator {
         label: "列出变量",
         description: "读取全部 room/global 变量",
         parameters: Type.Object({
-          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")], {})),
+          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")])),
         }),
         execute: async (_toolCallId: string, args: Record<string, unknown>) => {
           const scope = parseScope(args.scope);
