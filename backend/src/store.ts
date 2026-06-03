@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -6,6 +5,7 @@ import type {
   CharacterFormData,
   ChatRoom,
   Message,
+  StreamingEvent,
   Persona,
   VariableEntry,
   WorldInfoBook,
@@ -14,6 +14,7 @@ import type {
 } from "@ai-party/shared";
 
 import { AppRepository } from "./db/repository";
+import { ChatOrchestrator } from "./services/orchestrator";
 import { ResponseLength } from "./types";
 
 const nowIso = () => new Date().toISOString();
@@ -30,6 +31,7 @@ const normalizeResponseLength = (raw: string | undefined): ResponseLength | unde
 class AppState {
   private readonly repository: AppRepository;
   private readonly autoChatState = new Map<string, boolean>();
+  private readonly orchestrator: ChatOrchestrator;
 
   responseLength: ResponseLength = "default";
   currentProvider = "openai";
@@ -95,6 +97,7 @@ class AppState {
 
   constructor() {
     this.repository = new AppRepository();
+    this.orchestrator = new ChatOrchestrator();
     const restoredLength = normalizeResponseLength(this.repository.getSetting("response_length"));
     if (restoredLength) {
       this.responseLength = restoredLength;
@@ -509,9 +512,57 @@ class AppState {
       throw new Error("角色不存在");
     }
 
-    const requestId = randomBytes(8).toString("hex");
-    const content = `${character.name}：${this._composeReply(room, character)} (len=${this.responseLength})`;
+    const reply = await this.orchestrator.generateReply(room, character, this.responseLength);
     const message: Message = {
+      id: reply.messageId,
+      character_id: character.id,
+      character_name: character.name,
+      content: reply.content,
+      timestamp: nowIso(),
+      is_system: false,
+      sender_type: "ai",
+      sender_user_id: "system",
+    };
+
+    this.addRoomMessage(roomId, message);
+    return { message, requestId: reply.requestId };
+  }
+
+  async startAiReplyStream(
+    roomId: string,
+    characterId: string,
+  ): Promise<{
+    characterName: string;
+    requestId: string;
+    messageId: string;
+    events: AsyncGenerator<StreamingEvent>;
+  }> {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      throw new Error("聊天室不存在");
+    }
+
+    const character = room.characters.find((item) => item.id === characterId);
+    if (!character) {
+      throw new Error("角色不存在");
+    }
+
+    const stream = await this.orchestrator.generateReplyStream(
+      room,
+      character,
+      this.responseLength,
+    );
+
+    return {
+      characterName: stream.characterName,
+      requestId: stream.requestId,
+      messageId: stream.messageId,
+      events: stream.events,
+    };
+  }
+
+  createAiMessageFromStreamResult(character: Character, requestId: string, content: string): Message {
+    return {
       id: requestId,
       character_id: character.id,
       character_name: character.name,
@@ -521,18 +572,6 @@ class AppState {
       sender_type: "ai",
       sender_user_id: "system",
     };
-
-    this.addRoomMessage(roomId, message);
-    return { message, requestId };
-  }
-
-  private _composeReply(room: ChatRoom, character: Character): string {
-    const last = room.messages.at(-1);
-    const context = last
-      ? `回复「${last.character_name}: ${last.content.slice(0, 32)}...」`
-      : "欢迎加入茶话会";
-
-    return `${character.name} 已收到：${context}`;
   }
 }
 

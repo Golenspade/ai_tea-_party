@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { appState } from "../store";
 import type { RoomSocketManager } from "../room-hub";
-import type { Message } from "@ai-party/shared";
+import type { StreamingEvent } from "@ai-party/shared";
 
 interface RoomIdParams {
   room_id: string;
@@ -16,6 +16,7 @@ interface ResolvedGenerator {
   character: {
     id: string;
     name: string;
+    greeting?: string;
   };
 }
 
@@ -48,38 +49,6 @@ function withValidCharacter(
 
 function serializeSsePayload(payload: unknown): string {
   return `data: ${JSON.stringify(payload)}\n\n`;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function streamText(
-  reply: FastifyReply,
-  text: string,
-  requestId: string,
-  characterId: string,
-  characterName: string,
-) {
-  const chunkSize = 6;
-  for (let i = 0; i < text.length; i += chunkSize) {
-    const chunk = text.slice(i, i + chunkSize);
-    if (!chunk) {
-      continue;
-    }
-
-    reply.raw.write(
-      serializeSsePayload({
-        type: "delta",
-        content: chunk,
-        message_id: requestId,
-        character_id: characterId,
-        character_name: characterName,
-        request_id: requestId,
-      }),
-    );
-    await sleep(25);
-  }
 }
 
 export function registerSseRoutes(
@@ -117,17 +86,22 @@ export function registerSseRoutes(
         return reply.code(resolved.errorCode).send({ detail: resolved.detail });
       }
 
-      let generated: { message: Message; requestId: string };
+      let session:
+        | {
+            requestId: string;
+            messageId: string;
+            events: AsyncGenerator<StreamingEvent>;
+          }
+        | undefined;
+
       try {
-        generated = await appState.generateAiReply(
+        session = await appState.startAiReplyStream(
           request.params.room_id,
           resolved.character.id,
         );
       } catch (error) {
         return reply.code(500).send({ detail: error instanceof Error ? error.message : "生成回复失败" });
       }
-
-      const { message, requestId } = generated;
 
       reply.raw.setHeader("Content-Type", "text/event-stream");
       reply.raw.setHeader("Cache-Control", "no-cache");
@@ -136,39 +110,55 @@ export function registerSseRoutes(
       reply.code(200);
 
       let aborted = false;
+      let finalContent: string | undefined;
+      let finalMessageId: string = session.messageId;
       const handleAbort = () => {
         aborted = true;
+        reply.raw.removeAllListeners("close");
+        reply.raw.removeAllListeners("error");
       };
       reply.raw.on("close", handleAbort);
       reply.raw.on("error", handleAbort);
 
       try {
-        await streamText(
-          reply,
-          message.content,
-          requestId,
-          resolved.character.id,
-          resolved.character.name,
-        );
+        if (!session) {
+          return;
+        }
+
+        for await (const event of session.events) {
+          if (aborted) {
+            break;
+          }
+
+          reply.raw.write(serializeSsePayload(event));
+
+          if (event.type === "final") {
+            finalContent = event.content;
+            if (event.message_id) {
+              finalMessageId = event.message_id;
+            }
+          }
+        }
       } finally {
         reply.raw.removeAllListeners("close");
         reply.raw.removeAllListeners("error");
       }
 
-      if (!aborted) {
-        const finalMessage: Message = {
-          ...message,
-          id: requestId,
-          timestamp: message.timestamp || new Date().toISOString(),
-        };
-        await socketManager.broadcastMessage(request.params.room_id, finalMessage);
+      if (!aborted && finalContent !== undefined) {
+        const message = appState.createAiMessageFromStreamResult(
+          resolved.character,
+          finalMessageId,
+          finalContent,
+        );
+        appState.addRoomMessage(request.params.room_id, message);
+        await socketManager.broadcastMessage(request.params.room_id, message);
 
         reply.raw.write(
           serializeSsePayload({
             type: "final",
-            content: message.content,
-            request_id: requestId,
-            message_id: requestId,
+            content: finalContent,
+            request_id: session.requestId,
+            message_id: finalMessageId,
           }),
         );
       }
