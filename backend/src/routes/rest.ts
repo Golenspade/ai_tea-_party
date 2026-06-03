@@ -631,25 +631,28 @@ export function registerRestRoutes(
     }
 
     appState.setRoomAutoChat(roomId, true);
-    const intervalMs = Math.max(Number(process.env.AUTO_CHAT_INTERVAL || "5000"), 1) * 1000;
+    const intervalMs = Math.max(Number(process.env.AUTO_CHAT_INTERVAL || "5"), 1) * 1000;
 
+    const runAutoChatTick = async (): Promise<void> => {
+      const targetRoom = appState.getRoom(roomId);
+      if (!targetRoom || !appState.getRoomAutoChat(roomId) || targetRoom.characters.length === 0) {
+        return;
+      }
+
+      const character =
+        targetRoom.characters[Math.floor(Math.random() * targetRoom.characters.length)];
+
+      try {
+        const { message } = await appState.generateAiReply(roomId, character.id);
+        await socketManager.broadcastMessage(roomId, message);
+      } catch (error) {
+        request.log.warn({ err: error, roomId }, "auto-chat tick failed");
+      }
+    };
+
+    void runAutoChatTick();
     const timer = setInterval(() => {
-      void (async () => {
-        const targetRoom = appState.getRoom(roomId);
-        if (!targetRoom || !targetRoom.is_auto_chat || targetRoom.characters.length === 0) {
-          return;
-        }
-
-        const character =
-          targetRoom.characters[Math.floor(Math.random() * targetRoom.characters.length)];
-
-        try {
-          const { message } = await appState.generateAiReply(roomId, character.id);
-          await socketManager.broadcastMessage(roomId, message);
-        } catch {
-          // 避免定时任务抛出导致整个事件循环退化
-        }
-      })();
+      void runAutoChatTick();
     }, intervalMs);
 
     appState.autoChatTimers.set(roomId, timer);

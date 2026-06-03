@@ -25,7 +25,8 @@ import {
   type VariableOps,
 } from "./services/variables";
 import { ResponseLength } from "./types";
-import { loadAppConfig, toCharacterFormData } from "./utils/config-loader";
+import { parseEnvAiProvider } from "./services/resolve-pi-model";
+import { bootstrapRoomsFromConfig } from "./utils/config-bootstrap";
 
 const nowIso = () => new Date().toISOString();
 
@@ -62,7 +63,7 @@ class AppState {
       name: "DeepSeek",
       prefix: "deepseek",
       env_key: "DEEPSEEK_API_KEY",
-      models: ["deepseek-chat", "deepseek-reasoner"],
+      models: ["deepseek-chat", "deepseek-reasoner", "deepseek-v4-flash", "deepseek-v4-pro"],
       default: "deepseek-chat",
       context_tokens: 128_000,
       description: "DeepSeek V3，默认对话模型",
@@ -122,6 +123,25 @@ class AppState {
     if (AppState.PROVIDERS[this.currentProvider]?.models.includes(restoredModel)) {
       this.currentModel = restoredModel;
     }
+
+    const hasStoredProvider = this.repository.getSetting("provider");
+    if (!hasStoredProvider) {
+      const fromEnv =
+        parseEnvAiProvider(process.env.AI_PROVIDER) ??
+        (process.env.MODEL_OVERRIDE
+          ? { provider: "deepseek", model: process.env.MODEL_OVERRIDE }
+          : null);
+      if (fromEnv && AppState.PROVIDERS[fromEnv.provider]) {
+        this.currentProvider = fromEnv.provider;
+        const candidate = fromEnv.model;
+        if (AppState.PROVIDERS[fromEnv.provider].models.includes(candidate)) {
+          this.currentModel = candidate;
+        } else {
+          this.currentModel = AppState.PROVIDERS[fromEnv.provider].default;
+        }
+      }
+    }
+
     this.seedDefaults();
   }
 
@@ -182,39 +202,19 @@ class AppState {
   }
 
   private bootstrapFromConfigFile(): boolean {
-    const config = loadAppConfig();
-    const rooms = config?.rooms;
-    if (!rooms?.length) {
-      return false;
-    }
-
-    for (const roomConfig of rooms) {
-      const roomId = roomConfig.id?.trim();
-      if (!roomId) {
-        continue;
-      }
-
-      if (this.getRoom(roomId)) {
-        continue;
-      }
-
-      this.createRoom(roomConfig.name || "Unnamed Room", roomConfig.description || "", {
-        id: roomId,
-        stealth_mode: roomConfig.stealth_mode ?? false,
-        user_description: roomConfig.user_description || "",
-        max_history: 50,
-        created_at: nowIso(),
-      });
-
-      for (const characterConfig of roomConfig.characters || []) {
-        if (!characterConfig.name?.trim()) {
-          continue;
-        }
-        this.addCharacterToRoom(roomId, toCharacterFormData(characterConfig));
-      }
-    }
-
-    return true;
+    return bootstrapRoomsFromConfig(
+      {
+        getRoom: (roomId) => this.getRoom(roomId),
+        createRoom: (name, description, options) => {
+          this.createRoom(name, description, options);
+        },
+        addCharacterToRoom: (roomId, data) => {
+          this.addCharacterToRoom(roomId, data);
+        },
+      },
+      undefined,
+      nowIso,
+    );
   }
 
   cloneRoomsSnapshot(): ChatRoom[] {

@@ -161,6 +161,12 @@ export function ChatLayout() {
     loadPresence();
   }, []);
 
+  useEffect(() => {
+    if (isConnected) {
+      void loadPresence();
+    }
+  }, [isConnected]);
+
   // --- 事件处理器 ---
   const handleAddCharacter = async (data: CharacterFormData) => {
     try {

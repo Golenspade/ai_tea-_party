@@ -85,17 +85,11 @@ export function useWebSocket({
 
     const wsUrl = `${WS_BASE_URL}/ws/${roomId}?${query.toString()}`;
     const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      setIsConnected(true);
-      console.log("WebSocket connected");
-    };
 
     ws.onmessage = (event) => {
       let data: WsMessage | null = null;
       try {
-        data = JSON.parse(event.data) as WsMessage;
+        data = JSON.parse(event.data as string) as WsMessage;
       } catch {
         return;
       }
@@ -112,6 +106,24 @@ export function useWebSocket({
         callbacksRef.current.onPresence?.(data.users);
       }
     };
+
+    ws.onopen = () => {
+      setIsConnected(true);
+      console.log("WebSocket connected");
+      // presence 可能在 onmessage 绑定前发出；连接成功后 REST 兜底拉一次
+      void fetch(`${(process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3004").replace(/\/$/, "")}/api/rooms/${roomId}/presence`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload: { users?: PresenceUser[] } | null) => {
+          if (payload?.users) {
+            callbacksRef.current.onPresence?.(payload.users);
+          }
+        })
+        .catch(() => {
+          // ignore presence refresh errors
+        });
+    };
+
+    wsRef.current = ws;
 
     ws.onclose = () => {
       setIsConnected(false);

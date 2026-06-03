@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
-import { Type, getModel, type KnownProvider, type Model } from "@earendil-works/pi-ai";
+import { Type, type Model } from "@earendil-works/pi-ai";
 import type { Character, ChatRoom, Persona, StreamingEvent, WorldInfoBook } from "@ai-party/shared";
 
 import type { ResponseLength } from "../types";
@@ -11,6 +11,7 @@ import {
   updateCharacterMemoryFromHistory,
 } from "./character-memory";
 import { PromptAssembler } from "./prompt-assembler";
+import { resolvePiModel } from "./resolve-pi-model";
 
 export interface OrchestratorStreamSession {
   requestId: string;
@@ -53,15 +54,6 @@ interface ToolResult {
   details?: Record<string, unknown>;
   terminate?: boolean;
 }
-
-const PROVIDER_MAP: Record<string, string> = {
-  openai: "openai",
-  deepseek: "deepseek",
-  gemini: "google",
-  xai: "xai",
-  minimax: "minimax",
-  moonshot: "moonshot",
-};
 
 class AsyncStreamingQueue<T> {
   private readonly values: T[] = [];
@@ -280,16 +272,14 @@ export class ChatOrchestrator {
     let model: Model<any>;
     let finalSent = false;
 
-    try {
-      const provider = (PROVIDER_MAP[runtime.provider] || runtime.provider) as KnownProvider;
-      model = getModel(provider, runtime.model as never);
-    } catch (error) {
+    model = resolvePiModel(runtime.provider, runtime.model);
+    if (!model) {
       queue.push({
         type: "error",
         request_id: runContext.requestId,
         message_id: runContext.messageId,
         character_id: runContext.characterId,
-        message: error instanceof Error ? error.message : "模型初始化失败",
+        message: `未找到可用模型：${runtime.provider}/${runtime.model}（请检查 provider 与模型 ID 是否与 pi-ai 兼容）`,
       });
       queue.close();
       yield* queue;
@@ -328,7 +318,7 @@ export class ChatOrchestrator {
         tools,
         messages: baseMessages.map((message) => ({
           role: message.role,
-          content: message.content,
+          content: [{ type: "text", text: message.content }],
           timestamp: Date.now(),
         })) as never,
       },
@@ -467,6 +457,7 @@ export class ChatOrchestrator {
       }
       queue.close();
     } finally {
+      await agent.waitForIdle().catch(() => undefined);
       unsubscribe();
       if (!finalSent) {
         finalSent = true;
@@ -478,8 +469,8 @@ export class ChatOrchestrator {
           character_name: runContext.characterName,
           content: "",
         });
+        queue.close();
       }
-      await agent.waitForIdle().catch(() => undefined);
     }
 
     yield* queue;

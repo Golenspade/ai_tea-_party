@@ -224,7 +224,9 @@ export class PromptAssembler {
       messages.push({ role: "system", content: activated.entry.content });
     }
 
-    const recent = chatHistory.filter((message) => !message.is_system).slice(-25);
+    const recent = chatHistory
+      .filter((message) => !message.is_system && message.content.trim().length > 0)
+      .slice(-25);
     const depthEntries = new Map<number, string>();
     for (const activated of scanResult.at_depth) {
       depthEntries.set(activated.entry.depth, activated.entry.content);
