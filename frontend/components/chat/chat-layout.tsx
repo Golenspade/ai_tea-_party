@@ -364,7 +364,9 @@ export function ChatLayout() {
             )}
             {onlineUsers.length > 0 ? (
               <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold">
-                [{onlineUsers.length} 人在场]
+                [{onlineUsers.length} 人在场: {onlineUsers.map((user) => user.nickname || user.user_id).slice(0, 3).join(", ")}
+                {onlineUsers.length > 3 ? " ..." : ""}
+                ]
               </span>
             ) : (
               <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-muted)]">
