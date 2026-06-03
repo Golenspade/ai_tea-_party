@@ -31,7 +31,7 @@
 ## 服务端口
 
 - 后端 API: http://localhost:3004
-- 前端界面: http://localhost:3001
+- 前端界面: http://localhost:3000（E2E 默认使用 http://localhost:3001）
 
 ## 快速开始
 
@@ -52,7 +52,7 @@ uv run python main.py
 cd frontend && npm run dev
 ```
 
-访问 http://localhost:3001 开始使用！
+访问 http://localhost:3000 开始使用！
 
 ## 技术栈
 

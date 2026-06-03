@@ -43,7 +43,7 @@ npm install
 npm run dev
 ```
 
-3. Open [http://127.0.0.1:3001](http://127.0.0.1:3001) in your browser
+3. Open [http://127.0.0.1:3000](http://127.0.0.1:3000) in your browser
 
 ### Building for Production
 
@@ -150,19 +150,21 @@ To customize the theme, edit the CSS variables in `app/globals.css` or use the s
 Create a `.env.local` file if needed:
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_WS_URL=ws://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:3004
+NEXT_PUBLIC_WS_URL=ws://localhost:3004
 ```
+
+> 说明：当前代码默认使用 `http://localhost:3004`（`main.py` 默认端口）与 `ws://localhost:3004/ws/default`。如果你改动这些常量，请同步修改 `frontend/services/api.ts` 与 `frontend/hooks/use-websocket.ts`。
 
 ## Troubleshooting
 
 ### WebSocket Connection Issues
 
-Make sure the backend server is running on port 8000. Check browser console for connection errors.
+Make sure the backend server is running on port 3004. Check browser console for connection errors.
 
 ### CORS Issues
 
-If you encounter CORS errors, ensure the backend has proper CORS configuration for `http://127.0.0.1:3001`.
+If you encounter CORS errors, ensure the backend has proper CORS configuration for `http://127.0.0.1:3000`.
 
 ## License
 

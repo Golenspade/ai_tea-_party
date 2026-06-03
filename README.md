@@ -119,8 +119,9 @@ npm run dev
 
 打开浏览器访问：
 
-- 前端界面：http://localhost:3001
+- 前端界面：http://localhost:3000
 - 后端 API：http://localhost:3004
+- E2E 默认以 `localhost:3001` 启动前端（见 `docs/E2E_TEST_SKILL.md` 与 `frontend/playwright.config.ts`）。
 
 ### 7. E2E 变量命令回归（建议）
 

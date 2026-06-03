@@ -8,7 +8,7 @@
 
 - Node.js 18 或更高版本
 - npm 或 yarn
-- 后端服务运行在 `http://localhost:8000`
+- 后端服务运行在 `http://localhost:3004`
 
 ## 安装步骤
 

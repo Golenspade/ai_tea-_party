@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { Message } from "@/lib/types";
 
-const WS_URL = "ws://localhost:3004/ws/default";
+const WS_BASE_URL = (process.env.NEXT_PUBLIC_WS_BASE_URL || "ws://localhost:3004").replace(/\/$/, "");
+const DEFAULT_WS_URL = `${WS_BASE_URL}/ws/default`;
 
 interface UseWebSocketOptions {
   onMessage: (message: Message) => void;
@@ -24,7 +25,7 @@ export function useWebSocket({
   callbacksRef.current = { onMessage, onCharacterUpdate, onRoomStatus };
 
   useEffect(() => {
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(DEFAULT_WS_URL);
     wsRef.current = ws;
 
     ws.onopen = () => {

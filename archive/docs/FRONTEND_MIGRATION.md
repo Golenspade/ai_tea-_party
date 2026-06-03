@@ -1,5 +1,9 @@
 # Frontend Migration to shadcn/ui
 
+> ⚠️ 历史归档文档（仅作参考）
+> 适用范围：v1.x 迁移阶段，含旧端口与旧端口映射说明。
+> 当前主线已统一为：后端端口 `3004`，前端默认端口 `3000`（E2E 使用 `3001`）。
+
 This document describes the migration of the AI Tea Party frontend from vanilla HTML/CSS/JavaScript to a modern Next.js application using shadcn/ui components.
 
 ## Overview

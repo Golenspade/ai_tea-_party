@@ -39,7 +39,7 @@ npm run dev
 ### 服务地址
 
 - 后端 API: http://localhost:3004
-- 前端界面: http://localhost:3001
+- 前端界面: http://localhost:3000（E2E 默认使用 http://localhost:3001）
 
 ### 配置文件
 
