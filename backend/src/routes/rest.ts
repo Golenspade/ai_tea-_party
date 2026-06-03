@@ -339,20 +339,22 @@ export function registerRestRoutes(
         characterName = character.name;
       }
 
-      const message: Message = {
-        id: randomUUID(),
-        character_id: resolvedCharacterId,
-        character_name: characterName,
-        content: content || "",
-        timestamp: nowIso(),
-        is_system: false,
-        sender_type: sender_type || "user",
-        sender_user_id: sender_user_id || "user",
-        sender_user_name,
-      };
+      const outgoingMessages = appState.buildOutgoingMessages(
+        roomId,
+        resolvedCharacterId,
+        characterName,
+        content || "",
+        {
+          sender_type: sender_type || "user",
+          sender_user_id: sender_user_id || "user",
+          sender_user_name,
+        },
+      );
 
-      appState.addRoomMessage(roomId, message);
-      await socketManager.broadcastMessage(roomId, message);
+      for (const message of outgoingMessages) {
+        appState.addRoomMessage(roomId, message);
+        await socketManager.broadcastMessage(roomId, message);
+      }
 
       return { message: "消息发送成功" };
     },

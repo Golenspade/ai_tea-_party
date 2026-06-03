@@ -120,6 +120,15 @@ export function ChatLayout() {
     }
   };
 
+  const loadMessages = async () => {
+    try {
+      const data = await api.fetchRoomMessages();
+      setMessages(data);
+    } catch (error) {
+      console.error("Failed to fetch messages:", error);
+    }
+  };
+
   const loadVariables = async () => {
     setVariablesLoading(true);
     try {
@@ -147,6 +156,7 @@ export function ChatLayout() {
 
   useEffect(() => {
     loadCharacters();
+    loadMessages();
     loadVariables();
     loadPresence();
   }, []);
@@ -177,6 +187,7 @@ export function ChatLayout() {
         sender_user_id: userId,
         sender_user_name: normalizedNickname,
       });
+      await loadMessages();
       if (
         content.trim().startsWith("/") ||
         content.includes("{{") && content.includes("::")

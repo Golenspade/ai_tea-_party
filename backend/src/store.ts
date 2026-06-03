@@ -18,6 +18,12 @@ import {
   ChatOrchestrator,
   type OrchestratorRuntime,
 } from "./services/orchestrator";
+import {
+  entriesToVariableRecord,
+  executeVariableCommand,
+  renderVariableMacros,
+  type VariableOps,
+} from "./services/variables";
 import { ResponseLength } from "./types";
 
 const nowIso = () => new Date().toISOString();
@@ -584,6 +590,85 @@ class AppState {
       is_system: false,
       sender_type: "ai",
       sender_user_id: "system",
+    };
+  }
+
+  buildOutgoingMessages(
+    roomId: string,
+    characterId: string,
+    characterName: string,
+    content: string,
+    meta: {
+      sender_type?: Message["sender_type"];
+      sender_user_id?: string;
+      sender_user_name?: string;
+    } = {},
+  ): Message[] {
+    const ops = this.createVariableOps(roomId);
+    const commandResult = executeVariableCommand(content, ops);
+
+    if (commandResult.handled) {
+      if (!commandResult.output) {
+        return [];
+      }
+
+      return [
+        {
+          id: randomUUID(),
+          character_id: "system",
+          character_name: "系统",
+          content: commandResult.output,
+          timestamp: nowIso(),
+          is_system: true,
+          sender_type: "system",
+        },
+      ];
+    }
+
+    const renderedContent = renderVariableMacros(content, ops);
+
+    return [
+      {
+        id: randomUUID(),
+        character_id: characterId,
+        character_name: characterName,
+        content: renderedContent,
+        timestamp: nowIso(),
+        is_system: false,
+        sender_type: meta.sender_type || "user",
+        sender_user_id: meta.sender_user_id || "user",
+        sender_user_name: meta.sender_user_name,
+      },
+    ];
+  }
+
+  private createVariableOps(roomId: string): VariableOps {
+    return {
+      roomId,
+      listRoomVariables: () => entriesToVariableRecord(this.listRoomVariables(roomId)),
+      listGlobalVariables: () => entriesToVariableRecord(this.listGlobalVariables()),
+      getRoomVariable: (name) => this.repository.getRoomVariable(roomId, name),
+      getGlobalVariable: (name) => this.repository.getGlobalVariable(name),
+      roomVariableExists: (name) => this.repository.getRoomVariable(roomId, name) !== undefined,
+      globalVariableExists: (name) => this.repository.getGlobalVariable(name) !== undefined,
+      setRoomVariable: (name, value) => {
+        this.setVariable("room", roomId, name, value);
+      },
+      setGlobalVariable: (name, value) => {
+        this.setVariable("global", "global", name, value);
+      },
+      addRoomVariable: (name, value) => this.addVariable("room", roomId, name, value).value,
+      addGlobalVariable: (name, value) => this.addVariable("global", "global", name, value).value,
+      incRoomVariable: (name, value) => this.incVariable("room", roomId, name, value).value,
+      incGlobalVariable: (name, value) => this.incVariable("global", "global", name, value).value,
+      decRoomVariable: (name, value) => this.decVariable("room", roomId, name, value).value,
+      decGlobalVariable: (name, value) => this.decVariable("global", "global", name, value).value,
+      deleteRoomVariable: (name) => {
+        this.deleteVariable("room", roomId, name);
+      },
+      deleteGlobalVariable: (name) => {
+        this.deleteVariable("global", "global", name);
+      },
     };
   }
 

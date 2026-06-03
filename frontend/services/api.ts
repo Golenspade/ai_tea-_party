@@ -11,6 +11,7 @@ import type {
   VariableSetRequest,
   VariableScope,
   PresenceUser,
+  Message,
 } from "@/lib/types";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3004").replace(/\/$/, "");
@@ -71,6 +72,12 @@ export async function sendMessage(
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error("Failed to send message");
+}
+
+export async function fetchRoomMessages(roomId = "default", limit = 100): Promise<Message[]> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/messages?limit=${limit}`);
+  if (!res.ok) throw new Error("Failed to fetch messages");
+  return res.json();
 }
 
 export async function clearMessages(roomId = "default"): Promise<void> {
