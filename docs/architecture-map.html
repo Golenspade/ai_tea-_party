@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Tea Party — System Architecture Map</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050508;
+      --bg-elevated: #0c0c12;
+      --surface: rgba(255, 255, 255, 0.03);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f4f4f7;
+      --muted: #8b8b9a;
+      --accent: #6366f1;
+      --accent-2: #22d3ee;
+      --accent-3: #a78bfa;
+      --green: #34d399;
+      --orange: #fb923c;
+      --grid: rgba(255, 255, 255, 0.04);
+      --glow: rgba(99, 102, 241, 0.35);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: "Instrument Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* Scale-like grid backdrop */
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
+        radial-gradient(ellipse 60% 40% at 100% 50%, rgba(34, 211, 238, 0.06), transparent),
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 64px 64px, 64px 64px;
+    }
+
+    .noise {
+      position: fixed;
+      inset: 0;
+      opacity: 0.025;
+      pointer-events: none;
+      z-index: 1;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 2;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 32px 120px;
+    }
+
+    /* Nav */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(20px);
+      background: rgba(5, 5, 8, 0.75);
+      border-bottom: 1px solid var(--border);
+      margin: 0 -32px 48px;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    nav .brand {
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: -0.02em;
+    }
+
+    nav .brand span { color: var(--muted); font-weight: 400; }
+
+    nav ul {
+      list-style: none;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.78rem;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      transition: 0.2s;
+    }
+
+    nav a:hover {
+      color: var(--text);
+      border-color: var(--border);
+      background: var(--surface);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 64px 0 48px;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-2);
+      border: 1px solid rgba(34, 211, 238, 0.25);
+      background: rgba(34, 211, 238, 0.06);
+      padding: 6px 14px;
+      border-radius: 999px;
+      margin-bottom: 24px;
+    }
+
+    .badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-2);
+      box-shadow: 0 0 12px var(--accent-2);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    h1 {
+      font-size: clamp(2.5rem, 6vw, 4.2rem);
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1.05;
+      margin-bottom: 16px;
+      background: linear-gradient(180deg, #fff 0%, rgba(255,255,255,0.65) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      max-width: 640px;
+      margin: 0 auto 40px;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      flex-wrap: wrap;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .meta-row strong { color: var(--text); display: block; font-size: 0.85rem; margin-bottom: 2px; }
+
+    /* Sections */
+    section {
+      margin-bottom: 80px;
+      scroll-margin-top: 80px;
+    }
+
+    .section-label {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin-bottom: 8px;
+    }
+
+    .section-desc {
+      color: var(--muted);
+      max-width: 720px;
+      margin-bottom: 32px;
+      font-size: 0.95rem;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(8px);
+    }
+
+    .card-glow {
+      box-shadow: 0 0 0 1px var(--border), 0 24px 80px -20px var(--glow);
+    }
+
+    /* Diagram container */
+    .diagram {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
+
+    .diagram svg { display: block; width: 100%; height: auto; }
+
+    /* Animated flow lines */
+    .flow-line {
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      stroke-dasharray: 8 6;
+      animation: flow 1.2s linear infinite;
+    }
+
+    @keyframes flow {
+      to { stroke-dashoffset: -28; }
+    }
+
+    .node rect, .node circle {
+      transition: filter 0.25s, stroke 0.25s;
+    }
+
+    .node:hover rect, .node:hover circle {
+      filter: drop-shadow(0 0 12px var(--glow));
+      stroke: var(--accent-2);
+    }
+
+    /* Grid layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+
+    .pill {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.65rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      margin: 2px;
+    }
+
+    .pill.accent { border-color: rgba(99,102,241,0.4); color: var(--accent-3); }
+    .pill.cyan { border-color: rgba(34,211,238,0.4); color: var(--accent-2); }
+    .pill.green { border-color: rgba(52,211,153,0.4); color: var(--green); }
+
+    .layer-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .layer {
+      display: flex;
+      align-items: stretch;
+      gap: 16px;
+      padding: 16px 20px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .layer:hover {
+      transform: translateX(4px);
+      border-color: rgba(99, 102, 241, 0.35);
+    }
+
+    .layer-num {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.65rem;
+      color: var(--accent);
+      min-width: 28px;
+      padding-top: 2px;
+    }
+
+    .layer-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 4px; }
+    .layer-sub { font-size: 0.8rem; color: var(--muted); }
+
+    .tree {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72rem;
+      line-height: 1.8;
+      color: var(--muted);
+      padding: 20px;
+      background: var(--bg-elevated);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow-x: auto;
+    }
+
+    .tree .dir { color: var(--accent-2); }
+    .tree .file { color: var(--text); }
+    .tree .comment { color: #55556a; }
+
+    footer {
+      text-align: center;
+      padding-top: 48px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 768px) {
+      .wrap { padding: 0 16px 80px; }
+      nav { margin: 0 -16px 32px; padding: 12px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="backdrop"></div>
+  <div class="noise"></div>
+
+  <div class="wrap">
+    <nav>
+      <div class="brand">AI Tea Party <span>Architecture Map · v2.2 TS</span></div>
+      <ul>
+        <li><a href="#overview">总览</a></li>
+        <li><a href="#flow">数据流</a></li>
+        <li><a href="#frontend">前端</a></li>
+        <li><a href="#backend">后端</a></li>
+        <li><a href="#pi">Pi Agent</a></li>
+        <li><a href="#data">持久化</a></li>
+        <li><a href="#realtime">实时</a></li>
+        <li><a href="#config">配置</a></li>
+      </ul>
+    </nav>
+
+    <header class="hero">
+      <div class="badge">System Topology · 2026</div>
+      <h1>全站结构图谱</h1>
+      <p>
+        多角色 AI 茶话会：Next.js 客户端 + Fastify TS 后端 + Pi Agent 编排 +
+        SQLite 持久化。REST / SSE / WebSocket 三通道实时同步。
+      </p>
+      <div class="meta-row">
+        <div><strong>:3000 / :3001</strong>Frontend</div>
+        <div><strong>:3004</strong>TS API</div>
+        <div><strong>pi-agent-core</strong>Agent Runtime</div>
+        <div><strong>pi-ai</strong>LLM Gateway</div>
+      </div>
+    </header>
+
+    <!-- OVERVIEW SVG -->
+    <section id="overview">
+      <div class="section-label">01 · Topology</div>
+      <h2>系统总览</h2>
+      <p class="section-desc">五层架构：体验层 → 传输层 → 应用层 → AI 运行时 → 数据与外部 API。</p>
+
+      <div class="diagram card-glow">
+        <svg viewBox="0 0 1200 520" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#6366f1"/>
+              <stop offset="100%" stop-color="#22d3ee"/>
+            </linearGradient>
+            <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#6366f1"/>
+            </marker>
+          </defs>
+
+          <!-- Layer bands -->
+          <rect x="40" y="40" width="1120" height="72" rx="8" fill="rgba(99,102,241,0.06)" stroke="rgba(99,102,241,0.2)"/>
+          <text x="56" y="68" fill="#8b8b9a" font-size="11" font-family="IBM Plex Mono">L1 EXPERIENCE</text>
+          <text x="56" y="92" fill="#f4f4f7" font-size="14" font-weight="600">Next.js 15 · React 19 · shadcn/ui · Tailwind</text>
+
+          <rect x="40" y="128" width="1120" height="72" rx="8" fill="rgba(34,211,238,0.05)" stroke="rgba(34,211,238,0.18)"/>
+          <text x="56" y="156" fill="#8b8b9a" font-size="11" font-family="IBM Plex Mono">L2 TRANSPORT</text>
+          <text x="56" y="180" fill="#f4f4f7" font-size="14" font-weight="600">REST · SSE Stream · WebSocket · CORS</text>
+
+          <rect x="40" y="216" width="1120" height="88" rx="8" fill="rgba(167,139,250,0.06)" stroke="rgba(167,139,250,0.2)"/>
+          <text x="56" y="244" fill="#8b8b9a" font-size="11" font-family="IBM Plex Mono">L3 APPLICATION</text>
+          <text x="56" y="268" fill="#f4f4f7" font-size="14" font-weight="600">AppState · ChatOrchestrator · PromptAssembler · Variables · World Info</text>
+          <text x="56" y="288" fill="#8b8b9a" font-size="12">Fastify routes (rest / sse / ws) · RoomSocketManager</text>
+
+          <rect x="40" y="320" width="1120" height="72" rx="8" fill="rgba(52,211,153,0.05)" stroke="rgba(52,211,153,0.18)"/>
+          <text x="56" y="348" fill="#8b8b9a" font-size="11" font-family="IBM Plex Mono">L4 AI RUNTIME</text>
+          <text x="56" y="372" fill="#f4f4f7" font-size="14" font-weight="600">Pi Agent (pi-agent-core) → pi-ai → Provider HTTP APIs</text>
+
+          <rect x="40" y="408" width="540" height="72" rx="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
+          <text x="56" y="436" fill="#8b8b9a" font-size="11" font-family="IBM Plex Mono">L5A DATA</text>
+          <text x="56" y="460" fill="#f4f4f7" font-size="13" font-weight="600">SQLite · Drizzle · AppRepository</text>
+
+          <rect x="620" y="408" width="540" height="72" rx="8" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
+          <text x="636" y="436" fill="#8b8b9a" font-size="11" font-family="IBM Plex Mono">L5B EXTERNAL</text>
+          <text x="636" y="460" fill="#f4f4f7" font-size="13" font-weight="600">DeepSeek · Gemini · OpenAI · xAI · MiniMax · Moonshot</text>
+
+          <!-- Vertical connectors -->
+          <path class="flow-line" stroke="url(#g1)" d="M600 112 L600 128" marker-end="url(#arrow)"/>
+          <path class="flow-line" stroke="url(#g1)" d="M600 200 L600 216" style="animation-delay:0.2s"/>
+          <path class="flow-line" stroke="url(#g1)" d="M600 304 L600 320" style="animation-delay:0.4s"/>
+          <path class="flow-line" stroke="#34d399" d="M600 392 L600 408" style="animation-delay:0.6s"/>
+          <path class="flow-line" stroke="#34d399" d="M600 392 L890 408" style="animation-delay:0.8s"/>
+        </svg>
+      </div>
+    </section>
+
+    <!-- DATA FLOW -->
+    <section id="flow">
+      <div class="section-label">02 · Data Flow</div>
+      <h2>一次 AI 回复的完整路径</h2>
+      <p class="section-desc">从用户点击 Speak 到 LLM 流式返回，再经 WebSocket 广播给所有在场用户。</p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 1200 340" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="flowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#6366f1"/>
+              <stop offset="50%" stop-color="#22d3ee"/>
+              <stop offset="100%" stop-color="#34d399"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Nodes -->
+          <g class="node">
+            <rect x="20" y="120" width="130" height="64" rx="10" fill="#0c0c12" stroke="#6366f1" stroke-width="1.5"/>
+            <text x="85" y="148" text-anchor="middle" fill="#f4f4f7" font-size="12" font-weight="600">Browser</text>
+            <text x="85" y="168" text-anchor="middle" fill="#8b8b9a" font-size="10">Speak / Chat</text>
+          </g>
+
+          <g class="node">
+            <rect x="190" y="120" width="130" height="64" rx="10" fill="#0c0c12" stroke="#22d3ee" stroke-width="1.5"/>
+            <text x="255" y="148" text-anchor="middle" fill="#f4f4f7" font-size="12" font-weight="600">api.ts</text>
+            <text x="255" y="168" text-anchor="middle" fill="#8b8b9a" font-size="10">REST / SSE</text>
+          </g>
+
+          <g class="node">
+            <rect x="360" y="120" width="130" height="64" rx="10" fill="#0c0c12" stroke="#a78bfa" stroke-width="1.5"/>
+            <text x="425" y="148" text-anchor="middle" fill="#f4f4f7" font-size="12" font-weight="600">AppState</text>
+            <text x="425" y="168" text-anchor="middle" fill="#8b8b9a" font-size="10">store.ts</text>
+          </g>
+
+          <g class="node">
+            <rect x="530" y="120" width="150" height="64" rx="10" fill="#0c0c12" stroke="#a78bfa" stroke-width="1.5"/>
+            <text x="605" y="148" text-anchor="middle" fill="#f4f4f7" font-size="12" font-weight="600">Orchestrator</text>
+            <text x="605" y="168" text-anchor="middle" fill="#8b8b9a" font-size="10">Prompt + Memory + WI</text>
+          </g>
+
+          <g class="node">
+            <rect x="720" y="120" width="130" height="64" rx="10" fill="#0c0c12" stroke="#34d399" stroke-width="1.5"/>
+            <text x="785" y="148" text-anchor="middle" fill="#f4f4f7" font-size="12" font-weight="600">Pi Agent</text>
+            <text x="785" y="168" text-anchor="middle" fill="#8b8b9a" font-size="10">agent-core</text>
+          </g>
+
+          <g class="node">
+            <rect x="890" y="120" width="130" height="64" rx="10" fill="#0c0c12" stroke="#34d399" stroke-width="1.5"/>
+            <text x="955" y="148" text-anchor="middle" fill="#f4f4f7" font-size="12" font-weight="600">pi-ai</text>
+            <text x="955" y="168" text-anchor="middle" fill="#8b8b9a" font-size="10">getModel + stream</text>
+          </g>
+
+          <g class="node">
+            <rect x="1060" y="120" width="120" height="64" rx="10" fill="#0c0c12" stroke="#fb923c" stroke-width="1.5"/>
+            <text x="1120" y="148" text-anchor="middle" fill="#f4f4f7" font-size="12" font-weight="600">LLM API</text>
+            <text x="1120" y="168" text-anchor="middle" fill="#8b8b9a" font-size="10">DeepSeek v4…</text>
+          </g>
+
+          <!-- Flow paths -->
+          <path class="flow-line" stroke="url(#flowGrad)" d="M150 152 H190"/>
+          <path class="flow-line" stroke="url(#flowGrad)" d="M320 152 H360" style="animation-delay:0.15s"/>
+          <path class="flow-line" stroke="url(#flowGrad)" d="M490 152 H530" style="animation-delay:0.3s"/>
+          <path class="flow-line" stroke="url(#flowGrad)" d="M680 152 H720" style="animation-delay:0.45s"/>
+          <path class="flow-line" stroke="url(#flowGrad)" d="M850 152 H890" style="animation-delay:0.6s"/>
+          <path class="flow-line" stroke="url(#flowGrad)" d="M1020 152 H1060" style="animation-delay:0.75s"/>
+
+          <!-- Return path WS -->
+          <path class="flow-line" stroke="#22d3ee" d="M605 184 Q605 260 85 260 Q85 220 85 184" style="animation-delay:1s; opacity:0.7"/>
+          <text x="605" y="248" text-anchor="middle" fill="#22d3ee" font-size="10" font-family="IBM Plex Mono">WebSocket broadcast · message / presence / room_status</text>
+
+          <!-- Sub steps -->
+          <text x="605" y="48" text-anchor="middle" fill="#8b8b9a" font-size="11" font-family="IBM Plex Mono">resolvePiModel · assemble prompt · Agent.prompt() · delta/final events · SQLite persist</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- FRONTEND -->
+    <section id="frontend">
+      <div class="section-label">03 · Frontend</div>
+      <h2>Next.js 前端结构</h2>
+      <p class="section-desc">App Router 单页聊天室，侧边栏管理角色/人设/世界观/变量，Playwright E2E 覆盖连通性。</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="layer-stack">
+            <div class="layer">
+              <div class="layer-num">app/</div>
+              <div>
+                <div class="layer-title">App Router</div>
+                <div class="layer-sub">layout.tsx · page.tsx → ChatLayout</div>
+              </div>
+            </div>
+            <div class="layer">
+              <div class="layer-num">chat/</div>
+              <div>
+                <div class="layer-title">聊天主界面</div>
+                <div class="layer-sub">chat-layout · message-list · bottombar · bubble</div>
+              </div>
+            </div>
+            <div class="layer">
+              <div class="layer-num">sidebar/</div>
+              <div>
+                <div class="layer-title">侧栏模块</div>
+                <div class="layer-sub">character-list · room-controls · variables-panel</div>
+              </div>
+            </div>
+            <div class="layer">
+              <div class="layer-num">dialogs/</div>
+              <div>
+                <div class="layer-title">弹窗</div>
+                <div class="layer-sub">character · persona · world-info · api-config</div>
+              </div>
+            </div>
+            <div class="layer">
+              <div class="layer-num">hooks/</div>
+              <div>
+                <div class="layer-title">实时与动画</div>
+                <div class="layer-sub">use-websocket · use-typewriter</div>
+              </div>
+            </div>
+            <div class="layer">
+              <div class="layer-num">e2e/</div>
+              <div>
+                <div class="layer-title">冒烟测试 ×5</div>
+                <div class="layer-sub">dialogue · websocket · presence · rooms · variables</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="diagram">
+          <svg viewBox="0 0 400 420" xmlns="http://www.w3.org/2000/svg">
+            <rect x="120" y="20" width="160" height="48" rx="10" fill="#0c0c12" stroke="#6366f1"/>
+            <text x="200" y="50" text-anchor="middle" fill="#f4f4f7" font-size="13" font-weight="600">ChatLayout</text>
+
+            <line x1="200" y1="68" x2="200" y2="90" stroke="#6366f1" stroke-width="1.5"/>
+            <line x1="80" y1="90" x2="320" y2="90" stroke="#6366f1" stroke-width="1.5"/>
+
+            <rect x="20" y="100" width="110" height="40" rx="8" fill="#0c0c12" stroke="#22d3ee"/>
+            <text x="75" y="125" text-anchor="middle" fill="#f4f4f7" font-size="11">SidebarMain</text>
+
+            <rect x="145" y="100" width="110" height="40" rx="8" fill="#0c0c12" stroke="#22d3ee"/>
+            <text x="200" y="125" text-anchor="middle" fill="#f4f4f7" font-size="11">MessageList</text>
+
+            <rect x="270" y="100" width="110" height="40" rx="8" fill="#0c0c12" stroke="#22d3ee"/>
+            <text x="325" y="125" text-anchor="middle" fill="#f4f4f7" font-size="11">BottomBar</text>
+
+            <line x1="75" y1="140" x2="75" y2="165" stroke="#22d3ee" stroke-width="1"/>
+            <rect x="10" y="170" width="90" height="32" rx="6" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.3)"/>
+            <text x="55" y="190" text-anchor="middle" fill="#8b8b9a" font-size="9">Characters</text>
+            <rect x="10" y="210" width="90" height="32" rx="6" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.3)"/>
+            <text x="55" y="230" text-anchor="middle" fill="#8b8b9a" font-size="9">Variables</text>
+            <rect x="10" y="250" width="90" height="32" rx="6" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.3)"/>
+            <text x="55" y="270" text-anchor="middle" fill="#8b8b9a" font-size="9">Auto-Chat</text>
+
+            <line x1="200" y1="140" x2="200" y2="320" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4 4"/>
+
+            <rect x="130" y="330" width="140" height="44" rx="10" fill="#0c0c12" stroke="#a78bfa"/>
+            <text x="200" y="352" text-anchor="middle" fill="#f4f4f7" font-size="11" font-weight="600">services/api.ts</text>
+            <text x="200" y="366" text-anchor="middle" fill="#8b8b9a" font-size="9">REST + SSE fetch</text>
+
+            <line x1="200" y1="374" x2="200" y2="400" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow)"/>
+            <text x="200" y="415" text-anchor="middle" fill="#34d399" font-size="10" font-family="IBM Plex Mono">:3004 backend</text>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- BACKEND -->
+    <section id="backend">
+      <div class="section-label">04 · Backend TS</div>
+      <h2>Fastify 后端模块</h2>
+      <p class="section-desc">单一 AppState 门面 + 路由三件套 + 服务层编排。无手写 LLM HTTP，全部经 Pi Agent。</p>
+
+      <div class="grid-3">
+        <div class="card">
+          <h3 style="font-size:0.95rem;margin-bottom:12px;">Routes</h3>
+          <span class="pill accent">rest.ts</span>
+          <span class="pill accent">sse.ts</span>
+          <span class="pill accent">ws.ts</span>
+          <p style="margin-top:12px;font-size:0.8rem;color:var(--muted)">40+ REST 端点 · SSE 流式 generate · WS 房间广播</p>
+        </div>
+        <div class="card">
+          <h3 style="font-size:0.95rem;margin-bottom:12px;">Services</h3>
+          <span class="pill cyan">orchestrator</span>
+          <span class="pill cyan">prompt-assembler</span>
+          <span class="pill cyan">character-memory</span>
+          <span class="pill cyan">world-info-scanner</span>
+          <span class="pill cyan">variables</span>
+          <span class="pill cyan">resolve-pi-model</span>
+        </div>
+        <div class="card">
+          <h3 style="font-size:0.95rem;margin-bottom:12px;">Core</h3>
+          <span class="pill green">store.ts</span>
+          <span class="pill green">room-hub.ts</span>
+          <span class="pill green">db/repository</span>
+          <span class="pill green">config-bootstrap</span>
+          <span class="pill green">config-loader</span>
+        </div>
+      </div>
+
+      <div class="tree" style="margin-top:20px">
+<span class="dir">backend/src/</span>
+├── <span class="file">index.ts</span>          <span class="comment"># Fastify 入口 · CORS · WS 插件 · .env</span>
+├── <span class="file">store.ts</span>          <span class="comment"># AppState 门面 · Provider 配置 · 生成入口</span>
+├── <span class="file">room-hub.ts</span>       <span class="comment"># RoomSocketManager · presence · broadcast</span>
+├── <span class="dir">routes/</span>
+│   ├── <span class="file">rest.ts</span>       <span class="comment"># rooms · characters · messages · variables · WI · config</span>
+│   ├── <span class="file">sse.ts</span>        <span class="comment"># /generate/stream SSE</span>
+│   └── <span class="file">ws.ts</span>         <span class="comment"># /ws/:room_id 实时帧</span>
+├── <span class="dir">services/</span>
+│   ├── <span class="file">orchestrator.ts</span>     <span class="comment"># Pi Agent 编排 · tools · streaming queue</span>
+│   ├── <span class="file">prompt-assembler.ts</span> <span class="comment"># system prompt · WI · stealth · 历史</span>
+│   ├── <span class="file">character-memory.ts</span> <span class="comment"># 角色记忆 · 情境分析</span>
+│   ├── <span class="file">world-info-scanner.ts</span>
+│   ├── <span class="file">variables.ts</span>
+│   └── <span class="file">resolve-pi-model.ts</span> <span class="comment"># 应用 model → pi-ai 注册表</span>
+└── <span class="dir">db/</span>
+    ├── <span class="file">schema.ts</span>     <span class="comment"># Drizzle SQLite 表定义</span>
+    ├── <span class="file">repository.ts</span> <span class="comment"># CRUD</span>
+    └── <span class="file">client.ts</span>
+      </div>
+    </section>
+
+    <!-- PI AGENT -->
+    <section id="pi">
+      <div class="section-label">05 · Pi Agent Stack</div>
+      <h2>AI 运行时（非本地裸 API）</h2>
+      <p class="section-desc">ChatOrchestrator 创建 Pi Agent 实例；pi-ai 负责 Provider 注册与 HTTP；应用层 model 名经别名映射到官方 id。</p>
+
+      <div class="diagram card-glow">
+        <svg viewBox="0 0 1200 280" xmlns="http://www.w3.org/2000/svg">
+          <rect x="40" y="100" width="200" height="80" rx="12" fill="#0c0c12" stroke="#6366f1" stroke-width="2"/>
+          <text x="140" y="132" text-anchor="middle" fill="#f4f4f7" font-size="13" font-weight="600">App Config</text>
+          <text x="140" y="152" text-anchor="middle" fill="#8b8b9a" font-size="10">deepseek-chat (UI)</text>
+          <text x="140" y="168" text-anchor="middle" fill="#22d3ee" font-size="10">→ deepseek-v4-flash</text>
+
+          <path class="flow-line" stroke="#6366f1" d="M240 140 H290"/>
+
+          <rect x="290" y="100" width="220" height="80" rx="12" fill="#0c0c12" stroke="#a78bfa" stroke-width="2"/>
+          <text x="400" y="132" text-anchor="middle" fill="#f4f4f7" font-size="13" font-weight="600">resolvePiModel()</text>
+          <text x="400" y="152" text-anchor="middle" fill="#8b8b9a" font-size="10">APP_PROVIDER_TO_PI</text>
+          <text x="400" y="168" text-anchor="middle" fill="#8b8b9a" font-size="10">APP_MODEL_ALIASES</text>
+
+          <path class="flow-line" stroke="#a78bfa" d="M510 140 H560"/>
+
+          <rect x="560" y="100" width="200" height="80" rx="12" fill="#0c0c12" stroke="#34d399" stroke-width="2"/>
+          <text x="660" y="132" text-anchor="middle" fill="#f4f4f7" font-size="13" font-weight="600">Pi Agent</text>
+          <text x="660" y="152" text-anchor="middle" fill="#8b8b9a" font-size="10">@earendil-works/pi-agent-core</text>
+          <text x="660" y="168" text-anchor="middle" fill="#8b8b9a" font-size="10">prompt · tools · subscribe</text>
+
+          <path class="flow-line" stroke="#34d399" d="M760 140 H810"/>
+
+          <rect x="810" y="100" width="180" height="80" rx="12" fill="#0c0c12" stroke="#34d399" stroke-width="2"/>
+          <text x="900" y="132" text-anchor="middle" fill="#f4f4f7" font-size="13" font-weight="600">pi-ai</text>
+          <text x="900" y="152" text-anchor="middle" fill="#8b8b9a" font-size="10">getModel · openai-completions</text>
+          <text x="900" y="168" text-anchor="middle" fill="#8b8b9a" font-size="10">DEEPSEEK_API_KEY from env</text>
+
+          <path class="flow-line" stroke="#fb923c" d="M990 140 H1040"/>
+
+          <rect x="1040" y="100" width="120" height="80" rx="12" fill="#0c0c12" stroke="#fb923c" stroke-width="2"/>
+          <text x="1100" y="136" text-anchor="middle" fill="#f4f4f7" font-size="12" font-weight="600">api.</text>
+          <text x="1100" y="154" text-anchor="middle" fill="#f4f4f7" font-size="12" font-weight="600">deepseek.com</text>
+
+          <!-- Tools row -->
+          <rect x="560" y="210" width="430" height="48" rx="8" fill="rgba(52,211,153,0.06)" stroke="rgba(52,211,153,0.2)"/>
+          <text x="775" y="238" text-anchor="middle" fill="#8b8b9a" font-size="11" font-family="IBM Plex Mono">Agent Tools: setvar · getvar · addvar · incvar · decvar · listvars</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- DATA -->
+    <section id="data">
+      <div class="section-label">06 · Persistence</div>
+      <h2>SQLite 数据模型</h2>
+      <p class="section-desc">Drizzle ORM + better-sqlite3。房间、角色、消息、人设、世界观、变量、设置 KV。</p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 1200 400" xmlns="http://www.w3.org/2000/svg">
+          <!-- rooms center -->
+          <rect x="480" y="160" width="140" height="56" rx="10" fill="#0c0c12" stroke="#6366f1" stroke-width="2"/>
+          <text x="550" y="192" text-anchor="middle" fill="#f4f4f7" font-size="14" font-weight="600">rooms</text>
+
+          <rect x="200" y="60" width="130" height="48" rx="8" fill="#0c0c12" stroke="#22d3ee"/>
+          <text x="265" y="90" text-anchor="middle" fill="#f4f4f7" font-size="12">characters</text>
+          <line x1="330" y1="84" x2="480" y2="180" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4 3"/>
+
+          <rect x="200" y="160" width="130" height="48" rx="8" fill="#0c0c12" stroke="#22d3ee"/>
+          <text x="265" y="190" text-anchor="middle" fill="#f4f4f7" font-size="12">messages</text>
+          <line x1="330" y1="184" x2="480" y2="188" stroke="#22d3ee" stroke-width="1"/>
+
+          <rect x="200" y="260" width="130" height="48" rx="8" fill="#0c0c12" stroke="#22d3ee"/>
+          <text x="265" y="290" text-anchor="middle" fill="#f4f4f7" font-size="12">room_variables</text>
+          <line x1="330" y1="284" x2="480" y2="200" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4 3"/>
+
+          <rect x="200" y="340" width="130" height="48" rx="8" fill="#0c0c12" stroke="#22d3ee"/>
+          <text x="265" y="370" text-anchor="middle" fill="#f4f4f7" font-size="12">room_characters</text>
+          <line x1="330" y1="364" x2="480" y2="210" stroke="#22d3ee" stroke-width="1" stroke-dasharray="4 3"/>
+
+          <rect x="770" y="60" width="140" height="48" rx="8" fill="#0c0c12" stroke="#a78bfa"/>
+          <text x="840" y="90" text-anchor="middle" fill="#f4f4f7" font-size="12">personas</text>
+          <line x1="770" y1="84" x2="620" y2="180" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4 3"/>
+
+          <rect x="770" y="160" width="140" height="48" rx="8" fill="#0c0c12" stroke="#a78bfa"/>
+          <text x="840" y="190" text-anchor="middle" fill="#f4f4f7" font-size="12">world_info_books</text>
+          <line x1="770" y1="184" x2="620" y2="188" stroke="#a78bfa" stroke-width="1"/>
+
+          <rect x="770" y="260" width="140" height="48" rx="8" fill="#0c0c12" stroke="#a78bfa"/>
+          <text x="840" y="290" text-anchor="middle" fill="#f4f4f7" font-size="12">world_info_entries</text>
+          <line x1="840" y1="260" x2="840" y2="208" stroke="#a78bfa" stroke-width="1"/>
+
+          <rect x="770" y="340" width="140" height="48" rx="8" fill="#0c0c12" stroke="#34d399"/>
+          <text x="840" y="370" text-anchor="middle" fill="#f4f4f7" font-size="12">settings (KV)</text>
+          <text x="550" y="250" text-anchor="middle" fill="#8b8b9a" font-size="10">provider · model · response_length</text>
+
+          <rect x="480" y="20" width="140" height="40" rx="8" fill="rgba(99,102,241,0.1)" stroke="#6366f1"/>
+          <text x="550" y="45" text-anchor="middle" fill="#6366f1" font-size="11" font-family="IBM Plex Mono">@ai-party/shared Zod types</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- REALTIME -->
+    <section id="realtime">
+      <div class="section-label">07 · Real-time</div>
+      <h2>三通道通信</h2>
+      <p class="section-desc">REST 用于 CRUD 与一次性生成；SSE 用于流式打字机；WebSocket 用于多端同步与 presence。</p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div style="font-family:IBM Plex Mono;font-size:0.7rem;color:var(--accent);margin-bottom:8px">REST</div>
+          <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px">/api/*</div>
+          <p style="font-size:0.78rem;color:var(--muted)">rooms · characters · messages · variables · config · generate · auto-chat</p>
+        </div>
+        <div class="card">
+          <div style="font-family:IBM Plex Mono;font-size:0.7rem;color:var(--accent-2);margin-bottom:8px">SSE</div>
+          <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px">/generate/stream</div>
+          <p style="font-size:0.78rem;color:var(--muted)">delta · final · tool_call_* · error 事件流 → 前端 typewriter</p>
+        </div>
+        <div class="card">
+          <div style="font-family:IBM Plex Mono;font-size:0.7rem;color:var(--green);margin-bottom:8px">WebSocket</div>
+          <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px">/ws/:room_id</div>
+          <p style="font-size:0.78rem;color:var(--muted)">message · presence · room_status · ping/pong</p>
+        </div>
+      </div>
+
+      <div class="diagram" style="margin-top:20px">
+        <svg viewBox="0 0 1200 200" xmlns="http://www.w3.org/2000/svg">
+          <rect x="60" y="70" width="100" height="60" rx="10" fill="#0c0c12" stroke="#6366f1"/>
+          <text x="110" y="105" text-anchor="middle" fill="#f4f4f7" font-size="12">Client A</text>
+
+          <rect x="60" y="150" width="100" height="40" rx="8" fill="#0c0c12" stroke="#6366f1"/>
+          <text x="110" y="175" text-anchor="middle" fill="#8b8b9a" font-size="11">Client B</text>
+
+          <rect x="520" y="80" width="160" height="80" rx="12" fill="#0c0c12" stroke="#22d3ee" stroke-width="2"/>
+          <text x="600" y="112" text-anchor="middle" fill="#f4f4f7" font-size="13" font-weight="600">RoomSocketManager</text>
+          <text x="600" y="132" text-anchor="middle" fill="#8b8b9a" font-size="10">room-hub.ts</text>
+          <text x="600" y="148" text-anchor="middle" fill="#8b8b9a" font-size="10">presence map per room</text>
+
+          <path class="flow-line" stroke="#6366f1" d="M160 100 H520"/>
+          <path class="flow-line" stroke="#6366f1" d="M160 170 H520" style="animation-delay:0.3s"/>
+          <path class="flow-line" stroke="#22d3ee" d="M680 120 H1040" style="animation-delay:0.5s"/>
+          <path class="flow-line" stroke="#22d3ee" d="M1040 120 H680" style="animation-delay:0.7s; opacity:0.5"/>
+
+          <rect x="1040" y="80" width="120" height="80" rx="10" fill="#0c0c12" stroke="#34d399"/>
+          <text x="1100" y="112" text-anchor="middle" fill="#f4f4f7" font-size="12">Broadcast</text>
+          <text x="1100" y="132" text-anchor="middle" fill="#8b8b9a" font-size="9">all clients</text>
+          <text x="1100" y="148" text-anchor="middle" fill="#8b8b9a" font-size="9">in room</text>
+        </svg>
+      </div>
+    </section>
+
+    <!-- CONFIG -->
+    <section id="config">
+      <div class="section-label">08 · Configuration</div>
+      <h2>配置与引导来源</h2>
+      <p class="section-desc">三层配置：环境变量、JSON 预设、SQLite 运行时状态。</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3 style="font-size:0.9rem;margin-bottom:16px;">配置源</h3>
+          <div class="layer">
+            <div class="layer-num">.env</div>
+            <div>
+              <div class="layer-title">环境变量</div>
+              <div class="layer-sub">DEEPSEEK_API_KEY · AI_PROVIDER · AUTO_CHAT_INTERVAL · PORT</div>
+            </div>
+          </div>
+          <div class="layer" style="margin-top:8px">
+            <div class="layer-num">json</div>
+            <div>
+              <div class="layer-title">config.json</div>
+              <div class="layer-sub">空库 bootstrap · 预设房间与角色（热重载）</div>
+            </div>
+          </div>
+          <div class="layer" style="margin-top:8px">
+            <div class="layer-num">db</div>
+            <div>
+              <div class="layer-title">SQLite settings</div>
+              <div class="layer-sub">provider · model · response_length 持久化</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="font-size:0.9rem;margin-bottom:16px;">Monorepo 包</h3>
+          <div class="layer">
+            <div class="layer-num">pkg</div>
+            <div>
+              <div class="layer-title">@ai-party/shared</div>
+              <div class="layer-sub">Zod schemas · Character · Message · WorldInfo · StreamingEvent</div>
+            </div>
+          </div>
+          <div class="layer" style="margin-top:8px">
+            <div class="layer-num">legacy</div>
+            <div>
+              <div class="layer-title">archive/</div>
+              <div class="layer-sub">Python FastAPI + LiteLLM v1（已归档，非当前主路径）</div>
+            </div>
+          </div>
+          <div class="layer" style="margin-top:8px">
+            <div class="layer-num">test</div>
+            <div>
+              <div class="layer-title">Playwright + tsx test</div>
+              <div class="layer-sub">frontend/e2e/*.smoke · backend/src/**/*.test.ts</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- API MAP mini -->
+    <section>
+      <div class="section-label">09 · API Surface</div>
+      <h2>REST 端点分组</h2>
+      <div class="card">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;font-family:IBM Plex Mono;font-size:0.68rem;line-height:2">
+          <span class="pill">GET /api/health</span>
+          <span class="pill">GET /api/rooms</span>
+          <span class="pill">GET /api/rooms/:id/characters</span>
+          <span class="pill">GET /api/rooms/:id/messages</span>
+          <span class="pill">POST /api/rooms/:id/messages</span>
+          <span class="pill">POST /api/rooms/:id/generate</span>
+          <span class="pill">POST /api/rooms/:id/auto-chat/start</span>
+          <span class="pill">GET /api/rooms/:id/presence</span>
+          <span class="pill">GET /api/rooms/:id/variables</span>
+          <span class="pill">POST /api/rooms/:id/variables/set</span>
+          <span class="pill">GET /api/config</span>
+          <span class="pill">POST /api/config</span>
+          <span class="pill">GET /api/personas</span>
+          <span class="pill">GET /api/world-info</span>
+          <span class="pill">GET /api/providers</span>
+          <span class="pill accent">SSE /api/rooms/:id/generate/stream</span>
+          <span class="pill cyan">WS /ws/:room_id</span>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      AI Tea Party · Architecture Map · Generated for internal review<br />
+      Open this file in browser: <code style="color:var(--accent-2)">docs/architecture-map.html</code>
+    </footer>
+  </div>
+
+  <script>
+    // Subtle parallax on scroll for hero glow
+    const backdrop = document.querySelector('.backdrop');
+    window.addEventListener('scroll', () => {
+      const y = window.scrollY * 0.15;
+      backdrop.style.backgroundPosition = `0 ${y}px, 0 ${y}px, 0 ${y}px, 0 ${y}px`;
+    }, { passive: true });
+
+    // Intersection fade-in for sections
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, { threshold: 0.08 });
+
+    document.querySelectorAll('section').forEach(s => {
+      s.style.opacity = '0';
+      s.style.transform = 'translateY(24px)';
+      s.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+      observer.observe(s);
+    });
+    // Hero visible immediately
+    document.querySelector('.hero').style.opacity = '1';
+    document.querySelector('.hero').style.transform = 'none';
+  </script>
+</body>
+</html>
