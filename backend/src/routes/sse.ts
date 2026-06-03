@@ -152,15 +152,6 @@ export function registerSseRoutes(
         );
         appState.addRoomMessage(request.params.room_id, message);
         await socketManager.broadcastMessage(request.params.room_id, message);
-
-        reply.raw.write(
-          serializeSsePayload({
-            type: "final",
-            content: finalContent,
-            request_id: session.requestId,
-            message_id: finalMessageId,
-          }),
-        );
       }
 
       reply.raw.end();
