@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import type {
   Character,
   Message,
@@ -27,6 +27,12 @@ export function ChatLayout() {
   const [globalVariables, setGlobalVariables] = useState<VariableEntry[]>([]);
   const [variablesLoading, setVariablesLoading] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
+  const [displayNickname, setDisplayNickname] = useState<string>(() => {
+    if (typeof window === "undefined") return "茶话会用户";
+    return window.localStorage.getItem("ai-party-user-nickname") || "茶话会用户";
+  });
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState(displayNickname);
 
   // --- WebSocket ---
   const handleWsMessage = useCallback((msg: Message) => {
@@ -71,12 +77,34 @@ export function ChatLayout() {
     setOnlineUsers(users.filter((item) => item.is_online));
   }, []);
 
-  const { isConnected, userId, nickname } = useWebSocket({
+  const { isConnected, userId } = useWebSocket({
     onMessage: handleWsMessage,
     onCharacterUpdate: handleCharacterUpdate,
     onRoomStatus: handleRoomStatus,
     onPresence: handlePresence,
+    preferredNickname: displayNickname,
   });
+
+  const normalizedNickname = useMemo(
+    () => displayNickname.trim() || "茶话会用户",
+    [displayNickname],
+  );
+
+  const handleRename = async () => {
+    const trimmed = nicknameDraft.trim();
+    if (!trimmed) {
+      setNicknameDraft(normalizedNickname);
+      setIsRenaming(false);
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("ai-party-user-nickname", trimmed);
+    }
+
+    setDisplayNickname(trimmed);
+    setIsRenaming(false);
+  };
 
   // --- 数据加载 ---
   const loadCharacters = async () => {
@@ -143,7 +171,7 @@ export function ChatLayout() {
       await api.sendMessage(characterId, content, "default", {
         sender_type: "user",
         sender_user_id: userId,
-        sender_user_name: nickname,
+        sender_user_name: normalizedNickname,
       });
       if (
         content.trim().startsWith("/") ||
@@ -372,6 +400,45 @@ export function ChatLayout() {
               <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-muted)]">
                 [无人连接]
               </span>
+            )}
+            {isRenaming ? (
+              <div className="flex items-center gap-2 text-[12px]">
+                <input
+                  value={nicknameDraft}
+                  onChange={(event) => setNicknameDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void handleRename();
+                    }
+                    if (event.key === "Escape") {
+                      setIsRenaming(false);
+                      setNicknameDraft(normalizedNickname);
+                    }
+                  }}
+                  onBlur={() => handleRename()}
+                  className="w-28 rounded-sm border border-[var(--theme-border)] px-2 py-1 bg-white text-[var(--text)]"
+                  autoFocus
+                />
+                <button
+                  className="px-2 py-1 rounded-sm border border-[var(--theme-border)]"
+                  onClick={() => {
+                    void handleRename();
+                  }}
+                >
+                  保存
+                </button>
+              </div>
+            ) : (
+              <button
+                className="text-xs px-3 py-1 rounded-sm border border-[var(--theme-border)] hover:bg-white"
+                onClick={() => {
+                  setNicknameDraft(normalizedNickname);
+                  setIsRenaming(true);
+                }}
+              >
+                {normalizedNickname}
+              </button>
             )}
             <ApiConfigDialog onSave={handleSaveApiConfig} />
             <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? "bg-green-700/70" : "bg-red-700/70"} shadow-[0_0_8px_rgba(0,0,0,0.1)]`} title={isConnected ? "Connected" : "Disconnected"} />

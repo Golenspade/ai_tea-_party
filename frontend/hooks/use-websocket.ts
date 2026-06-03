@@ -18,6 +18,8 @@ interface UseWebSocketOptions {
   onRoomStatus: (data: { is_auto_chat?: boolean }) => void;
   onPresence?: (users: PresenceUser[]) => void;
   roomId?: string;
+  preferredNickname?: string;
+  preferredUserId?: string;
 }
 
 export function useWebSocket({
@@ -26,6 +28,8 @@ export function useWebSocket({
   onRoomStatus,
   onPresence,
   roomId = "default",
+  preferredNickname,
+  preferredUserId,
 }: UseWebSocketOptions) {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -52,14 +56,24 @@ export function useWebSocket({
     let localNickname = "茶话会用户";
 
     if (storage) {
-      localUserId = storage.getItem("ai-party-user-id") || "";
+      const savedUserId = storage.getItem("ai-party-user-id");
+      localUserId = preferredUserId || savedUserId || "";
       if (!localUserId) {
         localUserId = generateUserId();
         storage.setItem("ai-party-user-id", localUserId);
+      } else if (preferredUserId) {
+        storage.setItem("ai-party-user-id", preferredUserId);
       }
 
-      localNickname = storage.getItem("ai-party-user-nickname") || localNickname;
+      const savedNickname = storage.getItem("ai-party-user-nickname") || "";
+      localNickname = preferredNickname || savedNickname || localNickname;
+
+      if (preferredNickname) {
+        localNickname = preferredNickname.trim() || localNickname;
+      }
+
       storage.setItem("ai-party-user-nickname", localNickname);
+      storage.setItem("ai-party-user-id", localUserId);
     }
 
     setUserId(localUserId);
@@ -111,7 +125,7 @@ export function useWebSocket({
     return () => {
       ws.close();
     };
-  }, [roomId, onCharacterUpdate, onMessage, onRoomStatus, onPresence]);
+  }, [roomId, onCharacterUpdate, onMessage, onRoomStatus, onPresence, preferredNickname, preferredUserId]);
 
   return { isConnected, userId, nickname, wsRef };
 }
