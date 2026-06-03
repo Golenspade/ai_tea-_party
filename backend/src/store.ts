@@ -598,6 +598,7 @@ class AppState {
       addVariable: async (scope, name, value) => this.addVariable(scope, roomId, name, value),
       incVariable: async (scope, name, value) => this.incVariable(scope, roomId, name, value),
       decVariable: async (scope, name, value) => this.decVariable(scope, roomId, name, value),
+      listRoomWorldInfoBooks: async (id) => this.getRoomWorldInfo(id),
     };
   }
 }

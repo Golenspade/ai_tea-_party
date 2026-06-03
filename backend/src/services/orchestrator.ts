@@ -2,9 +2,15 @@ import { randomBytes, randomUUID } from "node:crypto";
 
 import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
 import { Type, getModel, type KnownProvider, type Model } from "@earendil-works/pi-ai";
-import type { Character, ChatRoom, StreamingEvent } from "@ai-party/shared";
+import type { Character, ChatRoom, StreamingEvent, WorldInfoBook } from "@ai-party/shared";
 
 import type { ResponseLength } from "../types";
+import {
+  WorldInfoScanner,
+  buildWorldInfoScanText,
+  type ActivatedEntry,
+  type ScanResult,
+} from "./world-info-scanner";
 
 export interface OrchestratorStreamSession {
   requestId: string;
@@ -31,6 +37,7 @@ export interface OrchestratorRuntime {
   addVariable: (scope: VariableScope, name: string, value: unknown) => Promise<VariableEntryLike> | VariableEntryLike;
   incVariable: (scope: VariableScope, name: string, value: unknown) => Promise<VariableEntryLike> | VariableEntryLike;
   decVariable: (scope: VariableScope, name: string, value: unknown) => Promise<VariableEntryLike> | VariableEntryLike;
+  listRoomWorldInfoBooks: (roomId: string) => Promise<WorldInfoBook[]> | WorldInfoBook[];
 }
 
 interface StreamContext {
@@ -215,6 +222,8 @@ async function entriesToRecord(
 }
 
 export class ChatOrchestrator {
+  private readonly worldInfoScanner = new WorldInfoScanner();
+
   async generateReply(
     room: ChatRoom,
     character: Character,
@@ -301,8 +310,18 @@ export class ChatOrchestrator {
       global: await entriesToRecord(runtime.listGlobalVariables()),
     };
 
-    const baseMessages = this.buildConversationMessages(room);
-    const systemPrompt = this.composeSystemPrompt(character, room, responseLength, variableContext);
+    const worldInfoBooks = await Promise.resolve(runtime.listRoomWorldInfoBooks(runtime.roomId));
+    const scanText = buildWorldInfoScanText(character, room.messages, room.user_description);
+    const scanResult = this.worldInfoScanner.scan(worldInfoBooks, scanText);
+
+    const baseMessages = this.buildConversationMessages(room, character, scanResult);
+    const systemPrompt = this.composeSystemPrompt(
+      character,
+      room,
+      responseLength,
+      variableContext,
+      scanResult,
+    );
 
     const agent = new Agent({
       initialState: {
@@ -636,14 +655,21 @@ export class ChatOrchestrator {
       room: Record<string, unknown>;
       global: Record<string, unknown>;
     },
+    scanResult: ScanResult,
   ): string {
+    const appendActivated = (entries: ActivatedEntry[]): string[] =>
+      entries.map((item) => item.entry.content).filter(Boolean);
+
     const lines = [
+      ...appendActivated(scanResult.system_top),
       `你正在参与一场多角色聊天场景，对话中你是角色：${character.name}。`,
+      ...appendActivated(scanResult.before_char),
       character.speaking_style ? `说话风格：${character.speaking_style}` : "",
       character.personality ? `性格要素：${character.personality}` : "",
       character.background ? `背景：${character.background}` : "",
       character.description ? `角色描述：${character.description}` : "",
       character.scenario ? `场景：${character.scenario}` : "",
+      ...appendActivated(scanResult.after_char),
       room.description ? `聊天室说明：${room.description}` : "",
       character.system_prompt_override ? `系统指令：${character.system_prompt_override}` : "",
       character.post_instructions ? `附加指令：${character.post_instructions}` : "",
@@ -660,6 +686,8 @@ export class ChatOrchestrator {
       lines.push(`当前全局变量：${JSON.stringify(variableContext.global)}`);
     }
 
+    lines.push(...appendActivated(scanResult.system_bottom));
+
     return lines.filter(Boolean).join("\n\n");
   }
 
@@ -667,29 +695,61 @@ export class ChatOrchestrator {
     return `继续发言，以「${characterName}」身份进行对话，遵循${responseLength}风格，不要重复角色前缀。`;
   }
 
-  private buildConversationMessages(room: ChatRoom): SimpleMessage[] {
-    return room.messages
-      .slice(-120)
-      .map((message) => {
-        if (message.sender_type === "ai") {
-          return {
-            role: "assistant",
-            content: `${message.character_name}: ${message.content}`,
-          };
-        }
+  private buildConversationMessages(
+    room: ChatRoom,
+    character: Character,
+    scanResult: ScanResult,
+  ): SimpleMessage[] {
+    const messages: SimpleMessage[] = [];
 
-        if (message.is_system) {
-          return {
-            role: "system",
-            content: message.content,
-          };
-        }
+    for (const activated of scanResult.before_examples) {
+      messages.push({ role: "system", content: activated.entry.content });
+    }
 
-        return {
-          role: "user",
+    for (const example of character.example_dialogues || []) {
+      messages.push({
+        role: "user",
+        content: `[示例] ${example.user_message}`,
+      });
+      messages.push({
+        role: "assistant",
+        content: example.character_response,
+      });
+    }
+
+    for (const activated of scanResult.after_examples) {
+      messages.push({ role: "system", content: activated.entry.content });
+    }
+
+    const recent = room.messages.filter((message) => !message.is_system).slice(-120);
+    const depthEntries = new Map<number, ActivatedEntry>();
+    for (const activated of scanResult.at_depth) {
+      depthEntries.set(activated.entry.depth, activated);
+    }
+
+    for (let index = 0; index < recent.length; index += 1) {
+      const depthFromEnd = recent.length - index;
+      const depthEntry = depthEntries.get(depthFromEnd);
+      if (depthEntry) {
+        messages.push({ role: "system", content: depthEntry.entry.content });
+      }
+
+      const message = recent[index];
+      if (message.sender_type === "ai" || message.character_id === character.id) {
+        messages.push({
+          role: "assistant",
           content: `${message.character_name}: ${message.content}`,
-        };
-      }) as SimpleMessage[];
+        });
+        continue;
+      }
+
+      messages.push({
+        role: "user",
+        content: `${message.character_name}: ${message.content}`,
+      });
+    }
+
+    return messages;
   }
 
   private extractFinalAssistantMessage(messages: unknown[] | undefined): string {
