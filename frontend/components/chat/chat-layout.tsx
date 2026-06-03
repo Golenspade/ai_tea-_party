@@ -51,7 +51,11 @@ export function ChatLayout() {
         (m) =>
           m.character_id === msg.character_id &&
           m.content === msg.content &&
-          !m.is_system,
+          !m.is_system &&
+          (
+            (m.sender_type !== "user") ||
+            (m.sender_type === "user" && m.sender_user_id === msg.sender_user_id)
+          ),
       );
       if (duplicate) {
         return prev;

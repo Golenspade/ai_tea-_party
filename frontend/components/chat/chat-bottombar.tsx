@@ -18,6 +18,8 @@ interface ChatBottombarProps {
   onSendMessage: (characterId: string, content: string) => void;
 }
 
+const HUMAN_ROOM_BROADCAST_ID = "__human_room_broadcast__";
+
 type VariableCommandCheck = {
   valid: boolean;
   issue?: string;
@@ -176,6 +178,12 @@ export function ChatBottombar({
       .catch(() => {}); // 静默失败
   }, []);
 
+  useEffect(() => {
+    if (!selectedCharacter && characters.length > 0) {
+      setSelectedCharacter(characters[0].id);
+    }
+  }, [characters, selectedCharacter]);
+
   const variableCommandCheck = useMemo(
     () => validateVariableCommand(messageInput, roomVariables, globalVariables),
     [messageInput, roomVariables, globalVariables],
@@ -187,10 +195,10 @@ export function ChatBottombar({
     const isCommand = messageInput.trim().startsWith("/");
     if (!variableCommandCheck.valid) return;
 
-    if (!isCommand && !selectedCharacter) return;
+    if (!isCommand && !selectedCharacter && characters.length > 0) return;
 
     const targetCharacterId =
-      isCommand && selectedCharacter ? selectedCharacter : characters[0]?.id;
+      isCommand || !selectedCharacter ? selectedCharacter || HUMAN_ROOM_BROADCAST_ID : selectedCharacter;
 
     if (!targetCharacterId) return;
 
@@ -221,6 +229,7 @@ export function ChatBottombar({
             className="bg-transparent text-sm font-book italic text-[var(--theme-accent)] outline-none cursor-pointer flex-1"
           >
             <option value="" disabled>Direct inquiry to...</option>
+            <option value={HUMAN_ROOM_BROADCAST_ID}>人类聊天室（公开消息）</option>
             {characters.map((character) => (
               <option key={character.id} value={character.id}>
                 {character.name}

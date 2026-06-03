@@ -21,6 +21,11 @@ export function CustomChatBubble({ message }: ChatBubbleProps) {
   }
 
   const isUser = message.sender_type === "user";
+  const senderMeta = isUser
+    ? message.sender_user_id
+      ? `#${message.sender_user_id.slice(0, 8)}`
+      : "#guest"
+    : undefined;
   const messageAuthor = isUser
     ? message.sender_user_name || message.character_name
     : message.character_name;
@@ -32,6 +37,9 @@ export function CustomChatBubble({ message }: ChatBubbleProps) {
           <span className="text-xs uppercase tracking-[0.1em] font-bold text-[#3b3631]">
             {messageAuthor} /
           </span>
+          {senderMeta && (
+            <span className="text-xs text-[#999]">{senderMeta}</span>
+          )}
           <span className="text-xs text-[#7e766c]">
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>

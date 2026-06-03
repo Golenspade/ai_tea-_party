@@ -42,6 +42,8 @@ interface MessageRequestBody {
   sender_user_name?: string;
 }
 
+const HUMAN_BROADCAST_ID = "__human_room_broadcast__";
+
 type CharacterRequestBody = CharacterFormData & {
   avatar?: string;
 };
@@ -317,15 +319,25 @@ export function registerRestRoutes(
         return sendFailure(reply, 404, "聊天室或角色不存在");
       }
 
-      const character = room.characters.find((item) => item.id === character_id);
-      if (!character) {
-        return sendFailure(reply, 404, "聊天室或角色不存在");
+      const isHumanBroadcast = character_id === HUMAN_BROADCAST_ID;
+      let resolvedCharacterId = character_id;
+      let characterName = "";
+
+      if (isHumanBroadcast) {
+        resolvedCharacterId = HUMAN_BROADCAST_ID;
+        characterName = sender_user_name?.trim() || "人类用户";
+      } else {
+        const character = room.characters.find((item) => item.id === character_id);
+        if (!character) {
+          return sendFailure(reply, 404, "聊天室或角色不存在");
+        }
+        characterName = character.name;
       }
 
       const message: Message = {
         id: randomUUID(),
-        character_id,
-        character_name: character.name,
+        character_id: resolvedCharacterId,
+        character_name: characterName,
         content: content || "",
         timestamp: nowIso(),
         is_system: false,
