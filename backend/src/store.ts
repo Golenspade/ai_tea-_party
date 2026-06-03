@@ -14,7 +14,10 @@ import type {
 } from "@ai-party/shared";
 
 import { AppRepository } from "./db/repository";
-import { ChatOrchestrator } from "./services/orchestrator";
+import {
+  ChatOrchestrator,
+  type OrchestratorRuntime,
+} from "./services/orchestrator";
 import { ResponseLength } from "./types";
 
 const nowIso = () => new Date().toISOString();
@@ -512,7 +515,8 @@ class AppState {
       throw new Error("角色不存在");
     }
 
-    const reply = await this.orchestrator.generateReply(room, character, this.responseLength);
+    const runtime = this.getAgentRuntime(roomId);
+    const reply = await this.orchestrator.generateReply(room, character, this.responseLength, runtime);
     const message: Message = {
       id: reply.messageId,
       character_id: character.id,
@@ -547,10 +551,12 @@ class AppState {
       throw new Error("角色不存在");
     }
 
+    const runtime = this.getAgentRuntime(roomId);
     const stream = await this.orchestrator.generateReplyStream(
       room,
       character,
       this.responseLength,
+      runtime,
     );
 
     return {
@@ -571,6 +577,20 @@ class AppState {
       is_system: false,
       sender_type: "ai",
       sender_user_id: "system",
+    };
+  }
+
+  private getAgentRuntime(roomId: string): OrchestratorRuntime {
+    return {
+      roomId,
+      provider: this.currentProvider,
+      model: this.currentModel,
+      listRoomVariables: async (id) => this.listRoomVariables(id),
+      listGlobalVariables: async () => this.listGlobalVariables(),
+      setVariable: async (scope, name, value) => this.setVariable(scope, roomId, name, value),
+      addVariable: async (scope, name, value) => this.addVariable(scope, roomId, name, value),
+      incVariable: async (scope, name, value) => this.incVariable(scope, roomId, name, value),
+      decVariable: async (scope, name, value) => this.decVariable(scope, roomId, name, value),
     };
   }
 }
