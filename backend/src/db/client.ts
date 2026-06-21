@@ -1,15 +1,20 @@
 import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 
 import * as schema from "./schema";
 
-const DEFAULT_DB_PATH = "data/tea_party.db";
+/** Monorepo 根目录 data/tea_party.db（与文档一致，避免 backend/ 下产生第二份库） */
+const REPO_DB_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../data/tea_party.db",
+);
 
 function resolveDbPath(): string {
-  return process.env.DB_PATH || process.env.DATABASE_URL || DEFAULT_DB_PATH;
+  return process.env.DB_PATH || process.env.DATABASE_URL || REPO_DB_PATH;
 }
 
 export function createDatabase(): {
