@@ -1,4 +1,4 @@
-import type { Message as WsPayloadMessage } from "@ai-party/shared";
+import type { DmNextSpeaker, Message as WsPayloadMessage, MessagePatch } from "@ai-party/shared";
 import type { PresenceUser } from "./types";
 import type { WebSocket } from "ws";
 
@@ -98,6 +98,14 @@ export class RoomSocketManager {
 
   async broadcastMessage(roomId: string, message: WsPayloadMessage): Promise<void> {
     await this.send(roomId, { type: "message", data: message });
+  }
+
+  async broadcastMessagePatch(roomId: string, patch: MessagePatch): Promise<void> {
+    await this.send(roomId, { type: "message_patch", patch });
+  }
+
+  async broadcastDmNextSpeaker(roomId: string, choice: DmNextSpeaker): Promise<void> {
+    await this.send(roomId, { type: "dm_next_speaker", choice });
   }
 
   async broadcastCharacterUpdate(roomId: string, action: string, characterData: Record<string, unknown>): Promise<void> {

@@ -4,12 +4,17 @@ import { useState, useCallback, useMemo } from "react";
 import type {
   Character,
   Message,
+  MessagePatch,
+  DmNextSpeaker,
   CharacterFormData,
   ApiConfig,
   PresenceUser,
   PendingAskPublic,
   AskAnswer,
   RoomBarSnapshot,
+  RoomArchiveRecord,
+  RoomCompactResult,
+  RoomSummary,
 } from "@/lib/types";
 import { RoomStatusBar } from "@/components/chat/room-status-bar";
 import { useWebSocket } from "@/hooks/use-websocket";
@@ -19,8 +24,16 @@ import { SidebarMain } from "@/components/sidebar/sidebar-main";
 import { ChatMessageList } from "@/components/chat/chat-message-list";
 import { ChatBottombar } from "@/components/chat/chat-bottombar";
 import { ApiConfigDialog } from "@/components/dialogs/api-config-dialog";
+import { submitAskAndStartResume } from "@/services/ask-flow";
+import { applyMessagePatch } from "@/services/message-patch";
 import { useEffect } from "react";
-import type { VariableEntry, VariablePatchRequest, VariableScope, VariableSetRequest } from "@/lib/types";
+import type {
+  ActiveBranch,
+  VariableEntry,
+  VariablePatchRequest,
+  VariableScope,
+  VariableSetRequest,
+} from "@/lib/types";
 
 export function ChatLayout() {
   // --- 核心状态 ---
@@ -29,6 +42,7 @@ export function ChatLayout() {
   const [isAutoChat, setIsAutoChat] = useState(false);
   const [roomVariables, setRoomVariables] = useState<VariableEntry[]>([]);
   const [globalVariables, setGlobalVariables] = useState<VariableEntry[]>([]);
+  const [activeBranches, setActiveBranches] = useState<ActiveBranch[]>([]);
   const [variablesLoading, setVariablesLoading] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
   const [displayNickname, setDisplayNickname] = useState<string>(() => {
@@ -40,6 +54,14 @@ export function ChatLayout() {
   const [roomBar, setRoomBar] = useState<Pick<RoomBarSnapshot, "content" | "label" | "version"> | null>(null);
   const [pendingAsk, setPendingAsk] = useState<PendingAskPublic | null>(null);
   const [isAskSubmitting, setIsAskSubmitting] = useState(false);
+  const [summaries, setSummaries] = useState<RoomSummary[]>([]);
+  const [archives, setArchives] = useState<RoomArchiveRecord[]>([]);
+  const [isLoadingArchives, setIsLoadingArchives] = useState(false);
+  const [isCompacting, setIsCompacting] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [lastCompactResult, setLastCompactResult] = useState<RoomCompactResult | null>(null);
+  const [patchedMessageIds, setPatchedMessageIds] = useState<Set<string>>(new Set());
+  const [dmNextSpeaker, setDmNextSpeaker] = useState<DmNextSpeaker | null>(null);
 
   const appendRoomMessage = useCallback((msg: Message) => {
     setMessages((prev) => {
@@ -73,6 +95,22 @@ export function ChatLayout() {
     appendRoomMessage(msg);
   }, [appendRoomMessage]);
 
+  const handleMessagePatch = useCallback((patch: MessagePatch) => {
+    setMessages((prev) => applyMessagePatch(prev, patch));
+    setPatchedMessageIds((prev) => new Set(prev).add(patch.message_id));
+    window.setTimeout(() => {
+      setPatchedMessageIds((prev) => {
+        const next = new Set(prev);
+        next.delete(patch.message_id);
+        return next;
+      });
+    }, 2400);
+  }, []);
+
+  const handleDmNextSpeaker = useCallback((choice: DmNextSpeaker) => {
+    setDmNextSpeaker(choice);
+  }, []);
+
   const handleCharacterUpdate = useCallback(() => {
     loadCharacters();
   }, []);
@@ -104,6 +142,8 @@ export function ChatLayout() {
 
   const { isConnected, userId } = useWebSocket({
     onMessage: handleWsMessage,
+    onMessagePatch: handleMessagePatch,
+    onDmNextSpeaker: handleDmNextSpeaker,
     onCharacterUpdate: handleCharacterUpdate,
     onRoomStatus: handleRoomStatus,
     onPresence: handlePresence,
@@ -156,12 +196,14 @@ export function ChatLayout() {
   const loadVariables = async () => {
     setVariablesLoading(true);
     try {
-      const [roomVars, globalVars] = await Promise.all([
+      const [roomVars, globalVars, branches] = await Promise.all([
         api.fetchRoomVariables(),
         api.fetchGlobalVariables(),
+        api.fetchActiveBranches(),
       ]);
       setRoomVariables(roomVars);
       setGlobalVariables(globalVars);
+      setActiveBranches(branches);
     } catch (error) {
       console.error("Failed to fetch variables:", error);
     } finally {
@@ -202,6 +244,22 @@ export function ChatLayout() {
     }
   };
 
+  const loadArchiveState = async () => {
+    setIsLoadingArchives(true);
+    try {
+      const [nextSummaries, nextArchives] = await Promise.all([
+        api.fetchRoomSummaries(),
+        api.fetchRoomArchives(),
+      ]);
+      setSummaries(nextSummaries);
+      setArchives(nextArchives);
+    } catch (error) {
+      console.error("Failed to fetch archive state:", error);
+    } finally {
+      setIsLoadingArchives(false);
+    }
+  };
+
   useEffect(() => {
     loadCharacters();
     loadMessages();
@@ -209,6 +267,7 @@ export function ChatLayout() {
     loadPresence();
     loadRoomBar();
     loadPendingAsk();
+    loadArchiveState();
   }, []);
 
   useEffect(() => {
@@ -257,6 +316,10 @@ export function ChatLayout() {
 
   const refreshVariables = () => {
     void loadVariables();
+  };
+
+  const refreshArchiveState = () => {
+    void loadArchiveState();
   };
 
   const handleVariableSet = async (
@@ -325,6 +388,8 @@ export function ChatLayout() {
         enqueue(tempId, parsed.content);
       } else if (parsed.type === "room_message" && parsed.message) {
         appendRoomMessage(parsed.message as Message);
+      } else if (parsed.type === "message_patch" && parsed.patch) {
+        handleMessagePatch(parsed.patch as MessagePatch);
       } else if (parsed.type === "bar_update") {
         setRoomBar({
           content: String(parsed.content || ""),
@@ -346,7 +411,7 @@ export function ChatLayout() {
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
       }
     },
-    [appendRoomMessage, enqueue, stopTypewriter],
+    [appendRoomMessage, enqueue, handleMessagePatch, stopTypewriter],
   );
 
   const consumeSseResponse = useCallback(
@@ -433,19 +498,28 @@ export function ChatLayout() {
     }
   };
 
+  const handleDesignateNextSpeaker = async (characterId: string) => {
+    try {
+      const choice = await api.designateNextSpeaker(characterId);
+      setDmNextSpeaker(choice);
+    } catch (error) {
+      console.error("Failed to designate next speaker:", error);
+    }
+  };
+
   const handleAskSubmit = async (askId: string, answer: AskAnswer) => {
     setIsAskSubmitting(true);
     const characterId = pendingAsk?.character_id;
+    let tempId: string | null = null;
     try {
-      await api.answerPendingAsk(askId, answer);
-      setPendingAsk(null);
-
       if (!characterId) {
+        await api.answerPendingAsk(askId, answer);
+        setPendingAsk(null);
         return;
       }
 
       const targetCharacter = characters.find((c) => c.id === characterId);
-      const tempId = `stream-resume-${Date.now()}`;
+      tempId = `stream-resume-${Date.now()}`;
       const placeholder: Message = {
         id: tempId,
         character_id: characterId,
@@ -457,12 +531,47 @@ export function ChatLayout() {
       };
 
       setMessages((prev) => [...prev, placeholder]);
-      const response = await api.streamAIResponseResume(askId);
+      const response = await submitAskAndStartResume(
+        askId,
+        answer,
+        "default",
+        undefined,
+        () => setPendingAsk(null),
+      );
       await consumeSseResponse(response, tempId);
     } catch (error) {
       console.error("Failed to submit ask answer:", error);
+      if (tempId) {
+        stopTypewriter(tempId);
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+      }
     } finally {
       setIsAskSubmitting(false);
+    }
+  };
+
+  const handleCompactRoom = async (): Promise<void> => {
+    setIsCompacting(true);
+    try {
+      const result = await api.compactRoom("default", { mode: "commit" });
+      setLastCompactResult(result);
+      await loadArchiveState();
+    } catch (error) {
+      console.error("Failed to compact room:", error);
+    } finally {
+      setIsCompacting(false);
+    }
+  };
+
+  const handleCreateArchive = async (): Promise<void> => {
+    setIsArchiving(true);
+    try {
+      await api.createRoomArchive("default");
+      await loadArchiveState();
+    } catch (error) {
+      console.error("Failed to create archive:", error);
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -510,6 +619,7 @@ export function ChatLayout() {
           characters={characters}
           isAutoChat={isAutoChat}
           onAISpeech={handleAISpeech}
+          onDesignateNextSpeaker={handleDesignateNextSpeaker}
           onDeleteCharacter={handleDeleteCharacter}
           onAddCharacter={handleAddCharacter}
           onStartAutoChat={handleStartAutoChat}
@@ -517,6 +627,7 @@ export function ChatLayout() {
           onClearMessages={handleClearMessages}
           roomVariables={roomVariables}
           globalVariables={globalVariables}
+          activeBranches={activeBranches}
           isLoadingVariables={variablesLoading}
           onRefreshVariables={refreshVariables}
           onSetVariable={handleVariableSet}
@@ -527,6 +638,15 @@ export function ChatLayout() {
           pendingAsk={pendingAsk}
           onAskSubmit={handleAskSubmit}
           isAskSubmitting={isAskSubmitting}
+          summaries={summaries}
+          archives={archives}
+          isLoadingArchives={isLoadingArchives}
+          isCompacting={isCompacting}
+          isArchiving={isArchiving}
+          lastCompactResult={lastCompactResult}
+          onRefreshArchives={refreshArchiveState}
+          onCompactRoom={handleCompactRoom}
+          onCreateArchive={handleCreateArchive}
         />
 
         {/* Chat Area */}
@@ -536,6 +656,11 @@ export function ChatLayout() {
             {isAutoChat && (
               <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold animate-pulse">
                 [Auto-Dialogue]
+              </span>
+            )}
+            {dmNextSpeaker && (
+              <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold">
+                [Next: {dmNextSpeaker.character_name}]
               </span>
             )}
             {onlineUsers.length > 0 ? (
@@ -594,7 +719,11 @@ export function ChatLayout() {
 
           <RoomStatusBar bar={roomBar} />
 
-          <ChatMessageList messages={messages} characters={characters} />
+          <ChatMessageList
+            messages={messages}
+            characters={characters}
+            patchedMessageIds={patchedMessageIds}
+          />
 
           <ChatBottombar
             characters={characters}

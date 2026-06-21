@@ -12,6 +12,12 @@ import type {
   VariableScope,
   PresenceUser,
   Message,
+  DmNextSpeaker,
+  RoomArchive,
+  RoomArchiveRecord,
+  RoomCompactResult,
+  RoomSummary,
+  ActiveBranch,
 } from "@/lib/types";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3004").replace(/\/$/, "");
@@ -86,6 +92,62 @@ export async function clearMessages(roomId = "default"): Promise<void> {
   });
 }
 
+// --- Archive / Compact ---
+
+export async function fetchRoomSummaries(roomId = "default"): Promise<RoomSummary[]> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/summaries`);
+  if (!res.ok) throw new Error("Failed to fetch room summaries");
+  const data = await res.json();
+  return data.summaries || [];
+}
+
+export async function compactRoom(
+  roomId = "default",
+  options: {
+    mode?: "dry_run" | "commit";
+    keep_recent?: number;
+    target_messages?: number;
+  } = {},
+): Promise<RoomCompactResult> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/compact`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(options),
+  });
+  if (!res.ok) throw new Error("Failed to compact room");
+  return res.json();
+}
+
+export async function fetchRoomArchives(roomId = "default"): Promise<RoomArchiveRecord[]> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/archives`);
+  if (!res.ok) throw new Error("Failed to fetch room archives");
+  const data = await res.json();
+  return data.archives || [];
+}
+
+export async function createRoomArchive(
+  roomId = "default",
+  title?: string,
+): Promise<RoomArchiveRecord> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/archives`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(title ? { title } : {}),
+  });
+  if (!res.ok) throw new Error("Failed to create room archive");
+  const data = await res.json();
+  return data.archive as RoomArchiveRecord;
+}
+
+export async function fetchRoomArchive(
+  archiveId: string,
+  roomId = "default",
+): Promise<RoomArchive> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/archives/${archiveId}`);
+  if (!res.ok) throw new Error("Failed to fetch room archive");
+  return res.json();
+}
+
 export async function fetchRoomPresence(roomId = "default"): Promise<PresenceUser[]> {
   const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/presence`);
   if (!res.ok) throw new Error("Failed to fetch room presence");
@@ -118,6 +180,18 @@ export async function stopAutoChat(roomId = "default"): Promise<void> {
   await fetch(`${BASE_URL}/api/rooms/${roomId}/auto-chat/stop`, {
     method: "POST",
   });
+}
+
+export async function designateNextSpeaker(
+  characterId: string,
+  roomId = "default",
+): Promise<DmNextSpeaker> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/dm/next-speaker/${characterId}`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to designate next speaker");
+  const data = await res.json();
+  return data.choice as DmNextSpeaker;
 }
 
 // --- Provider / 配置 API ---
@@ -290,6 +364,13 @@ export async function fetchGlobalVariables(): Promise<VariableEntry[]> {
   if (!res.ok) throw new Error("Failed to fetch global variables");
   const data = await res.json();
   return data.variables || [];
+}
+
+export async function fetchActiveBranches(roomId = "default"): Promise<ActiveBranch[]> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/branches/active`);
+  if (!res.ok) throw new Error("Failed to fetch active branches");
+  const data = await res.json();
+  return data.branches || [];
 }
 
 // --- Persona API ---

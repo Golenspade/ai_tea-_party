@@ -7,9 +7,10 @@ import { CustomChatBubble } from "@/components/chat/custom-chat-bubble";
 interface ChatMessageListProps {
   messages: Message[];
   characters: Character[];
+  patchedMessageIds?: Set<string>;
 }
 
-export function ChatMessageList({ messages, characters }: ChatMessageListProps) {
+export function ChatMessageList({ messages, characters, patchedMessageIds }: ChatMessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,6 +31,7 @@ export function ChatMessageList({ messages, characters }: ChatMessageListProps) 
             key={message.id}
             message={message}
             characters={characters}
+            isPatched={patchedMessageIds?.has(message.id)}
           />
         ))}
         <div ref={messagesEndRef} />

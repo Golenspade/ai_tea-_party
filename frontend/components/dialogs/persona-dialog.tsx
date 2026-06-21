@@ -11,7 +11,7 @@ import {
   DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { fetchPersonas, createPersona, updatePersona, deletePersona } from "@/services/api";
-import { User, Plus, Trash2, Pencil } from "lucide-react";
+import { User, Trash2, Pencil } from "lucide-react";
 
 export function PersonaDialog() {
   const [open, setOpen] = useState(false);

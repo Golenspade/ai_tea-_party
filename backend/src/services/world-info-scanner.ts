@@ -4,6 +4,10 @@ import type {
   WorldInfoBook,
   WorldInfoEntry,
 } from "@ai-party/shared";
+import {
+  evaluateVariableConditions,
+  type VariableConditionContext,
+} from "./variable-conditions";
 
 export interface ActivatedEntry {
   entry: WorldInfoEntry;
@@ -18,6 +22,10 @@ export interface ScanResult {
   at_depth: ActivatedEntry[];
   system_top: ActivatedEntry[];
   system_bottom: ActivatedEntry[];
+}
+
+export interface WorldInfoScanOptions {
+  variableContext?: VariableConditionContext;
 }
 
 export function createEmptyScanResult(): ScanResult {
@@ -158,9 +166,10 @@ function matchesEntry(entry: WorldInfoEntry, scanTextLower: string): boolean {
 }
 
 export class WorldInfoScanner {
-  scan(books: WorldInfoBook[], scanText: string): ScanResult {
+  scan(books: WorldInfoBook[], scanText: string, options: WorldInfoScanOptions = {}): ScanResult {
     const result = createEmptyScanResult();
     const scanLower = scanText.toLowerCase();
+    const variableContext = options.variableContext || { room: {}, global: {} };
 
     for (const book of books) {
       if (!book.enabled) {
@@ -172,7 +181,14 @@ export class WorldInfoScanner {
           continue;
         }
 
-        if (entry.constant || matchesEntry(entry, scanLower)) {
+        const matchesTrigger = entry.constant || matchesEntry(entry, scanLower);
+        const matchesConditions = evaluateVariableConditions(
+          entry.conditions,
+          entry.condition_logic,
+          variableContext,
+        );
+
+        if (matchesTrigger && matchesConditions) {
           routeActivatedEntry({ entry, bookName: book.name }, result);
         }
       }

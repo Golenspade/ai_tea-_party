@@ -12,6 +12,71 @@ export const MessageSchema = z.object({
   sender_user_name: z.string().optional(),
 });
 
+export const MessagePatchSchema = z.object({
+  room_id: z.string(),
+  message_id: z.string(),
+  content: z.string(),
+  patched_at: z.string(),
+  reason: z.string().optional(),
+});
+
+export const DmNextSpeakerSchema = z.object({
+  room_id: z.string(),
+  character_id: z.string(),
+  character_name: z.string(),
+  selected_at: z.string(),
+  source: z.enum(["user", "dm"]),
+  reason: z.string().optional(),
+});
+
+export const RoomSummarySchema = z.object({
+  id: z.string(),
+  room_id: z.string(),
+  start_message_id: z.string(),
+  end_message_id: z.string(),
+  message_count: z.number().int(),
+  summary: z.string(),
+  source: z.enum(["llm", "deterministic"]),
+  created_at: z.string(),
+});
+
+export const RoomArchiveManifestSchema = z.object({
+  schema_version: z.number().int(),
+  archive_id: z.string(),
+  room_id: z.string(),
+  title: z.string(),
+  created_at: z.string(),
+  message_count: z.number().int(),
+  summary_count: z.number().int(),
+  variable_count: z.number().int(),
+  bar_version: z.number().int().optional(),
+  world_info_book_ids: z.array(z.string()),
+});
+
+export const RoomArchiveRecordSchema = z.object({
+  id: z.string(),
+  room_id: z.string(),
+  title: z.string(),
+  manifest: RoomArchiveManifestSchema,
+  file_path: z.string().optional(),
+  created_at: z.string(),
+});
+
+export const RoomCompactRangeSchema = z.object({
+  start_message_id: z.string(),
+  end_message_id: z.string(),
+  message_count: z.number().int(),
+});
+
+export const RoomCompactResultSchema = z.object({
+  room_id: z.string(),
+  status: z.enum(["no_op", "dry_run", "committed"]),
+  keep_recent: z.number().int(),
+  range: RoomCompactRangeSchema.optional(),
+  summary: RoomSummarySchema.optional(),
+  reason: z.string().optional(),
+});
+
 export const PresenceUserSchema = z.object({
   user_id: z.string(),
   nickname: z.string(),
@@ -75,6 +140,37 @@ export const WIPositionSchema = z.enum([
   "system_bottom",
 ]);
 
+export const VariableConditionSchema = z.object({
+  scope: z.enum(["room", "global"]),
+  name: z.string(),
+  op: z.enum(["exists", "eq", "ne", "gt", "gte", "lt", "lte", "includes", "truthy"]),
+  value: z.unknown().optional(),
+});
+
+export const VariableConditionLogicSchema = z.enum(["AND", "OR"]);
+
+export const BehaviorRuleSchema = z.object({
+  id: z.string(),
+  room_id: z.string(),
+  name: z.string(),
+  enabled: z.boolean(),
+  priority: z.number().int(),
+  conditions: z.array(VariableConditionSchema),
+  condition_logic: VariableConditionLogicSchema,
+  prompt_text: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+
+export const ActiveBranchSchema = z.object({
+  id: z.string(),
+  type: z.enum(["world_info", "behavior_rule"]),
+  name: z.string(),
+  source: z.string().optional(),
+  content: z.string(),
+  priority: z.number().int().optional(),
+});
+
 export const WorldInfoEntrySchema = z.object({
   id: z.string(),
   keys: z.array(z.string()),
@@ -86,6 +182,8 @@ export const WorldInfoEntrySchema = z.object({
   enabled: z.boolean(),
   constant: z.boolean(),
   order: z.number().int(),
+  conditions: z.array(VariableConditionSchema).optional(),
+  condition_logic: VariableConditionLogicSchema.optional(),
 });
 
 export const WorldInfoBookSchema = z.object({
@@ -170,6 +268,11 @@ export const StreamingEventSchema = z.discriminatedUnion("type", [
     message: MessageSchema,
   }),
   z.object({
+    type: z.literal("message_patch"),
+    request_id: z.string(),
+    patch: MessagePatchSchema,
+  }),
+  z.object({
     type: z.literal("bar_update"),
     request_id: z.string(),
     room_id: z.string(),
@@ -226,10 +329,38 @@ export const PendingAskSchema = z.object({
   resolved_at: z.string().optional(),
 });
 
+export const RoomArchiveSchema = z.object({
+  manifest: RoomArchiveManifestSchema,
+  room: ChatRoomSchema,
+  messages: z.array(MessageSchema),
+  summaries: z.array(RoomSummarySchema),
+  room_variables: z.array(z.object({
+    name: z.string(),
+    value: z.unknown(),
+    scope: z.literal("room"),
+  })),
+  global_variables: z.array(z.object({
+    name: z.string(),
+    value: z.unknown(),
+    scope: z.literal("global"),
+  })),
+  room_bar: RoomBarSnapshotSchema.nullable(),
+  world_info_books: z.array(WorldInfoBookSchema),
+  behavior_rules: z.array(BehaviorRuleSchema).optional().default([]),
+});
+
 export const WsMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("message"),
     data: MessageSchema,
+  }),
+  z.object({
+    type: z.literal("message_patch"),
+    patch: MessagePatchSchema,
+  }),
+  z.object({
+    type: z.literal("dm_next_speaker"),
+    choice: DmNextSpeakerSchema,
   }),
   z.object({
     type: z.literal("character_update"),
@@ -278,8 +409,19 @@ export type ExampleDialogue = z.infer<typeof ExampleDialogueSchema>;
 export type Character = z.infer<typeof CharacterSchema>;
 export type CharacterFormData = z.infer<typeof CharacterFormDataSchema>;
 export type Message = z.infer<typeof MessageSchema>;
+export type MessagePatch = z.infer<typeof MessagePatchSchema>;
+export type DmNextSpeaker = z.infer<typeof DmNextSpeakerSchema>;
+export type RoomSummary = z.infer<typeof RoomSummarySchema>;
+export type RoomArchiveManifest = z.infer<typeof RoomArchiveManifestSchema>;
+export type RoomArchiveRecord = z.infer<typeof RoomArchiveRecordSchema>;
+export type RoomCompactRange = z.infer<typeof RoomCompactRangeSchema>;
+export type RoomCompactResult = z.infer<typeof RoomCompactResultSchema>;
 export type PresenceUser = z.infer<typeof PresenceUserSchema>;
 export type Persona = z.infer<typeof PersonaSchema>;
+export type VariableCondition = z.infer<typeof VariableConditionSchema>;
+export type VariableConditionLogic = z.infer<typeof VariableConditionLogicSchema>;
+export type BehaviorRule = z.infer<typeof BehaviorRuleSchema>;
+export type ActiveBranch = z.infer<typeof ActiveBranchSchema>;
 export type WorldInfoEntry = z.infer<typeof WorldInfoEntrySchema>;
 export type WorldInfoBook = z.infer<typeof WorldInfoBookSchema>;
 export type ChatRoom = z.infer<typeof ChatRoomSchema>;
@@ -306,3 +448,4 @@ export type WsMessage = z.infer<typeof WsMessageSchema>;
 export type RoomBarSnapshot = z.infer<typeof RoomBarSnapshotSchema>;
 export type AskAnswer = z.infer<typeof AskAnswerSchema>;
 export type PendingAsk = z.infer<typeof PendingAskSchema>;
+export type RoomArchive = z.infer<typeof RoomArchiveSchema>;

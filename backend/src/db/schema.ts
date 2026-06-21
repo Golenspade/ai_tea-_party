@@ -117,6 +117,8 @@ export const worldInfoEntries = sqliteTable(
     enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
     constant: integer("constant", { mode: "boolean" }).notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(100),
+    conditionsJson: text("conditions_json").notNull().default("[]"),
+    conditionLogic: text("condition_logic").notNull().default("AND"),
   },
   (table) => ({
     bookIdx: index("idx_wi_entries_book").on(table.bookId),
@@ -131,6 +133,26 @@ export const roomWorldInfo = sqliteTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.roomId, table.bookId] }),
+  }),
+);
+
+export const behaviorRules = sqliteTable(
+  "behavior_rules",
+  {
+    id: text("id").primaryKey(),
+    roomId: text("room_id").notNull(),
+    name: text("name").notNull(),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    priority: integer("priority").notNull().default(100),
+    conditionsJson: text("conditions_json").notNull().default("[]"),
+    conditionLogic: text("condition_logic").notNull().default("AND"),
+    promptText: text("prompt_text").notNull().default(""),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => ({
+    roomIdx: index("idx_behavior_rules_room").on(table.roomId),
+    priorityIdx: index("idx_behavior_rules_priority").on(table.priority),
   }),
 );
 
@@ -197,5 +219,39 @@ export const pendingAsks = sqliteTable(
   (table) => ({
     roomIdx: index("idx_pending_asks_room").on(table.roomId),
     statusIdx: index("idx_pending_asks_status").on(table.status),
+  }),
+);
+
+export const roomSummaries = sqliteTable(
+  "room_summaries",
+  {
+    id: text("id").primaryKey(),
+    roomId: text("room_id").notNull(),
+    startMessageId: text("start_message_id").notNull(),
+    endMessageId: text("end_message_id").notNull(),
+    messageCount: integer("message_count").notNull(),
+    summary: text("summary").notNull(),
+    source: text("source").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => ({
+    roomIdx: index("idx_room_summaries_room").on(table.roomId),
+    createdIdx: index("idx_room_summaries_created").on(table.createdAt),
+  }),
+);
+
+export const roomArchives = sqliteTable(
+  "room_archives",
+  {
+    id: text("id").primaryKey(),
+    roomId: text("room_id").notNull(),
+    title: text("title").notNull(),
+    manifestJson: text("manifest_json").notNull(),
+    filePath: text("file_path"),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => ({
+    roomIdx: index("idx_room_archives_room").on(table.roomId),
+    createdIdx: index("idx_room_archives_created").on(table.createdAt),
   }),
 );

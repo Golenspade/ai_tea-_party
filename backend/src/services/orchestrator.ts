@@ -6,9 +6,12 @@ import type {
   Character,
   ChatRoom,
   Message,
+  MessagePatch,
   PendingAsk,
   Persona,
+  BehaviorRule,
   RoomBarSnapshot,
+  RoomSummary,
   StreamingEvent,
   WorldInfoBook,
 } from "@ai-party/shared";
@@ -24,6 +27,7 @@ import { resolvePiModel } from "./resolve-pi-model";
 import { parseAskUserInput, formatAskAnswer } from "./ask-user";
 import { parseWriteToRoomInput, type WriteToRoomInput } from "./write-to-room";
 import { parseWriteToBarInput, type WriteToBarInput } from "./write-to-bar";
+import { parsePatchRoomInput, type PatchRoomInput } from "./patch-room";
 
 export interface OrchestratorStreamSession {
   requestId: string;
@@ -51,11 +55,14 @@ export interface OrchestratorRuntime {
   incVariable: (scope: VariableScope, name: string, value: unknown) => Promise<VariableEntryLike> | VariableEntryLike;
   decVariable: (scope: VariableScope, name: string, value: unknown) => Promise<VariableEntryLike> | VariableEntryLike;
   listRoomWorldInfoBooks: (roomId: string) => Promise<WorldInfoBook[]> | WorldInfoBook[];
+  listRoomSummaries: (roomId: string) => Promise<RoomSummary[]> | RoomSummary[];
+  listBehaviorRules: (roomId: string) => Promise<BehaviorRule[]> | BehaviorRule[];
   getDefaultPersona?: () => Persona | null | undefined;
   speakingCharacterId: string;
   speakingCharacterName: string;
   listRoomCharacters: () => Character[];
   writeToRoom: (input: WriteToRoomInput) => Promise<Message>;
+  patchRoom: (input: PatchRoomInput) => Promise<MessagePatch>;
   writeToBar: (input: WriteToBarInput) => Promise<RoomBarSnapshot>;
   createPendingAsk: (input: {
     requestId: string;
@@ -357,12 +364,16 @@ export class ChatOrchestrator {
     };
 
     const worldInfoBooks = await Promise.resolve(runtime.listRoomWorldInfoBooks(runtime.roomId));
+    const summaries = await Promise.resolve(runtime.listRoomSummaries(runtime.roomId));
+    const behaviorRules = await Promise.resolve(runtime.listBehaviorRules(runtime.roomId));
     updateCharacterMemoryFromHistory(this.characterMemory, room.messages);
 
     const assembled = this.promptAssembler.assemble({
       character,
       room,
       worldInfoBooks,
+      summaries,
+      behaviorRules,
       responseLength,
       variableContext,
       persona: runtime.getDefaultPersona?.() ?? null,
@@ -837,6 +848,38 @@ export class ChatOrchestrator {
               character_id: message.character_id,
               character_name: message.character_name,
               sender_type: message.sender_type,
+            },
+          } as ToolResult;
+        },
+      },
+      {
+        name: "patch_room",
+        label: "修改房间消息",
+        description:
+          "修改已有 AI/旁白消息。用于删改重复、修正错漏或重写已发布段落；不要用它修改用户消息。",
+        parameters: Type.Object({
+          message_id: Type.String({ description: "要修改的消息 ID" }),
+          content: Type.String({ description: "修改后的完整消息正文" }),
+          reason: Type.Optional(Type.String({ description: "修改原因，供前端提示或审计" })),
+        }),
+        execute: async (_toolCallId: string, args: Record<string, unknown>) => {
+          const input = parsePatchRoomInput(args);
+          const patch = await Promise.resolve(runtime.patchRoom(input));
+
+          if (runContext?.requestId) {
+            emitEvent({
+              type: "message_patch",
+              request_id: runContext.requestId,
+              patch,
+            });
+          }
+
+          return {
+            content: [{ type: "text", text: `已修改房间消息 ${patch.message_id}` }],
+            details: {
+              message_id: patch.message_id,
+              patched_at: patch.patched_at,
+              reason: patch.reason,
             },
           } as ToolResult;
         },

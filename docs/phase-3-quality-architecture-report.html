@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:," />
+  <title>AI Tea Party Phase 3 模块测试与架构报告</title>
+  <style>
+    :root {
+      --paper: #fbfaf7;
+      --panel: #ffffff;
+      --ink: #1f2933;
+      --muted: #687386;
+      --line: #d8dee8;
+      --accent: #0f766e;
+      --accent-2: #2563eb;
+      --warn: #b45309;
+      --ok-bg: #e7f6ef;
+      --ok: #0f6b43;
+      --todo-bg: #fff6df;
+      --todo: #8a4d05;
+      --code: #f3f6f8;
+      --shadow: 0 16px 45px rgba(31, 41, 51, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    a {
+      color: var(--accent-2);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .shell {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 0 24px;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 10px 0 8px;
+      font-size: clamp(30px, 5vw, 54px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    .summary {
+      max-width: 860px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .grid.cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid.cols-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .metric {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-height: 112px;
+    }
+
+    .metric .value {
+      font-size: 34px;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .metric .label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status.done {
+      background: var(--ok-bg);
+      color: var(--ok);
+    }
+
+    .status.todo {
+      background: var(--todo-bg);
+      color: var(--todo);
+    }
+
+    .section {
+      margin-top: 24px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 14px;
+    }
+
+    th {
+      background: #eef3f6;
+      color: #314154;
+      font-weight: 800;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    code,
+    .path {
+      background: var(--code);
+      border: 1px solid #e0e6ee;
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .layer {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .layer-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      border: 1px solid #cad4df;
+      background: #f8fafc;
+      color: #344256;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .flow-step {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 14px;
+      min-height: 120px;
+      position: relative;
+    }
+
+    .flow-step:not(:last-child)::after {
+      content: ">";
+      position: absolute;
+      top: 50%;
+      right: -9px;
+      transform: translateY(-50%);
+      color: var(--accent);
+      font-weight: 900;
+      background: var(--paper);
+      padding: 0 2px;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    li + li {
+      margin-top: 4px;
+    }
+
+    .note {
+      border-left: 4px solid var(--accent);
+      background: #f2faf8;
+      padding: 12px 14px;
+      border-radius: 0 8px 8px 0;
+      color: #244b47;
+    }
+
+    .warn {
+      border-left-color: var(--warn);
+      background: #fff9eb;
+      color: #5f3b08;
+    }
+
+    .footer {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 28px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+
+    @media (max-width: 900px) {
+      .grid.cols-3,
+      .grid.cols-2,
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-step:not(:last-child)::after {
+        display: none;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div class="eyebrow">AI Tea Party / Phase 3 Quality Report</div>
+      <h1>模块测试与整体架构清单</h1>
+      <p class="summary">
+        本页整理 Phase 2 收尾到 Phase 3 完成过程中的模块建设、单元/模块测试覆盖、验收过程和仍未完成的增强项。当前结论：Phase 3 计划内 P3.1-P3.6 已完成，模块测试已建立并通过最新复验。
+      </p>
+    </header>
+
+    <section class="grid cols-3 section" aria-label="核心状态">
+      <article class="card metric">
+        <div class="value">78</div>
+        <div class="label">后端测试通过</div>
+        <p>Node test runner，覆盖 23 个 suite。</p>
+      </article>
+      <article class="card metric">
+        <div class="value">26</div>
+        <div class="label">前端测试通过</div>
+        <p>Vitest，覆盖 10 个 test files。</p>
+      </article>
+      <article class="card metric">
+        <div class="value">6/6</div>
+        <div class="label">Phase 3 子阶段完成</div>
+        <p>P3.1 到 P3.6 均已落地。</p>
+      </article>
+    </section>
+
+    <section class="section">
+      <h2>一、完成状态总表</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>阶段</th>
+            <th>模块</th>
+            <th>状态</th>
+            <th>完成内容</th>
+            <th>测试/验证</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Phase 2</td>
+            <td><code>patch_room</code></td>
+            <td><span class="status done">已完成基础版</span></td>
+            <td>Agent 可修改 AI/旁白消息；前端接收 <code>message_patch</code> 并高亮。</td>
+            <td><code>patch-room.test.ts</code>、<code>store-patch-room.test.ts</code>、<code>message-patch.test.ts</code>。</td>
+          </tr>
+          <tr>
+            <td>Phase 2</td>
+            <td>Mermaid</td>
+            <td><span class="status done">已完成</span></td>
+            <td>接入 <code>mermaid</code> 渲染库；未闭合 markdown/code block 先 buffer。</td>
+            <td><code>mermaid-diagram.test.tsx</code>、<code>markdown-blocks.test.ts</code>。</td>
+          </tr>
+          <tr>
+            <td>Phase 2</td>
+            <td>Ask</td>
+            <td><span class="status done">已完成</span></td>
+            <td>侧栏 pending ask；用户 answer 后 resume stream 续跑。</td>
+            <td><code>ask-user.test.ts</code>、<code>ask-panel.test.tsx</code>、<code>ask-flow.test.ts</code>。</td>
+          </tr>
+          <tr>
+            <td>Phase 2</td>
+            <td>DM next speaker</td>
+            <td><span class="status done">已完成轻量版</span></td>
+            <td>用户指定下轮发言者；Auto 模式下 DM 选择下一角色。</td>
+            <td><code>dm-orchestrator.test.ts</code>、<code>store-dm.test.ts</code>、相关 E2E 文件。</td>
+          </tr>
+          <tr>
+            <td>P3.1</td>
+            <td>Archive Snapshot</td>
+            <td><span class="status done">已完成</span></td>
+            <td>共享 schema、SQLite 表、archive builder、REST、archive JSON 文件落盘。</td>
+            <td><code>archive-builder.test.ts</code>、<code>store-archive.test.ts</code>。</td>
+          </tr>
+          <tr>
+            <td>P3.2</td>
+            <td>Compact Summary</td>
+            <td><span class="status done">已完成</span></td>
+            <td>deterministic summary、compact REST、Prompt summary 接入；旧消息不再被 <code>max_history</code> 硬删除。</td>
+            <td><code>summary-compact.test.ts</code>、<code>store-compact.test.ts</code>、<code>prompt-assembler.test.ts</code>。</td>
+          </tr>
+          <tr>
+            <td>P3.3</td>
+            <td>Archive/Compact UI</td>
+            <td><span class="status done">已完成</span></td>
+            <td>侧栏 <code>ArchivePanel</code>，Compact/Archive 按钮，摘要和归档列表。</td>
+            <td><code>archive-panel.test.tsx</code>、<code>archive-compact.spec.ts</code>。</td>
+          </tr>
+          <tr>
+            <td>P3.4</td>
+            <td>Variable Conditions</td>
+            <td><span class="status done">已完成</span></td>
+            <td>WorldInfo 条件 schema、SQLite 字段、求值服务、scanner gating、前端 JSON 条件编辑。</td>
+            <td><code>variable-conditions.test.ts</code>、<code>world-info-scanner.test.ts</code>、<code>world-info-dialog.test.tsx</code>。</td>
+          </tr>
+          <tr>
+            <td>P3.5</td>
+            <td>Behavior Rules MVP</td>
+            <td><span class="status done">已完成</span></td>
+            <td><code>behavior_rules</code> 表、REST、Prompt 注入、Active Branches 预览。</td>
+            <td><code>store-world-info.test.ts</code>、<code>prompt-assembler.test.ts</code>、<code>variables-panel.test.tsx</code>。</td>
+          </tr>
+          <tr>
+            <td>P3.6</td>
+            <td>Template Sample</td>
+            <td><span class="status done">已完成</span></td>
+            <td>最小 template sample、archive export 脚本、authoring 文档、smoke test。</td>
+            <td><code>template-exporter.test.ts</code>。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>二、整体模块架构</h2>
+      <div class="stack">
+        <article class="layer">
+          <div class="layer-title">
+            <h3>前端交互层</h3>
+            <span class="status done">已接入</span>
+          </div>
+          <div class="chips">
+            <span class="chip">ChatLayout</span>
+            <span class="chip">SidebarMain</span>
+            <span class="chip">ArchivePanel</span>
+            <span class="chip">VariablesPanel</span>
+            <span class="chip">AskPanel</span>
+            <span class="chip">WorldInfoDialog</span>
+            <span class="chip">MermaidDiagram</span>
+          </div>
+          <p>负责用户输入、侧栏状态、Archive/Compact 操作、变量面板、Ask 决策、Mermaid 渲染和 Active Branches 预览。</p>
+        </article>
+
+        <article class="layer">
+          <div class="layer-title">
+            <h3>前端 API 客户端</h3>
+            <span class="status done">已接入</span>
+          </div>
+          <div class="chips">
+            <span class="chip">fetchRoomSummaries</span>
+            <span class="chip">compactRoom</span>
+            <span class="chip">createRoomArchive</span>
+            <span class="chip">fetchActiveBranches</span>
+            <span class="chip">answerPendingAsk</span>
+          </div>
+          <p><code>frontend/services/api.ts</code> 作为前端到 REST/SSE 的边界，隐藏具体 endpoint，组件只处理业务状态。</p>
+        </article>
+
+        <article class="layer">
+          <div class="layer-title">
+            <h3>共享模型层</h3>
+            <span class="status done">已扩展</span>
+          </div>
+          <div class="chips">
+            <span class="chip">RoomSummary</span>
+            <span class="chip">RoomArchive</span>
+            <span class="chip">VariableCondition</span>
+            <span class="chip">BehaviorRule</span>
+            <span class="chip">ActiveBranch</span>
+          </div>
+          <p><code>packages/shared/src/index.ts</code> 统一前后端 schema 和类型，降低 API payload 漂移风险。</p>
+        </article>
+
+        <article class="layer">
+          <div class="layer-title">
+            <h3>后端传输层</h3>
+            <span class="status done">已接入</span>
+          </div>
+          <div class="chips">
+            <span class="chip">REST routes</span>
+            <span class="chip">SSE stream</span>
+            <span class="chip">WebSocket hub</span>
+            <span class="chip">Presence</span>
+          </div>
+          <p><code>backend/src/routes/rest.ts</code> 提供 summaries、compact、archives、behavior-rules、branches、variables、ask 等接口；SSE/WS 负责流式响应和实时事件。</p>
+        </article>
+
+        <article class="layer">
+          <div class="layer-title">
+            <h3>应用状态与 Agent 编排层</h3>
+            <span class="status done">已接入</span>
+          </div>
+          <div class="chips">
+            <span class="chip">AppState</span>
+            <span class="chip">ChatOrchestrator</span>
+            <span class="chip">PromptAssembler</span>
+            <span class="chip">DM selection</span>
+          </div>
+          <p><code>store.ts</code> 聚合 repository 与服务；<code>orchestrator.ts</code> 负责 Agent 工具调用和流；<code>prompt-assembler.ts</code> 组装四书、摘要、变量和行为规则。</p>
+        </article>
+
+        <article class="layer">
+          <div class="layer-title">
+            <h3>领域服务层</h3>
+            <span class="status done">已覆盖</span>
+          </div>
+          <div class="chips">
+            <span class="chip">archive-builder</span>
+            <span class="chip">summary-compact</span>
+            <span class="chip">variable-conditions</span>
+            <span class="chip">world-info-scanner</span>
+            <span class="chip">ask-user</span>
+            <span class="chip">patch-room</span>
+            <span class="chip">write-to-room</span>
+            <span class="chip">write-to-bar</span>
+          </div>
+          <p>业务规则集中在可测试服务内，避免把复杂判断散落在路由或 UI 组件里。</p>
+        </article>
+
+        <article class="layer">
+          <div class="layer-title">
+            <h3>持久化层</h3>
+            <span class="status done">已扩展</span>
+          </div>
+          <div class="chips">
+            <span class="chip">SQLite</span>
+            <span class="chip">Drizzle schema</span>
+            <span class="chip">Repository</span>
+            <span class="chip">room_summaries</span>
+            <span class="chip">room_archives</span>
+            <span class="chip">behavior_rules</span>
+            <span class="chip">world_info conditions</span>
+          </div>
+          <p><code>schema.ts</code>、<code>client.ts</code>、<code>repository.ts</code> 负责表结构、迁移补列、映射与 CRUD。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>三、关键执行链路</h2>
+      <div class="flow">
+        <article class="flow-step">
+          <h3>1. 用户交互</h3>
+          <p>前端输入消息、点击 Compact/Archive、回答 Ask、维护变量或 WorldInfo 条件。</p>
+        </article>
+        <article class="flow-step">
+          <h3>2. API 边界</h3>
+          <p>REST/SSE/WS 接收请求，校验 payload，统一调用 AppState。</p>
+        </article>
+        <article class="flow-step">
+          <h3>3. 状态与领域服务</h3>
+          <p>AppState 调用 compact、archive、variable condition、WorldInfo scanner、behavior rules。</p>
+        </article>
+        <article class="flow-step">
+          <h3>4. Prompt 组装</h3>
+          <p>PromptAssembler 注入历史摘要、四书结构、变量上下文、命中行为规则。</p>
+        </article>
+        <article class="flow-step">
+          <h3>5. 持久化与回传</h3>
+          <p>Repository 写入 SQLite 或 archive JSON，前端刷新侧栏状态。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>四、模块测试清单</h2>
+      <div class="grid cols-2">
+        <article class="card">
+          <h3>后端模块测试</h3>
+          <p><span class="status done">最新复验通过</span></p>
+          <ul>
+            <li>数据库仓库：messages、pending asks。</li>
+            <li>Agent 工具输入：ask-user、patch-room、write-to-room、write-to-bar。</li>
+            <li>编排与提示词：dm-orchestrator、prompt-assembler、character-memory、resolve-pi-model。</li>
+            <li>Archive/Compact：archive-builder、summary-compact、store-archive、store-compact。</li>
+            <li>变量与分支：variables、variable-conditions、world-info-scanner、store-world-info。</li>
+            <li>应用状态集成：store-dm、store-patch-room。</li>
+            <li>配置与模板：config-loader、config-bootstrap、template-exporter。</li>
+          </ul>
+        </article>
+        <article class="card">
+          <h3>前端模块测试</h3>
+          <p><span class="status done">最新复验通过</span></p>
+          <ul>
+            <li>消息展示：custom-chat-bubble、message-patch。</li>
+            <li>Mermaid/Markdown：mermaid-diagram、markdown-blocks。</li>
+            <li>侧栏组件：ArchivePanel、AskPanel、CharacterList、VariablesPanel。</li>
+            <li>WorldInfo 条件入口：WorldInfoDialog。</li>
+            <li>Ask resume 流程：ask-flow。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>五、最新验证结果</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>命令</th>
+            <th>结果</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>npx pnpm@10 --filter ai-tea-party-backend test</code></td>
+            <td><span class="status done">通过</span></td>
+            <td>23 suites，78 tests，0 fail。</td>
+          </tr>
+          <tr>
+            <td><code>npx pnpm@10 --filter ai-tea-party-frontend test</code></td>
+            <td><span class="status done">通过</span></td>
+            <td>10 files，26 tests，0 fail。</td>
+          </tr>
+          <tr>
+            <td><code>npx pnpm@10 --filter ai-tea-party-frontend e2e -- e2e/archive-compact.spec.ts</code></td>
+            <td><span class="status done">Phase 3 收尾已通过</span></td>
+            <td>Archive/Compact 关键 E2E 在收尾过程中跑通。</td>
+          </tr>
+          <tr>
+            <td><code>npx pnpm@10 --filter ai-tea-party-frontend build</code></td>
+            <td><span class="status done">Phase 3 收尾已通过</span></td>
+            <td>Next build 在收尾过程中通过。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>六、未完成项与边界</h2>
+      <div class="grid cols-2">
+        <article class="card">
+          <h3>计划内未完成项</h3>
+          <p><span class="status done">无</span></p>
+          <p>Phase 3 计划内 P3.1-P3.6 已完成；当前没有阻塞 Phase 3 收尾的模块。</p>
+        </article>
+        <article class="card">
+          <h3>后续增强项</h3>
+          <ul>
+            <li>Patch 仍是整条消息替换，不是段落级 diff 编辑器。</li>
+            <li>DM 是轻量选角，不是完整独立 DM Agent。</li>
+            <li>Behavior Rule 当前只注入 Prompt，不自动改变量或调用 tool。</li>
+            <li>WorldInfo 条件目前是 JSON 输入，不是完整可视化条件编辑器。</li>
+            <li>Template 目前有 sample 与 export 脚本，没有 template import UI。</li>
+            <li><code>agent-platform-roadmap.md</code> 中仍有旧状态需要同步更新。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>七、关键文件索引</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>类别</th>
+            <th>文件</th>
+            <th>作用</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>共享类型</td>
+            <td><span class="path">packages/shared/src/index.ts</span></td>
+            <td>RoomArchive、RoomSummary、VariableCondition、BehaviorRule、ActiveBranch schema。</td>
+          </tr>
+          <tr>
+            <td>数据库</td>
+            <td><span class="path">backend/src/db/schema.ts</span> / <span class="path">client.ts</span> / <span class="path">repository.ts</span></td>
+            <td>SQLite 表、迁移补列、持久化映射。</td>
+          </tr>
+          <tr>
+            <td>上下文与分支</td>
+            <td><span class="path">prompt-assembler.ts</span> / <span class="path">world-info-scanner.ts</span> / <span class="path">variable-conditions.ts</span></td>
+            <td>摘要、变量条件、WorldInfo、行为规则进入 Prompt 的核心链路。</td>
+          </tr>
+          <tr>
+            <td>Archive/Compact</td>
+            <td><span class="path">archive-builder.ts</span> / <span class="path">summary-compact.ts</span></td>
+            <td>归档快照与确定性摘要。</td>
+          </tr>
+          <tr>
+            <td>前端面板</td>
+            <td><span class="path">archive-panel.tsx</span> / <span class="path">variables-panel.tsx</span> / <span class="path">world-info-dialog.tsx</span></td>
+            <td>Archive/Compact、Active Branches、条件 JSON 输入。</td>
+          </tr>
+          <tr>
+            <td>模板</td>
+            <td><span class="path">examples/templates/agent-room-basic/template.json</span> / <span class="path">scripts/export-room-template.mjs</span></td>
+            <td>最小模板样例与 archive 转 template 脚本。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <div class="note">
+        <strong>结论：</strong>单测/模块测试已经建立并通过，整体模块架构已经按 Phase 3 的目标拆成前端交互、API 边界、共享 schema、后端传输、状态编排、领域服务和持久化层。剩余事项属于 Phase 4 或增强体验，不影响 Phase 3 收尾。
+      </div>
+    </section>
+
+    <footer class="footer">
+      生成日期：2026-06-10。数据来源：当前仓库文档、测试文件和本轮复验命令输出。
+    </footer>
+  </main>
+</body>
+</html>

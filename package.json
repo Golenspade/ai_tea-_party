@@ -1,8 +1,8 @@
 {
   "name": "ai-tea-party",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
-  "description": "AI Tea Party monorepo with TypeScript backend migration",
+  "description": "AI Tea Party — TypeScript monorepo (Next.js + Fastify/Pi Agent)",
   "license": "MIT",
   "workspaces": [
     "frontend",
@@ -12,8 +12,10 @@
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r run build",
-    "lint": "pnpm -r run lint"
+    "lint": "pnpm -r run lint",
+    "test": "pnpm --filter ai-tea-party-backend test && pnpm --filter ai-tea-party-frontend test"
   },
+  "packageManager": "pnpm@10.12.1",
   "pnpm": {
     "onlyBuiltDependencies": ["better-sqlite3"]
   }

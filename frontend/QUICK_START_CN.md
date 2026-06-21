@@ -6,25 +6,33 @@
 
 ## 前提条件
 
-- Node.js 18 或更高版本
-- npm 或 yarn
-- 后端服务运行在 `http://localhost:3004`
+- Node.js 20+ 与 pnpm 10+
+- 后端服务运行在 `http://localhost:3004`（TypeScript Fastify）
 
 ## 安装步骤
+
+推荐在**项目根目录**一次性启动前后端：
+
+```bash
+pnpm install
+pnpm dev
+```
+
+若只开发前端 UI，可单独启动（需另开终端确保后端已在 3004 运行）：
 
 1. **进入前端目录**
    ```bash
    cd frontend
    ```
 
-2. **安装依赖**
+2. **安装依赖**（或在根目录已 `pnpm install` 则跳过）
    ```bash
-   npm install
+   pnpm install
    ```
 
 3. **启动开发服务器**
    ```bash
-   npm run dev
+   pnpm dev
    ```
 
 4. **打开浏览器**
@@ -98,11 +106,12 @@
 ## 常见问题
 
 ### Q: 显示"未连接"怎么办？
-A: 确保后端服务正在运行：
+A: 确保 TypeScript 后端正在运行：
 ```bash
-# 在项目根目录运行
-python main.py
+# 在项目根目录
+pnpm dev
 ```
+或单独启动后端：`pnpm --filter ai-tea-party-backend dev`
 
 ### Q: 无法添加角色？
 A: 请先配置 API 密钥：

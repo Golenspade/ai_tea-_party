@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Message, PresenceUser, WsMessage, RoomBarSnapshot, PendingAskPublic, AskAnswer } from "@/lib/types";
+import type {
+  Message,
+  MessagePatch,
+  DmNextSpeaker,
+  PresenceUser,
+  WsMessage,
+  RoomBarSnapshot,
+  PendingAskPublic,
+  AskAnswer,
+} from "@/lib/types";
 
 function generateUserId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -14,6 +23,8 @@ const WS_BASE_URL = (process.env.NEXT_PUBLIC_WS_BASE_URL || "ws://localhost:3004
 
 interface UseWebSocketOptions {
   onMessage: (message: Message) => void;
+  onMessagePatch?: (patch: MessagePatch) => void;
+  onDmNextSpeaker?: (choice: DmNextSpeaker) => void;
   onCharacterUpdate: () => void;
   onRoomStatus: (data: { is_auto_chat?: boolean }) => void;
   onPresence?: (users: PresenceUser[]) => void;
@@ -27,6 +38,8 @@ interface UseWebSocketOptions {
 
 export function useWebSocket({
   onMessage,
+  onMessagePatch,
+  onDmNextSpeaker,
   onCharacterUpdate,
   onRoomStatus,
   onPresence,
@@ -45,6 +58,8 @@ export function useWebSocket({
   // 使用 ref 保持回调最新引用，避免 WebSocket 重连
   const callbacksRef = useRef({
     onMessage,
+    onMessagePatch,
+    onDmNextSpeaker,
     onCharacterUpdate,
     onRoomStatus,
     onPresence,
@@ -54,6 +69,8 @@ export function useWebSocket({
   });
   callbacksRef.current = {
     onMessage,
+    onMessagePatch,
+    onDmNextSpeaker,
     onCharacterUpdate,
     onRoomStatus,
     onPresence,
@@ -110,6 +127,10 @@ export function useWebSocket({
 
       if (data.type === "message") {
         callbacksRef.current.onMessage(data.data);
+      } else if (data.type === "message_patch") {
+        callbacksRef.current.onMessagePatch?.(data.patch);
+      } else if (data.type === "dm_next_speaker") {
+        callbacksRef.current.onDmNextSpeaker?.(data.choice);
       } else if (data.type === "character_update") {
         callbacksRef.current.onCharacterUpdate();
       } else if (data.type === "room_status") {
@@ -159,7 +180,7 @@ export function useWebSocket({
     return () => {
       ws.close();
     };
-  }, [roomId, onCharacterUpdate, onMessage, onRoomStatus, onPresence, preferredNickname, preferredUserId]);
+  }, [roomId, onCharacterUpdate, onDmNextSpeaker, onMessage, onMessagePatch, onRoomStatus, onPresence, preferredNickname, preferredUserId]);
 
   return { isConnected, userId, nickname, wsRef };
 }

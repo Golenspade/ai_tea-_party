@@ -13,7 +13,15 @@ import type {
   RoomBarSnapshot,
   PendingAsk,
   AskAnswer,
+  RoomArchiveManifest,
+  RoomArchiveRecord,
+  RoomSummary,
+  BehaviorRule,
 } from "@ai-party/shared";
+import {
+  normalizeConditionLogic,
+  normalizeVariableConditions,
+} from "../services/variable-conditions";
 import { createDatabase, ensureSchema } from "./client";
 import {
   characters,
@@ -30,6 +38,9 @@ import {
   worldInfoEntries,
   roomBar,
   pendingAsks,
+  roomArchives,
+  roomSummaries,
+  behaviorRules,
 } from "./schema";
 
 const toJson = (value: unknown): string => {
@@ -383,6 +394,51 @@ export class AppRepository {
     }));
   }
 
+  listAllRoomMessages(roomId: string): Message[] {
+    const rows = this.db
+      .select()
+      .from(messages)
+      .where(eq(messages.roomId, roomId))
+      .orderBy(asc(messages.timestamp))
+      .all();
+
+    return rows.map((item) => ({
+      id: item.id,
+      character_id: item.characterId,
+      character_name: item.characterName,
+      content: item.content,
+      timestamp: item.timestamp,
+      is_system: toBool(item.isSystem),
+      sender_type: item.senderType as Message["sender_type"],
+      sender_user_id: item.senderUserId || undefined,
+      sender_user_name: item.senderUserName || undefined,
+    }));
+  }
+
+  getRoomMessage(roomId: string, messageId: string): Message | undefined {
+    const row = this.db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.roomId, roomId), eq(messages.id, messageId)))
+      .get();
+
+    if (!row) {
+      return undefined;
+    }
+
+    return {
+      id: row.id,
+      character_id: row.characterId,
+      character_name: row.characterName,
+      content: row.content,
+      timestamp: row.timestamp,
+      is_system: toBool(row.isSystem),
+      sender_type: row.senderType as Message["sender_type"],
+      sender_user_id: row.senderUserId || undefined,
+      sender_user_name: row.senderUserName || undefined,
+    };
+  }
+
   addRoomMessage(roomId: string, message: Message): Message {
     const values = {
       id: message.id,
@@ -416,8 +472,25 @@ export class AppRepository {
       })
       .run();
 
-    this.ensureMessageLimit(roomId);
     return message;
+  }
+
+  updateRoomMessageContent(roomId: string, messageId: string, content: string): Message | undefined {
+    const existing = this.getRoomMessage(roomId, messageId);
+    if (!existing) {
+      return undefined;
+    }
+
+    this.db
+      .update(messages)
+      .set({ content })
+      .where(and(eq(messages.roomId, roomId), eq(messages.id, messageId)))
+      .run();
+
+    return {
+      ...existing,
+      content,
+    };
   }
 
   clearRoomMessages(roomId: string): void {
@@ -750,6 +823,8 @@ export class AppRepository {
         enabled: toBool(row.enabled),
         constant: toBool(row.constant),
         order: row.sortOrder ?? 100,
+        conditions: normalizeVariableConditions(parseJson(row.conditionsJson)),
+        condition_logic: normalizeConditionLogic(row.conditionLogic),
       });
       grouped.set(row.bookId, list);
     }
@@ -825,6 +900,8 @@ export class AppRepository {
         enabled: toBool(item.enabled),
         constant: toBool(item.constant),
         order: item.sortOrder || 100,
+        conditions: normalizeVariableConditions(parseJson(item.conditionsJson)),
+        condition_logic: normalizeConditionLogic(item.conditionLogic),
       }));
 
     return {
@@ -857,6 +934,8 @@ export class AppRepository {
         enabled: Boolean(entry.enabled),
         constant: Boolean(entry.constant),
         sortOrder: entry.order ?? 100,
+        conditionsJson: toJson(normalizeVariableConditions(entry.conditions)),
+        conditionLogic: normalizeConditionLogic(entry.condition_logic),
       })
       .onConflictDoUpdate({
         target: worldInfoEntries.id,
@@ -871,6 +950,8 @@ export class AppRepository {
           enabled: Boolean(entry.enabled),
           constant: Boolean(entry.constant),
           sortOrder: entry.order ?? 100,
+          conditionsJson: toJson(normalizeVariableConditions(entry.conditions)),
+          conditionLogic: normalizeConditionLogic(entry.condition_logic),
         },
       })
       .run();
@@ -917,6 +998,68 @@ export class AppRepository {
         .onConflictDoNothing()
         .run();
     }
+  }
+
+  listBehaviorRules(roomId: string): BehaviorRule[] {
+    return this.db
+      .select()
+      .from(behaviorRules)
+      .where(eq(behaviorRules.roomId, roomId))
+      .orderBy(asc(behaviorRules.priority), asc(behaviorRules.createdAt))
+      .all()
+      .map((row) => ({
+        id: row.id,
+        room_id: row.roomId,
+        name: row.name,
+        enabled: toBool(row.enabled),
+        priority: row.priority ?? 100,
+        conditions: normalizeVariableConditions(parseJson(row.conditionsJson)),
+        condition_logic: normalizeConditionLogic(row.conditionLogic),
+        prompt_text: row.promptText || "",
+        created_at: row.createdAt,
+        updated_at: row.updatedAt,
+      }));
+  }
+
+  upsertBehaviorRule(rule: BehaviorRule): BehaviorRule {
+    this.db
+      .insert(behaviorRules)
+      .values({
+        id: rule.id,
+        roomId: rule.room_id,
+        name: rule.name,
+        enabled: Boolean(rule.enabled),
+        priority: rule.priority,
+        conditionsJson: toJson(normalizeVariableConditions(rule.conditions)),
+        conditionLogic: normalizeConditionLogic(rule.condition_logic),
+        promptText: rule.prompt_text || "",
+        createdAt: rule.created_at,
+        updatedAt: rule.updated_at,
+      })
+      .onConflictDoUpdate({
+        target: behaviorRules.id,
+        set: {
+          roomId: rule.room_id,
+          name: rule.name,
+          enabled: Boolean(rule.enabled),
+          priority: rule.priority,
+          conditionsJson: toJson(normalizeVariableConditions(rule.conditions)),
+          conditionLogic: normalizeConditionLogic(rule.condition_logic),
+          promptText: rule.prompt_text || "",
+          updatedAt: rule.updated_at,
+        },
+      })
+      .run();
+
+    return this.listBehaviorRules(rule.room_id).find((item) => item.id === rule.id) || rule;
+  }
+
+  deleteBehaviorRule(roomId: string, ruleId: string): boolean {
+    const result = this.db
+      .delete(behaviorRules)
+      .where(and(eq(behaviorRules.id, ruleId), eq(behaviorRules.roomId, roomId)))
+      .run();
+    return result.changes > 0;
   }
 
   getCharacter(characterId: string): Character | undefined {
@@ -1147,5 +1290,119 @@ export class AppRepository {
       .run();
 
     return this.getPendingAsk(askId);
+  }
+
+  listRoomSummaries(roomId: string): RoomSummary[] {
+    const rows = this.db
+      .select()
+      .from(roomSummaries)
+      .where(eq(roomSummaries.roomId, roomId))
+      .orderBy(asc(roomSummaries.createdAt))
+      .all();
+
+    return rows.map((row) => ({
+      id: row.id,
+      room_id: row.roomId,
+      start_message_id: row.startMessageId,
+      end_message_id: row.endMessageId,
+      message_count: row.messageCount,
+      summary: row.summary,
+      source: row.source === "llm" ? "llm" : "deterministic",
+      created_at: row.createdAt,
+    }));
+  }
+
+  saveRoomSummary(summary: RoomSummary): RoomSummary {
+    this.db
+      .insert(roomSummaries)
+      .values({
+        id: summary.id,
+        roomId: summary.room_id,
+        startMessageId: summary.start_message_id,
+        endMessageId: summary.end_message_id,
+        messageCount: summary.message_count,
+        summary: summary.summary,
+        source: summary.source,
+        createdAt: summary.created_at,
+      })
+      .onConflictDoUpdate({
+        target: roomSummaries.id,
+        set: {
+          roomId: summary.room_id,
+          startMessageId: summary.start_message_id,
+          endMessageId: summary.end_message_id,
+          messageCount: summary.message_count,
+          summary: summary.summary,
+          source: summary.source,
+          createdAt: summary.created_at,
+        },
+      })
+      .run();
+
+    return summary;
+  }
+
+  listRoomArchives(roomId: string): RoomArchiveRecord[] {
+    const rows = this.db
+      .select()
+      .from(roomArchives)
+      .where(eq(roomArchives.roomId, roomId))
+      .orderBy(asc(roomArchives.createdAt))
+      .all();
+
+    return rows.map((row) => this.mapRoomArchiveRecord(row));
+  }
+
+  getRoomArchive(archiveId: string): RoomArchiveRecord | undefined {
+    const row = this.db.select().from(roomArchives).where(eq(roomArchives.id, archiveId)).get();
+    return row ? this.mapRoomArchiveRecord(row) : undefined;
+  }
+
+  saveRoomArchive(record: RoomArchiveRecord): RoomArchiveRecord {
+    this.db
+      .insert(roomArchives)
+      .values({
+        id: record.id,
+        roomId: record.room_id,
+        title: record.title,
+        manifestJson: toJson(record.manifest),
+        filePath: record.file_path || null,
+        createdAt: record.created_at,
+      })
+      .onConflictDoUpdate({
+        target: roomArchives.id,
+        set: {
+          roomId: record.room_id,
+          title: record.title,
+          manifestJson: toJson(record.manifest),
+          filePath: record.file_path || null,
+          createdAt: record.created_at,
+        },
+      })
+      .run();
+
+    return record;
+  }
+
+  private mapRoomArchiveRecord(row: typeof roomArchives.$inferSelect): RoomArchiveRecord {
+    const manifest = parseJson(row.manifestJson) as RoomArchiveManifest | null;
+    return {
+      id: row.id,
+      room_id: row.roomId,
+      title: row.title,
+      manifest: manifest || {
+        schema_version: 1,
+        archive_id: row.id,
+        room_id: row.roomId,
+        title: row.title,
+        created_at: row.createdAt,
+        message_count: 0,
+        summary_count: 0,
+        variable_count: 0,
+        world_info_book_ids: [],
+      },
+      file_path: row.filePath || undefined,
+      created_at: row.createdAt,
+    };
   }
 }

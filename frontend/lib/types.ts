@@ -7,7 +7,10 @@ export type {
   Persona,
   WorldInfoEntry,
   WorldInfoBook,
+  DmNextSpeaker,
   Message,
+  MessagePatch,
+  VariableCondition,
   VariableScope,
   VariableEntry,
   VariableSetRequest,
@@ -16,6 +19,12 @@ export type {
   PresenceUser,
   WsMessage,
   RoomBarSnapshot,
+  RoomSummary,
+  RoomArchive,
+  RoomArchiveRecord,
+  RoomCompactResult,
+  BehaviorRule,
+  ActiveBranch,
   AskAnswer,
 } from "@ai-party/shared";
 

@@ -137,6 +137,8 @@ export function ensureSchema(client: Database.Database): void {
       enabled INTEGER DEFAULT 1,
       constant INTEGER DEFAULT 0,
       sort_order INTEGER DEFAULT 100,
+      conditions_json TEXT NOT NULL DEFAULT '[]',
+      condition_logic TEXT NOT NULL DEFAULT 'AND',
       FOREIGN KEY (book_id) REFERENCES world_info_books(id) ON DELETE CASCADE
     );
 
@@ -144,6 +146,20 @@ export function ensureSchema(client: Database.Database): void {
       room_id TEXT NOT NULL,
       book_id TEXT NOT NULL,
       PRIMARY KEY (room_id, book_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS behavior_rules (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      priority INTEGER NOT NULL DEFAULT 100,
+      conditions_json TEXT NOT NULL DEFAULT '[]',
+      condition_logic TEXT NOT NULL DEFAULT 'AND',
+      prompt_text TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS room_variables (
@@ -196,8 +212,36 @@ export function ensureSchema(client: Database.Database): void {
       FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS room_summaries (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      start_message_id TEXT NOT NULL,
+      end_message_id TEXT NOT NULL,
+      message_count INTEGER NOT NULL,
+      summary TEXT NOT NULL,
+      source TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS room_archives (
+      id TEXT PRIMARY KEY,
+      room_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      manifest_json TEXT NOT NULL,
+      file_path TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+    );
+
     CREATE INDEX IF NOT EXISTS idx_pending_asks_room ON pending_asks(room_id);
     CREATE INDEX IF NOT EXISTS idx_pending_asks_status ON pending_asks(status);
+    CREATE INDEX IF NOT EXISTS idx_room_summaries_room ON room_summaries(room_id);
+    CREATE INDEX IF NOT EXISTS idx_room_summaries_created ON room_summaries(created_at);
+    CREATE INDEX IF NOT EXISTS idx_room_archives_room ON room_archives(room_id);
+    CREATE INDEX IF NOT EXISTS idx_room_archives_created ON room_archives(created_at);
+    CREATE INDEX IF NOT EXISTS idx_behavior_rules_room ON behavior_rules(room_id);
+    CREATE INDEX IF NOT EXISTS idx_behavior_rules_priority ON behavior_rules(priority);
 
     CREATE INDEX IF NOT EXISTS idx_room_characters_room ON room_characters(room_id);
     CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);
@@ -212,6 +256,8 @@ export function ensureSchema(client: Database.Database): void {
   ensureColumn(client, "messages", "sender_type", "TEXT");
   ensureColumn(client, "messages", "sender_user_id", "TEXT");
   ensureColumn(client, "messages", "sender_user_name", "TEXT");
+  ensureColumn(client, "world_info_entries", "conditions_json", "TEXT DEFAULT '[]'");
+  ensureColumn(client, "world_info_entries", "condition_logic", "TEXT DEFAULT 'AND'");
 
   client.exec(`
     CREATE INDEX IF NOT EXISTS idx_messages_room_id ON messages(room_id);

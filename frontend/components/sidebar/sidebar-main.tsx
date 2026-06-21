@@ -3,14 +3,19 @@
 import type {
   Character,
   CharacterFormData,
+  ActiveBranch,
   VariableEntry,
   VariablePatchRequest,
   VariableScope,
   VariableSetRequest,
   PendingAskPublic,
   AskAnswer,
+  RoomArchiveRecord,
+  RoomCompactResult,
+  RoomSummary,
 } from "@/lib/types";
 import { AskPanel } from "@/components/sidebar/ask-panel";
+import { ArchivePanel } from "@/components/sidebar/archive-panel";
 import { CharacterList } from "@/components/sidebar/character-list";
 import { RoomControls } from "@/components/sidebar/room-controls";
 import { AddCharacterDialog } from "@/components/dialogs/add-character-dialog";
@@ -22,6 +27,7 @@ interface SidebarMainProps {
   characters: Character[];
   isAutoChat: boolean;
   onAISpeech: (characterId: string) => void;
+  onDesignateNextSpeaker: (characterId: string) => void;
   onDeleteCharacter: (characterId: string) => void;
   onAddCharacter: (data: CharacterFormData) => void;
   onStartAutoChat: () => void;
@@ -29,6 +35,7 @@ interface SidebarMainProps {
   onClearMessages: () => void;
   roomVariables: VariableEntry[];
   globalVariables: VariableEntry[];
+  activeBranches: ActiveBranch[];
   isLoadingVariables: boolean;
   onRefreshVariables: () => void;
   onSetVariable: (scope: VariableScope, data: VariableSetRequest) => Promise<void>;
@@ -39,12 +46,22 @@ interface SidebarMainProps {
   pendingAsk: PendingAskPublic | null;
   onAskSubmit: (askId: string, answer: AskAnswer) => Promise<void>;
   isAskSubmitting?: boolean;
+  summaries: RoomSummary[];
+  archives: RoomArchiveRecord[];
+  isLoadingArchives?: boolean;
+  isCompacting?: boolean;
+  isArchiving?: boolean;
+  lastCompactResult?: RoomCompactResult | null;
+  onRefreshArchives: () => void;
+  onCompactRoom: () => Promise<void>;
+  onCreateArchive: () => Promise<void>;
 }
 
 export function SidebarMain({
   characters,
   isAutoChat,
   onAISpeech,
+  onDesignateNextSpeaker,
   onDeleteCharacter,
   onAddCharacter,
   onStartAutoChat,
@@ -52,6 +69,7 @@ export function SidebarMain({
   onClearMessages,
   roomVariables,
   globalVariables,
+  activeBranches,
   isLoadingVariables,
   onRefreshVariables,
   onSetVariable,
@@ -62,6 +80,15 @@ export function SidebarMain({
   pendingAsk,
   onAskSubmit,
   isAskSubmitting,
+  summaries,
+  archives,
+  isLoadingArchives,
+  isCompacting,
+  isArchiving,
+  lastCompactResult,
+  onRefreshArchives,
+  onCompactRoom,
+  onCreateArchive,
 }: SidebarMainProps) {
   return (
     <aside className="w-80 border-r border-[var(--theme-border)] flex flex-col pt-12 shrink-0 bg-[#fbf8f1] h-full z-10">
@@ -82,6 +109,7 @@ export function SidebarMain({
           <CharacterList
             characters={characters}
             onAISpeech={onAISpeech}
+            onDesignateNextSpeaker={onDesignateNextSpeaker}
             onDelete={onDeleteCharacter}
           />
         </div>
@@ -117,9 +145,22 @@ export function SidebarMain({
           isSubmitting={isAskSubmitting}
         />
 
+        <ArchivePanel
+          summaries={summaries}
+          archives={archives}
+          loading={isLoadingArchives}
+          compacting={isCompacting}
+          archiving={isArchiving}
+          lastCompactResult={lastCompactResult}
+          onRefresh={onRefreshArchives}
+          onCompact={onCompactRoom}
+          onArchive={onCreateArchive}
+        />
+
         <VariablesPanel
           roomVariables={roomVariables}
           globalVariables={globalVariables}
+          activeBranches={activeBranches}
           loading={isLoadingVariables}
           onRefresh={onRefreshVariables}
           onSet={onSetVariable}

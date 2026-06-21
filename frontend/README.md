@@ -154,7 +154,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3004
 NEXT_PUBLIC_WS_URL=ws://localhost:3004
 ```
 
-> 说明：当前代码默认使用 `http://localhost:3004`（`main.py` 默认端口）与 `ws://localhost:3004/ws/default`。如果你改动这些常量，请同步修改 `frontend/services/api.ts` 与 `frontend/hooks/use-websocket.ts`。
+> 说明：默认 API 为 `http://localhost:3004`，WebSocket 为 `ws://localhost:3004/ws/default`（TypeScript 后端）。可通过环境变量 `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_WS_BASE_URL` 覆盖。
 
 ## Troubleshooting
 

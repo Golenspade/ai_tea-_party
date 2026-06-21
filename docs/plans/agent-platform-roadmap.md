@@ -2,7 +2,7 @@
 
 **版本**：草案 v0.2  
 **日期**：2026-06-03  
-**状态**：产品决策 §3.1 已锁定；Big Scale 见社区调研；Phase 1 可开工  
+**状态**：产品决策 §3.1 已锁定；Phase 2 工作区已收尾；Phase 3 见 `phase-3-implementation-plan.md`
 
 ---
 
@@ -218,12 +218,12 @@
 
 | 阶段 | 主题 | 要点 |
 |------|------|------|
-| **P2** | Modify/Patch Room | 段落级 diff + 前端动画 |
-| **P2** | DM Orchestrator | 用户指定发言 + Auto 下 DM 选角；Speak 退役 |
-| **P2** | 四书 (a)(b)(c) 产品化 | 世界书增强；角色书/剧情书；行为书 |
-| **P3** | Summary / Compact | 上下文压缩 + **Archive 落盘**（Big Scale v1，见调研 doc） |
-| **P3** | 变量 → 分支剧情 | 条件 World Info / 行为书触发 |
-| **P3** | Template 化 | 独立 template repo；跟 upstream main CI |
+| **P2** | Modify/Patch Room | ✅ `patch_room` + `message_patch`；段落级 diff 编辑器留后续增强 |
+| **P2** | DM Orchestrator | ✅ 用户指定发言 + Auto 下 DM 选角；完整 DM Agent 留后续增强 |
+| **P2** | 四书 (a)(b)(c) 产品化 | ⚠️ 提示词脚手架已落地；行为书持久化规则进入 P3 |
+| **P3** | Summary / Compact | ❌ 上下文压缩 + **Archive 落盘**（Big Scale v1，见调研 doc） |
+| **P3** | 变量 → 分支剧情 | ❌ 条件 World Info / 行为书触发 |
+| **P3** | Template 化 | ❌ 独立 template repo；跟 upstream main CI |
 | **持续** | REST audit | 按需端点审查 |
 | **持续** | 前端大改 | Wireframe → 视觉/交互重构（App Router 保留） |
 
@@ -252,12 +252,12 @@
 | **Write to Bar + Status Bar** | ✅ 工作区已实现 | room_bar 表 + 顶栏 |
 | **前端 wireframe（并行）** | ✅ | docs/plans/wireframes/ |
 | **变量测量 UI (gauge)** | ✅ 工作区已实现 | variables-panel 数值条 |
-| **chart/Mermaid Buffer** | ⚠️ spike | 未闭合占位；无 mermaid 渲染库 |
-| DM 多 Agent 调度 | ❌ | Phase 2 |
-| Patch + 动画 | ❌ | Phase 2 |
+| **chart/Mermaid Buffer** | ✅ 工作区已实现 | Mermaid 渲染库 + 未闭合块 buffer |
+| DM 多 Agent 调度 | ✅ 工作区已实现 | 用户指定下轮 + Auto DM 选角；完整 DM Agent 后续增强 |
+| Patch + 动画 | ✅ 工作区已实现 | 整条消息 patch + 高亮；段落级 diff 后续增强 |
 | Compact / Summary | ❌ | Phase 3 |
-| Current Scale 存储选型 | ❌ | 待决 §6 |
-| 四书 (b)(c) 数据模型 | ❌ | Phase 2+ |
+| Current Scale 存储选型 | ❌ | Phase 3 首先解决 Archive / Compact |
+| 四书 (b)(c) 数据模型 | ⚠️ | 提示词脚手架完成；行为书规则表待 P3 |
 | Chatbox 配置调研文档 | ✅ 初稿 | Phase 1 文档 |
 | REST 全面 audit | ⏸ | 按需 |
 

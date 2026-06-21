@@ -12,9 +12,16 @@ import type {
   WorldInfoBook,
   WorldInfoEntry,
   AskAnswer,
+  VariableCondition,
+  VariableConditionLogic,
+  BehaviorRule,
 } from "@ai-party/shared";
 import { parseWriteToRoomInput } from "../services/write-to-room";
 import { pendingAskToPublic, validateAskAnswer } from "../services/ask-user";
+import {
+  normalizeConditionLogic,
+  normalizeVariableConditions,
+} from "../services/variable-conditions";
 
 type ResponseLength = "short" | "default" | "long";
 
@@ -29,9 +36,15 @@ interface RoomIdParams {
   room_id: string;
 }
 
+interface ArchiveIdParams {
+  archive_id: string;
+}
+
 interface CharacterIdParams {
   character_id: string;
 }
+
+type NextSpeakerParams = RoomIdParams & CharacterIdParams;
 
 interface NameParams {
   name: string;
@@ -100,10 +113,31 @@ interface WorldInfoEntryPayload {
   enabled?: boolean;
   constant?: boolean;
   order?: number;
+  conditions?: VariableCondition[];
+  condition_logic?: VariableConditionLogic;
 }
 
 interface RoomWorldInfoPayload {
   book_ids: string[];
+}
+
+interface BehaviorRulePayload {
+  name?: string;
+  enabled?: boolean;
+  priority?: number;
+  conditions?: VariableCondition[];
+  condition_logic?: VariableConditionLogic;
+  prompt_text?: string;
+}
+
+interface ArchiveCreatePayload {
+  title?: string;
+}
+
+interface CompactPayload {
+  mode?: "dry_run" | "commit";
+  keep_recent?: number;
+  target_messages?: number;
 }
 
 interface PersonaPayload {
@@ -405,6 +439,107 @@ export function registerRestRoutes(
     },
   );
 
+  app.get<{ Params: RoomIdParams }>("/api/rooms/:room_id/summaries", (request, reply) => {
+    const roomId = request.params.room_id;
+    const room = appState.getRoom(roomId);
+    if (!room) {
+      return sendFailure(reply, 404, "聊天室不存在");
+    }
+
+    return {
+      room_id: roomId,
+      summaries: appState.listRoomSummaries(roomId),
+    };
+  });
+
+  app.post<{ Params: RoomIdParams; Body: CompactPayload }>(
+    "/api/rooms/:room_id/compact",
+    (request, reply) => {
+      const roomId = request.params.room_id;
+      const room = appState.getRoom(roomId);
+      if (!room) {
+        return sendFailure(reply, 404, "聊天室不存在");
+      }
+
+      try {
+        return appState.compactRoom(roomId, {
+          mode: request.body?.mode === "commit" ? "commit" : "dry_run",
+          keep_recent: request.body?.keep_recent,
+          target_messages: request.body?.target_messages,
+        });
+      } catch (error) {
+        return sendFailure(
+          reply,
+          400,
+          error instanceof Error ? error.message : "压缩失败",
+        );
+      }
+    },
+  );
+
+  app.get<{ Params: RoomIdParams }>("/api/rooms/:room_id/archives", (request, reply) => {
+    const roomId = request.params.room_id;
+    const room = appState.getRoom(roomId);
+    if (!room) {
+      return sendFailure(reply, 404, "聊天室不存在");
+    }
+
+    return {
+      room_id: roomId,
+      archives: appState.listRoomArchives(roomId),
+    };
+  });
+
+  app.post<{ Params: RoomIdParams; Body: ArchiveCreatePayload }>(
+    "/api/rooms/:room_id/archives",
+    (request, reply) => {
+      const roomId = request.params.room_id;
+      const room = appState.getRoom(roomId);
+      if (!room) {
+        return sendFailure(reply, 404, "聊天室不存在");
+      }
+
+      try {
+        const archive = appState.createRoomArchive(roomId, request.body?.title);
+        return {
+          status: "success",
+          archive,
+        };
+      } catch (error) {
+        return sendFailure(
+          reply,
+          400,
+          error instanceof Error ? error.message : "创建归档失败",
+        );
+      }
+    },
+  );
+
+  app.get<{ Params: RoomIdParams & ArchiveIdParams }>(
+    "/api/rooms/:room_id/archives/:archive_id",
+    (request, reply) => {
+      const roomId = request.params.room_id;
+      const room = appState.getRoom(roomId);
+      if (!room) {
+        return sendFailure(reply, 404, "聊天室不存在");
+      }
+
+      try {
+        const archive = appState.getRoomArchive(roomId, request.params.archive_id);
+        if (!archive) {
+          return sendFailure(reply, 404, "归档不存在");
+        }
+        return archive;
+      } catch (error) {
+        return sendFailure(
+          reply,
+          404,
+          error instanceof Error ? error.message : "归档不存在",
+        );
+      }
+    },
+  );
+
   // 变量管理
   app.get<{ Params: RoomIdParams }>("/api/rooms/:room_id/variables", (request, reply) => {
     const roomId = request.params.room_id;
@@ -569,6 +704,111 @@ export function registerRestRoutes(
     },
   );
 
+  app.get<{ Params: RoomIdParams }>("/api/rooms/:room_id/behavior-rules", (request, reply) => {
+    const roomId = request.params.room_id;
+    const room = appState.getRoom(roomId);
+    if (!room) {
+      return sendFailure(reply, 404, "聊天室不存在");
+    }
+
+    return {
+      room_id: roomId,
+      rules: appState.listBehaviorRules(roomId),
+    };
+  });
+
+  app.post<{ Params: RoomIdParams; Body: BehaviorRulePayload }>(
+    "/api/rooms/:room_id/behavior-rules",
+    (request, reply) => {
+      const roomId = request.params.room_id;
+      const room = appState.getRoom(roomId);
+      if (!room) {
+        return sendFailure(reply, 404, "聊天室不存在");
+      }
+
+      if (!hasValue(request.body?.name)) {
+        return sendFailure(reply, 400, "规则名称不能为空");
+      }
+
+      if (!hasValue(request.body?.prompt_text)) {
+        return sendFailure(reply, 400, "规则内容不能为空");
+      }
+
+      const rule = appState.upsertBehaviorRule(roomId, {
+        name: request.body.name.trim(),
+        enabled: request.body.enabled !== false,
+        priority: request.body.priority ?? 100,
+        conditions: normalizeVariableConditions(request.body.conditions),
+        condition_logic: normalizeConditionLogic(request.body.condition_logic),
+        prompt_text: request.body.prompt_text.trim(),
+      });
+
+      return {
+        status: "success",
+        rule,
+      };
+    },
+  );
+
+  app.put<{ Params: RoomIdParams & { rule_id: string }; Body: BehaviorRulePayload }>(
+    "/api/rooms/:room_id/behavior-rules/:rule_id",
+    (request, reply) => {
+      const roomId = request.params.room_id;
+      const existing = appState
+        .listBehaviorRules(roomId)
+        .find((rule) => rule.id === request.params.rule_id);
+      if (!existing) {
+        return sendFailure(reply, 404, "行为规则不存在");
+      }
+
+      const updated: BehaviorRule = {
+        ...existing,
+        name: request.body.name?.trim() || existing.name,
+        enabled: request.body.enabled ?? existing.enabled,
+        priority: request.body.priority ?? existing.priority,
+        conditions: request.body.conditions !== undefined
+          ? normalizeVariableConditions(request.body.conditions)
+          : existing.conditions,
+        condition_logic: request.body.condition_logic !== undefined
+          ? normalizeConditionLogic(request.body.condition_logic)
+          : existing.condition_logic,
+        prompt_text: request.body.prompt_text?.trim() || existing.prompt_text,
+      };
+
+      const rule = appState.upsertBehaviorRule(roomId, updated);
+      return {
+        status: "success",
+        rule,
+      };
+    },
+  );
+
+  app.delete<{ Params: RoomIdParams & { rule_id: string } }>(
+    "/api/rooms/:room_id/behavior-rules/:rule_id",
+    (request, reply) => {
+      const roomId = request.params.room_id;
+      const deleted = appState.deleteBehaviorRule(roomId, request.params.rule_id);
+      if (!deleted) {
+        return sendFailure(reply, 404, "行为规则不存在");
+      }
+
+      return { status: "success" };
+    },
+  );
+
+  app.get<{ Params: RoomIdParams }>("/api/rooms/:room_id/branches/active", (request, reply) => {
+    const roomId = request.params.room_id;
+    const room = appState.getRoom(roomId);
+    if (!room) {
+      return sendFailure(reply, 404, "聊天室不存在");
+    }
+
+    return {
+      room_id: roomId,
+      branches: appState.listActiveBranches(roomId),
+    };
+  });
+
   app.get("/api/variables/global", () => ({
     scope: "global",
     variables: appState.listGlobalVariables(),
@@ -642,13 +882,32 @@ export function registerRestRoutes(
         return;
       }
 
-      const character =
-        targetRoom.characters[Math.floor(Math.random() * targetRoom.characters.length)];
+      const choice = appState.chooseNextSpeaker(roomId);
+      const character = choice
+        ? targetRoom.characters.find((item) => item.id === choice.character_id)
+        : undefined;
+      if (!choice || !character) {
+        return;
+      }
 
       try {
+        await socketManager.broadcastDmNextSpeaker(roomId, choice);
         const { message } = await appState.generateAiReply(roomId, character.id, {
           onRoomMessage: async (roomMessage) => {
             await socketManager.broadcastMessage(roomId, roomMessage);
+          },
+          onMessagePatch: async (patch) => {
+            await socketManager.broadcastMessagePatch(roomId, patch);
+          },
+          onBarUpdate: async (snapshot) => {
+            await socketManager.broadcastBarUpdate(roomId, {
+              content: snapshot.content,
+              label: snapshot.label,
+              version: snapshot.version,
+            });
+          },
+          onAskPending: async (ask) => {
+            await socketManager.broadcastAskPending(roomId, pendingAskToPublic(ask));
           },
         });
         if (message) {
@@ -668,6 +927,29 @@ export function registerRestRoutes(
     await socketManager.broadcastRoomStatus(roomId, { is_auto_chat: true });
     return { message: "自动聊天已开始" };
   });
+
+  app.post<{ Params: NextSpeakerParams }>(
+    "/api/rooms/:room_id/dm/next-speaker/:character_id",
+    async (request, reply) => {
+      try {
+        const choice = appState.designateNextSpeaker(
+          request.params.room_id,
+          request.params.character_id,
+        );
+        await socketManager.broadcastDmNextSpeaker(request.params.room_id, choice);
+        return {
+          status: "success",
+          choice,
+        };
+      } catch (error) {
+        return sendFailure(
+          reply,
+          error instanceof Error && error.message.includes("聊天室") ? 404 : 400,
+          error instanceof Error ? error.message : "指定失败",
+        );
+      }
+    },
+  );
 
   app.post<{ Params: RoomIdParams }>("/api/rooms/:room_id/auto-chat/stop", async (request, reply) => {
     const roomId = request.params.room_id;
@@ -965,6 +1247,8 @@ export function registerRestRoutes(
         enabled: request.body.enabled !== false,
         constant: Boolean(request.body.constant),
         order: request.body.order ?? 100,
+        conditions: normalizeVariableConditions(request.body.conditions),
+        condition_logic: normalizeConditionLogic(request.body.condition_logic),
       };
 
       const saved = appState.upsertWorldInfoEntry(book.id, entry);
@@ -999,6 +1283,8 @@ export function registerRestRoutes(
         enabled: request.body.enabled !== false,
         constant: Boolean(request.body.constant),
         order: request.body.order ?? 100,
+        conditions: normalizeVariableConditions(request.body.conditions),
+        condition_logic: normalizeConditionLogic(request.body.condition_logic),
       };
 
       const saved = appState.upsertWorldInfoEntry(book.id, entry);

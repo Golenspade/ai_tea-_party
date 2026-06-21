@@ -34,6 +34,12 @@ describe("ask-user", () => {
     assert.equal(parsed.multiple, true);
   });
 
+  it("rejects empty questions and choices", () => {
+    assert.throws(() => parseAskUserInput({ question: " ", choices: ["A"] }), /question/);
+    assert.throws(() => parseAskUserInput({ question: "继续吗？", choices: [] }), /choices/);
+    assert.throws(() => parseAskUserInput({ question: "继续吗？", choices: ["  ", 1] }), /有效字符串/);
+  });
+
   it("rejects invalid choice on answer", () => {
     assert.throws(
       () => validateAskAnswer(basePending, { selected: ["Z"] }),
@@ -44,6 +50,23 @@ describe("ask-user", () => {
   it("requires one selection for single-choice ask", () => {
     assert.throws(() => validateAskAnswer(basePending, {}), /请选择/);
     assert.doesNotThrow(() => validateAskAnswer(basePending, { selected: ["A"] }));
+  });
+
+  it("rejects multiple selections for single-choice ask", () => {
+    assert.throws(
+      () => validateAskAnswer(basePending, { selected: ["A", "B"] }),
+      /仅允许单选/,
+    );
+  });
+
+  it("rejects custom answers unless allowed", () => {
+    assert.throws(
+      () => validateAskAnswer(basePending, { custom: "走小路" }),
+      /不允许自定义回答/,
+    );
+    assert.doesNotThrow(() =>
+      validateAskAnswer({ ...basePending, allow_custom: true }, { custom: "走小路" }),
+    );
   });
 
   it("allows multiple selections when enabled", () => {

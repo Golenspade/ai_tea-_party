@@ -1,11 +1,12 @@
 "use client";
 
 import type { Character } from "@/lib/types";
-import { MessageCircle, Trash2 } from "lucide-react";
+import { MessageCircle, StepForward, Trash2 } from "lucide-react";
 
 interface CharacterListProps {
   characters: Character[];
   onAISpeech: (characterId: string) => void;
+  onDesignateNextSpeaker: (characterId: string) => void;
   onDelete: (characterId: string) => void;
 }
 
@@ -15,6 +16,7 @@ const getRoman = (index: number) => romanNumerals[index] || (index + 1).toString
 export function CharacterList({
   characters,
   onAISpeech,
+  onDesignateNextSpeaker,
   onDelete,
 }: CharacterListProps) {
   return (
@@ -33,6 +35,13 @@ export function CharacterList({
                   title="Speak"
                 >
                   <MessageCircle className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  className="text-[#7e766c] hover:text-[var(--theme-accent)] transition-colors p-1 rounded"
+                  onClick={(e) => { e.stopPropagation(); onDesignateNextSpeaker(character.id); }}
+                  title="指定下轮"
+                >
+                  <StepForward className="h-3.5 w-3.5" />
                 </button>
                 <button
                   className="text-[#7e766c] hover:text-red-700 transition-colors p-1 rounded"

@@ -2,199 +2,152 @@
 
 ## 项目概述
 
-AI Tea Party 是一个多角色AI对话系统，允许创建多个AI角色并在聊天室中进行对话。系统支持多种AI API（DeepSeek 和 Google Gemini），具有现代化的Web界面和实时通信功能。
+AI Tea Party 是一个多角色 AI **叙事 Agent 平台**。用户创建 AI 角色，在聊天室中进行对话；Agent 可通过 Tool 写入房间、询问用户（Ask）、修稿（Patch）、管理变量与 Archive 归档。技术栈为 **TypeScript 全栈 monorepo**（Next.js 前端 + Fastify/Pi Agent 后端）。
 
 ## 技术栈
 
-### 后端
+### Monorepo（pnpm workspace）
 
-- **Python**: 3.12+（代码兼容3.10-3.14）
-- **FastAPI**: Web框架 + WebSocket支持
-- **AI API**: OpenAI SDK (DeepSeek), Google Generative AI (Gemini)
-- **包管理**: uv (Astral)
+| 包 | 路径 | 说明 |
+|----|------|------|
+| 根 | `/` | `pnpm dev` / `test` / `lint` / `build` |
+| 后端 | `backend/` | Fastify + Pi Agent + Drizzle |
+| 前端 | `frontend/` | Next.js 15 + React 19 |
+| 共享 | `packages/shared/` | Zod schema，前后端契约源 |
 
-### 前端
+### 后端（`backend/`）
 
-- **框架**: Next.js 15 + React 19
-- **语言**: TypeScript
-- **UI**: shadcn/ui + Tailwind CSS
-- **图标**: Lucide Icons
+- **运行时**：Node.js 20+、TypeScript 5
+- **框架**：Fastify 4 + `@fastify/cors` + `@fastify/websocket`
+- **AI**：Pi Agent（`@earendil-works/pi-agent-core`、`@earendil-works/pi-ai`）
+- **数据库**：SQLite + Drizzle ORM + better-sqlite3（`data/tea_party.db`）
+- **通信**：REST + SSE（流式生成 / Ask resume）+ WebSocket（实时推送）
+
+### 前端（`frontend/`）
+
+- **框架**：Next.js 15 + React 19 + TypeScript 5
+- **UI**：shadcn/ui + Tailwind CSS 4
+- **测试**：Vitest（单元）、Playwright（E2E，端口 3001）
 
 ## 开发环境设置
+
+### 环境要求
+
+- Node.js 20+
+- pnpm 10+
+- `.env` 中配置 API 密钥（DeepSeek / Gemini 等）
 
 ### 快速启动
 
 ```bash
-# 1. 安装后端依赖
-uv sync
+pnpm install
+# 编辑 .env：DEEPSEEK_API_KEY 或 GEMINI_API_KEY
 
-# 2. 启动后端服务
-uv run python main.py
-
-# 3. 在新终端中启动前端
-cd frontend
-npm run dev
+pnpm dev    # 并行启动 frontend(:3000) + backend(:3004)
 ```
 
 ### 服务地址
 
-- 后端 API: http://localhost:3004
-- 前端界面: http://localhost:3000（E2E 默认使用 http://localhost:3001）
+- 后端 API：http://localhost:3004（根路径返回 `version: 2.2.0-ts`）
+- 前端界面：http://localhost:3000
+- E2E 前端：http://localhost:3001
 
-### 配置文件
+### 常用命令
 
-#### .env 环境变量
+```bash
+pnpm dev                              # 开发
+pnpm test                             # backend tsx test + frontend vitest
+pnpm lint                             # tsc + eslint
+pnpm build                            # 构建各包
+pnpm --filter ai-tea-party-backend dev   # 仅后端
+pnpm --filter ai-tea-party-frontend dev  # 仅前端
+pnpm --filter ai-tea-party-frontend e2e    # Playwright E2E
+```
+
+## 项目结构
+
+```
+ai_tea-_party/
+├── package.json / pnpm-workspace.yaml
+├── config.json                 # 聊天室/角色预设
+├── .env                        # API 密钥、PORT
+├── data/tea_party.db           # SQLite（运行时）
+│
+├── backend/src/
+│   ├── index.ts                # Fastify 入口
+│   ├── store.ts                # AppState 业务中枢
+│   ├── room-hub.ts             # WebSocket 广播 + presence
+│   ├── db/                     # schema + repository
+│   ├── routes/                 # rest / sse / ws
+│   └── services/               # orchestrator, ask-user, archive-builder, ...
+│
+├── frontend/
+│   ├── app/                    # App Router
+│   ├── components/chat/        # 消息、Mermaid、Status Bar
+│   ├── components/sidebar/     # 角色、变量、Ask、Archive
+│   ├── services/api.ts         # REST 客户端
+│   └── hooks/use-websocket.ts  # WS 事件
+│
+├── packages/shared/src/        # Zod 类型
+├── scripts/                    # 如 export-room-template.mjs
+└── docs/plans/                 # 路线图与 Phase 计划
+```
+
+### Python 遗留代码
+
+Python 后端及 `pyproject.toml` / `uv.lock` 已全部移除。项目为纯 TypeScript monorepo。
+
+## 已实现能力（Phase 1–3）
+
+| 能力 | 后端模块 | 前端 |
+|------|----------|------|
+| Ask User | `ask-user.ts`, SSE resume | `ask-panel`, `ask-flow.ts` |
+| Write to Room/Bar | `write-to-room/bar.ts` | Status Bar, WS `bar_update` |
+| Patch Room | `patch-room.ts` | `message-patch.ts`, WS `message_patch` |
+| DM 下一发言者 | `dm-orchestrator.ts` | character-list |
+| 变量 + 条件分支 | `variables.ts`, `variable-conditions.ts` | `variables-panel` |
+| Archive / Compact | `archive-builder.ts`, `summary-compact.ts` | `archive-panel` |
+| Mermaid | — | `mermaid-diagram.tsx` |
+
+## 配置文件
+
+### .env
 
 ```env
-# AI API 配置
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
-GEMINI_API_KEY=your_gemini_api_key_here
-AI_PROVIDER=deepseek_chat  # 或: deepseek_reasoner, gemini_25_flash, gemini_25_pro
-
-# 服务器配置
+DEEPSEEK_API_KEY=your_key_here
+GEMINI_API_KEY=your_key_here
 HOST=localhost
 PORT=3004
-
-# 应用配置
-MAX_HISTORY_LENGTH=50
-AUTO_CHAT_INTERVAL=5
 ```
 
-#### config.json
+修改 `.env` 后需**重启 backend**（TS 后端无 Python 时代的 .env 热重载）。
 
-定义聊天室和角色预设，支持热重载。
+### config.json
 
-## 常见开发任务
+预设聊天室与角色；TS 后端通过 `config-bootstrap` 写入 SQLite。
 
-### 使用命令
+## 调试
 
-为常见任务创建了前缀命令：
-
-- `/start-backend` - 启动后端服务
-- `/start-frontend` - 启动前端开发服务器
-- `/install-deps` - 安装后端依赖
-- `/run-tests` - 运行测试
-
-### API 测试
-
-可以使用 `debug_openai_client.py` 测试 AI API 连接：
-
-```bash
-python debug_openai_client.py
-```
-
-### 项目结构
-
-```
-ai_tea_party/
-├── main.py                      # 应用入口 (v2.1)
-├── config.json                  # 聊天室/角色配置
-├── .env                        # 环境变量
-│
-├── core/                        # LLM 抽象层
-│   └── llm/                    # Provider/Registry/Types
-│       └── providers/          # LiteLLM Provider
-│
-├── services/                    # 业务逻辑
-│   ├── orchestrator.py         # 聊天编排器
-│   └── chat_service.py         # 聊天室服务
-│
-├── routes/                      # 路由层
-│   ├── rest.py                 # REST API
-│   ├── sse.py                  # SSE 流式传输
-│   └── ws.py                   # WebSocket
-│
-├── db/                          # 数据持久化
-│   ├── database.py             # SQLite 初始化
-│   └── repository.py           # CRUD
-│
-├── models/                     # 数据模型
-│   └── character.py            # 角色和消息模型
-│
-├── utils/                      # 工具模块
-│   ├── config_loader.py        # 配置加载器
-│   └── env_watcher.py          # .env热重载
-│
-└── frontend/                   # Next.js前端
-    ├── app/                    # App Router
-    ├── components/             # 组件
-    │   ├── chat/              # 聊天组件
-    │   ├── sidebar/           # 侧边栏
-    │   ├── dialogs/           # 弹窗
-    │   └── ui/                # shadcn/ui组件库
-    └── lib/                   # 工具函数
-```
-
-## Claude Code 特殊配置
-
-### 忽略规则
-
-项目已配置 `.gitignore` 忽略：
-
-- `__pycache__/` - Python缓存文件
-- `*.pyc` - 编译的Python文件
-- `.venv/` - 虚拟环境
-- `frontend/node_modules/` - Node依赖
-
-### Python 环境
-
-使用 `uv` 管理依赖，虚拟环境位于 `.venv/`。Claude Code可以使用以下命令：
-
-```bash
-# Python
-uv run python main.py
-
-# 安装新包
-uv add package_name
-uv add --dev package_name
-
-# 更新依赖
-uv sync
-```
-
-## 调试技巧
-
-### 后端日志
-
-查看 stdout/stderr 获取详细日志信息，包括：
-
-- API 请求和响应
-- WebSocket 连接状态
-- AI API 调用详情
-
-### 前端调试
-
-在浏览器开发者工具中查看：
-
-- Console - JavaScript错误和日志
-- Network - API请求状态
-- WebSocket - 实时通信状态
+- **后端**：Fastify logger → stdout（API、WS、Pi Agent）
+- **前端**：Console / Network / WS 面板
+- **WS 事件**：`message`, `message_patch`, `ask_pending`, `ask_resolved`, `bar_update`, `dm_next_speaker`, `presence`
 
 ### 常见问题
 
-1. **API连接失败**
-   - 检查API密钥是否正确
-   - 验证网络连接
-   - 查看后端控制台日志
-
-2. **前端构建错误**
-   - 检查Node.js版本（需要18+）
-   - 删除node_modules重新安装
-
-3. **WebSocket连接失败**
-   - 检查后端是否运行
-   - 确认前端API地址配置正确
+1. **API 失败** — 检查 `.env` 与 `pnpm dev` 是否已启 backend
+2. **WS 未连接** — 确认 3004 为 TS 后端（`curl localhost:3004/` 应返回 `AI Tea Party TS API`）
+3. **better-sqlite3 报错** — Node 版本变更后 `pnpm install` 重编译原生模块
 
 ## 设计原则
 
-1. **热重载优先**: 修改.env或config.json无需重启
-2. **类型安全**: 前后端都使用类型系统
-3. **响应式UI**: 支持各种屏幕尺寸
-4. **错误边界**: 优雅处理API失败情况
-5. **实时通信**: WebSocket保持同步
+1. **契约在 shared**：`packages/shared` 为类型单一来源
+2. **Pi Agent 编排**：Fastify 不直接调 LLM HTTP，由 pi-ai 承担
+3. **三通道**：REST（CRUD）+ SSE（流式）+ WS（推送）
+4. **SQLite 权威 schema**：TS `db/schema.ts` + 增量迁移
 
-## 版本信息
+## 版本与文档
 
-当前版本: v2.1.0
-发布日期: 2026-03-09
-代号: "LLM Abstraction & Persistence"
+- 当前 API 版本：**v2.2.0-ts**
+- 路线图：[docs/plans/agent-platform-roadmap.md](docs/plans/agent-platform-roadmap.md)
+- Phase 3：[docs/plans/phase-3-implementation-plan.md](docs/plans/phase-3-implementation-plan.md)
+- E2E：[docs/E2E_TEST_SKILL.md](docs/E2E_TEST_SKILL.md)

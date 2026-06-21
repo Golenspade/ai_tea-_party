@@ -1,86 +1,92 @@
-# AI Tea Party v2.1.0
+# AI Tea Party v2.2.0-ts
 
 ## 版本信息
 
-- **版本号**: 2.1.0
-- **发布日期**: 2026-03-09
-- **代号**: "LLM Abstraction & Persistence"
+- **版本号**: 2.2.0-ts
+- **Monorepo 包版本**: 2.1.0（根 `package.json`）
+- **发布日期**: 2026-06-21
+- **代号**: "TypeScript Agent Platform"
+
+## 当前运行状态
+
+| 组件 | 技术 | 启动方式 |
+|------|------|----------|
+| 后端 | Fastify + Pi Agent + Drizzle + SQLite | `pnpm dev` 或 `pnpm --filter ai-tea-party-backend dev` |
+| 前端 | Next.js 15 + React 19 | `pnpm dev` 或 `pnpm --filter ai-tea-party-frontend dev` |
+| 共享类型 | `@ai-party/shared`（Zod） | workspace 自动链接 |
+
+**Python 后端已完全移除**（含 `pyproject.toml`、`uv.lock`）。项目为纯 TypeScript monorepo。
 
 ## 本次更新亮点
 
-### 🧠 LLM 三层抽象架构
+### TypeScript 全栈
 
-采用 Provider → Orchestrator → Transport 架构，通过 LiteLLM SDK 统一调用所有 LLM 模型。
+- pnpm monorepo：`frontend` + `backend` + `packages/shared`
+- 单一后端入口：`backend/src/index.ts`（API 版本标识 `2.2.0-ts`）
+- CI：pnpm lint / test / build
 
-### 💾 SQLite 数据持久化
+### Pi Agent 叙事平台
 
-聊天室、角色和消息自动保存到 SQLite，重启后自动恢复。
-
-### 🎨 Bookish Sepia 书卷风 UI
-
-全新的学术书卷风界面设计，温暖的色调和精致的排版。
-
-### 📦 前端组件模块化
-
-原 777 行 page.tsx 拆分为 13 个独立模块组件。
-
-### 🔧 架构统一
-
-清理双入口冗余，ChatService 统一使用 Orchestrator 路径。
+- **Ask**：侧栏决策 + SSE resume 续跑
+- **Write to Room / Bar**：Agent Tool 写入消息与形势栏
+- **Patch Room**：修改已有消息
+- **DM**：自动聊天下一发言者
+- **变量 + 分支**：World Info / 行为书条件、变量 Gauge
+- **Archive / Compact**：归档与摘要压缩
+- **Mermaid**：消息内图表渲染
 
 ## 服务端口
 
 - 后端 API: http://localhost:3004
-- 前端界面: http://localhost:3000（E2E 默认使用 http://localhost:3001）
+- 前端界面: http://localhost:3000
+- E2E 前端: http://localhost:3001
 
 ## 快速开始
 
 ```bash
-# 安装 Python 依赖（使用 uv）
-uv sync
+pnpm install
 
-# 安装前端依赖
-cd frontend && npm install
+# 编辑 .env，填入 DEEPSEEK_API_KEY 或 GEMINI_API_KEY
 
-# 配置 API 密钥
-# 编辑 .env 文件，填入你的 API 密钥
-
-# 启动后端
-uv run python main.py
-
-# 启动前端（新终端）
-cd frontend && npm run dev
+pnpm dev
 ```
 
-访问 http://localhost:3000 开始使用！
+```bash
+pnpm test    # backend + frontend 单元测试
+pnpm lint
+pnpm build
+```
+
+访问 http://localhost:3000 开始使用。
 
 ## 技术栈
 
-### 后端
+### 后端（`backend/`）
 
-- Python 3.12+
-- FastAPI + WebSocket + SSE
-- LiteLLM（统一 LLM 调用）
-- SQLite + aiosqlite（数据持久化）
+- Fastify 4 + `@fastify/cors` + `@fastify/websocket`
+- Pi Agent（`@earendil-works/pi-agent-core`、`@earendil-works/pi-ai`）
+- Drizzle ORM + better-sqlite3 → `data/tea_party.db`
+- REST + SSE + WebSocket
 
-### 前端
+### 前端（`frontend/`）
 
-- Next.js 15 + React 19
-- TypeScript 5
-- shadcn/ui + Tailwind CSS 3
-- Lucide Icons
+- Next.js 15 + React 19 + TypeScript 5
+- shadcn/ui + Tailwind CSS 4
+- Vitest + Playwright
 
 ## 兼容性
 
-- Python: 3.10+（推荐 3.12）
-- Node.js: 18+
+- Node.js: 20+
+- pnpm: 10+
 - 现代浏览器（Chrome、Firefox、Safari、Edge）
 
-## 获取帮助
+## 相关文档
 
-- 查看 CHANGELOG.md 了解详细更新内容
-- 查看 README.md 了解完整使用说明
+- [README.md](README.md) — 完整使用说明
+- [CLAUDE.md](CLAUDE.md) — 开发工作区配置
+- [CHANGELOG.md](CHANGELOG.md) — 版本历史
+- [docs/plans/agent-platform-roadmap.md](docs/plans/agent-platform-roadmap.md) — 产品路线图
 
 ---
 
-**上一版本**: v2.0.0 (2025-10-03)
+**上一版本**: v2.1.0 (2026-03-09, Python 后端)

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "template_id": "agent-room-basic",
+  "name": "Agent Room Basic",
+  "description": "A minimal reusable room template with characters, variable-gated WorldInfo, and one behavior rule.",
+  "rooms": [
+    {
+      "id": "agent-room-basic",
+      "name": "基础茶室",
+      "description": "一间用于测试变量分支和行为规则的安静茶室。",
+      "stealth_mode": false,
+      "user_description": "",
+      "max_history": 50,
+      "characters": [
+        {
+          "name": "茶室主持",
+          "personality": "温和、清晰、会根据局势调整语气",
+          "background": "负责引导多角色对话并维持茶室秩序。",
+          "description": "一个适合作为默认 Agent Room 主持人的角色。",
+          "speaking_style": "简洁自然，必要时主动询问用户选择。"
+        }
+      ],
+      "room_variables": [
+        {
+          "name": "danger",
+          "value": 0,
+          "scope": "room"
+        }
+      ],
+      "global_variables": [],
+      "world_info_books": [
+        {
+          "id": "basic-world-info",
+          "name": "基础世界书",
+          "description": "变量条件触发的最小世界书示例。",
+          "enabled": true,
+          "entries": [
+            {
+              "id": "danger-branch",
+              "keys": [
+                "危险",
+                "密室"
+              ],
+              "secondary_keys": [],
+              "selective_logic": "AND",
+              "content": "当 danger >= 8 时，茶室进入高风险分支，出口会暂时关闭。",
+              "position": "after_char",
+              "depth": 4,
+              "enabled": true,
+              "constant": false,
+              "order": 20,
+              "conditions": [
+                {
+                  "scope": "room",
+                  "name": "danger",
+                  "op": "gte",
+                  "value": 8
+                }
+              ],
+              "condition_logic": "AND"
+            }
+          ]
+        }
+      ],
+      "behavior_rules": [
+        {
+          "id": "high-danger-rule",
+          "room_id": "agent-room-basic",
+          "name": "高风险叙事",
+          "enabled": true,
+          "priority": 10,
+          "conditions": [
+            {
+              "scope": "room",
+              "name": "danger",
+              "op": "gte",
+              "value": 8
+            }
+          ],
+          "condition_logic": "AND",
+          "prompt_text": "进入高风险叙事，角色应优先自保、减少玩笑，并提醒用户做明确选择。",
+          "created_at": "2026-06-09T00:00:00.000Z",
+          "updated_at": "2026-06-09T00:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}

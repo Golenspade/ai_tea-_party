@@ -82,6 +82,73 @@ describe("WorldInfoScanner", () => {
     assert.equal(allowed.before_char[0]?.entry.content, "Ice dragon lore");
   });
 
+  it("gates keyword and constant entries with variable conditions", () => {
+    const scanner = new WorldInfoScanner();
+    const book: WorldInfoBook = {
+      id: "book-conditions",
+      name: "Conditions",
+      description: "",
+      enabled: true,
+      entries: [
+        {
+          id: "entry-keyword",
+          keys: ["vault"],
+          secondary_keys: [],
+          selective_logic: "AND",
+          content: "Vault opens at high danger",
+          position: "after_char",
+          depth: 4,
+          enabled: true,
+          constant: false,
+          order: 10,
+          conditions: [{ scope: "room", name: "danger", op: "gte", value: 5 }],
+          condition_logic: "AND",
+        },
+        {
+          id: "entry-constant",
+          keys: [],
+          secondary_keys: [],
+          selective_logic: "AND",
+          content: "Torch route is always available",
+          position: "system_top",
+          depth: 4,
+          enabled: true,
+          constant: true,
+          order: 20,
+          conditions: [{ scope: "room", name: "flags", op: "includes", value: "torch" }],
+          condition_logic: "AND",
+        },
+        {
+          id: "entry-blocked",
+          keys: ["vault"],
+          secondary_keys: [],
+          selective_logic: "AND",
+          content: "This branch should stay hidden",
+          position: "system_bottom",
+          depth: 4,
+          enabled: true,
+          constant: true,
+          order: 30,
+          conditions: [{ scope: "room", name: "missing", op: "ne", value: "x" }],
+          condition_logic: "AND",
+        },
+      ],
+    };
+
+    const blocked = scanner.scan([book], "vault", {
+      variableContext: { room: { danger: 4, flags: [] }, global: {} },
+    });
+    assert.equal(countActivatedEntries(blocked), 0);
+
+    const allowed = scanner.scan([book], "vault", {
+      variableContext: { room: { danger: 7, flags: ["torch"] }, global: {} },
+    });
+    assert.equal(countActivatedEntries(allowed), 2);
+    assert.equal(allowed.after_char[0]?.entry.content, "Vault opens at high danger");
+    assert.equal(allowed.system_top[0]?.entry.content, "Torch route is always available");
+    assert.equal(allowed.system_bottom.length, 0);
+  });
+
   it("builds scan text from character fields and recent chat", () => {
     const character = {
       id: "char-1",

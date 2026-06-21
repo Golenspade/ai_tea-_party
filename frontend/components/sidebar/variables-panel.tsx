@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import type {
+  ActiveBranch,
   VariableEntry,
   VariablePatchRequest,
   VariableSetRequest,
@@ -11,6 +12,7 @@ import type {
 interface VariablesPanelProps {
   roomVariables: VariableEntry[];
   globalVariables: VariableEntry[];
+  activeBranches?: ActiveBranch[];
   loading?: boolean;
   onRefresh: () => void;
   onSet: (scope: VariableScope, data: VariableSetRequest) => Promise<void>;
@@ -66,6 +68,7 @@ function scopeTitle(scope: VariableScope): string {
 export function VariablesPanel({
   roomVariables,
   globalVariables,
+  activeBranches = [],
   loading,
   onRefresh,
   onSet,
@@ -114,6 +117,36 @@ export function VariablesPanel({
     } finally {
       setFormState((prev) => ({ ...prev, isBusy: false }));
     }
+  };
+
+  const renderActiveBranches = () => {
+    if (activeBranches.length === 0) {
+      return <p className="text-xs text-[#7e766c] py-2">暂无命中分支</p>;
+    }
+
+    return (
+      <ul className="space-y-2">
+        {activeBranches.map((branch) => (
+          <li
+            key={`${branch.type}-${branch.id}`}
+            className="rounded-sm border border-[var(--theme-border)] px-3 py-2 text-xs bg-white"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-medium text-[var(--text)] truncate">{branch.name}</p>
+              <span className="text-[10px] uppercase text-[var(--theme-accent)]">
+                {branch.type === "behavior_rule" ? "Rule" : "WI"}
+              </span>
+            </div>
+            {branch.source && (
+              <p className="mt-1 text-[11px] text-[var(--theme-accent)] truncate">
+                {branch.source}
+              </p>
+            )}
+            <p className="mt-1 text-[var(--theme-accent)] line-clamp-2">{branch.content}</p>
+          </li>
+        ))}
+      </ul>
+    );
   };
 
   const renderList = (scope: VariableScope) => {
@@ -249,6 +282,11 @@ export function VariablesPanel({
           执行
         </button>
       </form>
+
+      <div className="mt-4 px-2">
+        <h3 className="text-xs text-[var(--theme-accent)] mb-1">Active Branches</h3>
+        {renderActiveBranches()}
+      </div>
 
       <div className="mt-4 px-2 space-y-4">
         {(["room", "global"] as const).map((scope) => (

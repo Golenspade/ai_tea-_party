@@ -20,18 +20,26 @@
 
 ### 核心功能
 
-- 🤖 **多角色对话** - 支持多个 AI 角色同时在线聊天
-- 💬 **实时通信** - WebSocket 实时消息推送
-- 🎭 **角色定制** - 完全自定义角色性格、背景和说话风格
-- 📝 **聊天记录** - 完整的对话历史记录
-- 🔄 **自动聊天** - AI 角色自动对话模式
+- 🤖 **多角色对话** — 多个 AI 角色同时在线聊天
+- 💬 **实时通信** — WebSocket 推送消息、Patch、Ask、形势栏更新
+- 🎭 **角色定制** — 性格、背景、说话风格、示例对话
+- 📝 **持久化** — SQLite 保存房间、角色、消息与变量
+- 🔄 **自动聊天** — DM 调度下一发言者，角色轮流对话
+
+### Agent 平台能力
+
+- ❓ **Ask** — Agent 暂停叙事，侧栏询问用户，SSE 续跑
+- ✍️ **Write to Room / Bar** — Agent Tool 写入消息与形势栏
+- 📝 **Patch Room** — 修改已有 AI/旁白消息，前端高亮 diff
+- 📊 **变量系统** — room/global 变量、条件分支、Gauge 可视化
+- 📦 **Archive / Compact** — 房间归档与摘要压缩，支持长剧情
+- 📈 **Mermaid** — 消息内 Mermaid 图表渲染
 
 ### API 支持
 
-- 🔑 **多 API 支持** - DeepSeek Chat/Reasoner、Google Gemini 2.5 Flash/Pro
-- 🛠️ **动态配置** - Web 界面直接配置 API，无需重启
-- 🔥 **热重载** - .env 文件修改自动生效
-- ⚡ **智能切换** - 支持不同 AI 模型实时切换
+- 🔑 **多模型** — DeepSeek、Gemini 等（经 Pi Agent / pi-ai）
+- 🛠️ **Web 配置** — 界面选择 Provider 与模型
+- ⚡ **SSE 流式** — 实时 token 输出与 Tool 事件
 
 ### 现代化界面
 
@@ -51,10 +59,9 @@
 
 ### 环境要求
 
-- Python 3.10+ (推荐 3.12 或 3.14)
-- Node.js 18+
+- Node.js 20+
+- pnpm 10+
 - 现代浏览器
-- uv（Python 包管理器，https://docs.astral.sh/uv/）
 
 ### 1. 克隆仓库
 
@@ -63,11 +70,10 @@ git clone https://github.com/Golenspade/ai_tea-_party.git
 cd ai_tea-_party
 ```
 
-### 2. 安装后端依赖（使用 uv）
+### 2. 安装依赖
 
 ```bash
-# 安装后端依赖并创建 .venv
-uv sync
+pnpm install
 ```
 
 ### 3. 配置 API 密钥
@@ -77,11 +83,9 @@ uv sync
 ```env
 # DeepSeek API（推荐，性价比高）
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
-AI_PROVIDER=deepseek_chat
 
 # 或使用 Google Gemini
 GEMINI_API_KEY=your_gemini_api_key_here
-AI_PROVIDER=gemini_25_flash
 
 # 服务器配置
 HOST=localhost
@@ -93,29 +97,15 @@ PORT=3004
 - DeepSeek: https://platform.deepseek.com/api_keys
 - Google Gemini: https://makersuite.google.com/app/apikey
 
-### 4. 安装前端依赖
+### 4. 启动应用
+
+在项目根目录一条命令启动前端 + TypeScript 后端：
 
 ```bash
-cd frontend
-npm install
+pnpm dev
 ```
 
-### 5. 启动应用
-
-**后端（终端1）：**
-
-```bash
-uv run python main.py
-```
-
-**前端（终端2）：**
-
-```bash
-cd frontend
-npm run dev
-```
-
-### 6. 访问应用
+### 5. 访问应用
 
 打开浏览器访问：
 
@@ -123,66 +113,57 @@ npm run dev
 - 后端 API：http://localhost:3004
 - E2E 默认以 `localhost:3001` 启动前端（见 `docs/E2E_TEST_SKILL.md` 与 `frontend/playwright.config.ts`）。
 
-### 7. E2E 变量命令回归（建议）
+### 6. 运行测试
 
-可直接使用项目内 E2E Skill 文档启动 Playwright 冒烟测试：
+```bash
+pnpm test    # backend 单元测试 + frontend Vitest
+pnpm lint    # TypeScript 类型检查
+pnpm build   # 构建各包
+```
 
-- `docs/E2E_TEST_SKILL.md`
-- 主要命令（在 `frontend/` 目录）：
-  - `npm run e2e:smoke`
-  - `npm run e2e`
-  - `npm run e2e:ui`
+### 7. E2E 测试（建议）
+
+Playwright E2E 需 backend 在 3004 运行。推荐先 `pnpm dev`，再在另一终端：
+
+```bash
+pnpm --filter ai-tea-party-frontend e2e:smoke   # 冒烟
+pnpm --filter ai-tea-party-frontend e2e         # 全量
+pnpm --filter ai-tea-party-frontend e2e:ui      # UI 模式
+```
+
+详见 [`docs/E2E_TEST_SKILL.md`](docs/E2E_TEST_SKILL.md)。
 
 ## 📁 项目结构
 
 ```
 ai_tea_party/
-├── main.py                 # 主应用入口 (v2.1)
-├── config.json            # 聊天室和角色预设配置
-├── .env                   # 环境变量配置
-├── CHANGELOG.md           # 更新日志
-├── VERSION.md             # 版本信息
+├── package.json            # monorepo 根脚本（pnpm dev / test）
+├── pnpm-workspace.yaml
+├── config.json             # 聊天室和角色预设配置
+├── .env                    # 环境变量配置
+├── data/tea_party.db       # SQLite（运行时生成）
 │
-├── core/                  # LLM 抽象层
-│   └── llm/              # Provider / Registry / Types
-│       └── providers/    # LiteLLM Provider
+├── backend/                # TypeScript 后端（Fastify + Pi Agent）
+│   └── src/
+│       ├── index.ts        # 入口
+│       ├── store.ts        # 业务状态中枢
+│       ├── db/             # Drizzle + SQLite
+│       ├── routes/         # REST / SSE / WebSocket
+│       └── services/       # Agent 编排、Ask、Archive 等
 │
-├── models/                # 数据模型
-│   └── character.py       # 角色和消息模型
+├── packages/shared/        # 前后端共享 Zod 类型
 │
-├── services/              # 业务逻辑
-│   ├── orchestrator.py    # 聊天编排器
-│   └── chat_service.py    # 聊天室服务
+├── frontend/               # Next.js 前端
+│   ├── app/                # App Router
+│   ├── components/         # chat / sidebar / dialogs / ui
+│   ├── hooks/              # WebSocket 等
+│   ├── services/           # api.ts 等
+│   └── lib/                # 类型与工具
 │
-├── routes/                # 路由层
-│   ├── rest.py           # REST API
-│   ├── sse.py            # SSE 流式传输
-│   └── ws.py             # WebSocket
-│
-├── db/                    # 数据持久化
-│   ├── database.py       # SQLite 初始化
-│   └── repository.py     # CRUD 操作
-│
-├── utils/                 # 工具模块
-│   ├── config_loader.py   # 配置加载器
-│   └── env_watcher.py     # .env 热重载
-│
-├── frontend/              # Next.js 前端
-│   ├── app/              # Next.js App Router
-│   │   ├── layout.tsx    # 根布局
-│   │   ├── page.tsx      # 主页面
-│   │   └── globals.css   # 全局样式
-│   ├── components/       # 组件
-│   │   ├── chat/        # 聊天组件
-│   │   ├── sidebar/     # 侧边栏组件
-│   │   ├── dialogs/     # 弹窗组件
-│   │   └── ui/          # shadcn/ui 组件库
-│   ├── hooks/           # React Hooks
-│   ├── services/        # API 服务层
-│   └── lib/             # 工具函数
-│
-└── archive/               # 归档文件
+└── docs/plans/             # 产品路线图与 Phase 计划
 ```
+
+> Python 后端及依赖配置（`main.py`、`pyproject.toml` 等）已全部移除，项目为纯 TypeScript monorepo。
 
 ## 🎮 使用说明
 
@@ -231,8 +212,8 @@ ai_tea_party/
 #### 方法二：修改 .env 文件
 
 1. 编辑项目根目录的 `.env` 文件
-2. 修改 API 密钥和提供商
-3. 保存文件（会自动热重载，无需重启）
+2. 修改 API 密钥
+3. 保存后**重启 backend**（`pnpm dev` 或单独重启 backend 进程）
 
 ### 预设聊天室
 
@@ -287,49 +268,43 @@ ai_tea_party/
 ### .env 环境变量
 
 ```env
-# AI 提供商配置
-AI_PROVIDER=deepseek_chat  # 或 deepseek_reasoner, gemini_25_flash, gemini_25_pro
-
 # DeepSeek API
 DEEPSEEK_API_KEY=your_key_here
-DEEPSEEK_MODEL=deepseek-chat  # 或 deepseek-reasoner
 
 # Google Gemini API
 GEMINI_API_KEY=your_key_here
 
-# 服务器配置
+# 服务器
 HOST=localhost
 PORT=3004
-
-# 聊天室配置
-MAX_HISTORY_LENGTH=50
-AUTO_CHAT_INTERVAL=5
 ```
 
 ## 🛠️ 技术栈
 
-### 后端
+### Monorepo
 
-- **FastAPI** - 现代高性能 Web 框架
-- **WebSocket** - 实时双向通信
-- **OpenAI SDK** - DeepSeek API 集成
-- **Google Generative AI** - Gemini API 集成
-- **Python 3.14** - 最新 Python 版本支持
+- **pnpm workspace** — `frontend` + `backend` + `packages/shared`
+- **TypeScript 5** — 前后端类型安全
+
+### 后端（`backend/`）
+
+- **Fastify 4** — HTTP / WebSocket 服务
+- **Pi Agent + pi-ai** — LLM 编排与 Tool 调用
+- **Drizzle ORM + better-sqlite3** — SQLite 持久化
+- **SSE + WebSocket** — 流式生成与实时推送
 
 ### 前端
 
-- **Next.js 15** - React 服务端渲染框架
-- **React 19** - 最新 React 版本
-- **TypeScript 5** - 类型安全
-- **shadcn/ui** - 精美 UI 组件库
-- **Tailwind CSS 3** - 实用优先的 CSS 框架
-- **Lucide Icons** - 现代图标库
+- **Next.js 15** — React 服务端渲染框架
+- **React 19** — 最新 React 版本
+- **shadcn/ui** — UI 组件库
+- **Tailwind CSS 4** — 样式
+- **Vitest + Playwright** — 单元测试与 E2E
 
 ### 开发工具
 
-- **热重载** - 前后端代码修改自动更新
-- **TypeScript** - 完整类型支持
-- **ESLint** - 代码质量检查
+- **pnpm** — 包管理与 monorepo 脚本
+- **ESLint / tsc** — 代码质量检查
 
 ## 📝 开发指南
 
@@ -377,19 +352,16 @@ AUTO_CHAT_INTERVAL=5
 
 ### 后端无法启动
 
-1. 检查 Python 版本：`python --version`（需要 3.10+）
-2. 重新安装依赖：`uv sync`
+1. 检查 Node.js 版本：`node --version`（需要 20+）
+2. 重新安装依赖：`pnpm install`
 3. 检查端口占用：`lsof -i :3004`
+4. 确认 TypeScript 后端已启动（`pnpm dev` 或 `pnpm --filter ai-tea-party-backend dev`）
 
 ### 前端无法启动
 
-1. 检查 Node.js 版本：`node --version`（需要 18+）
-2. 删除 node_modules 重新安装：
-   ```bash
-   cd frontend
-   rm -rf node_modules package-lock.json
-   npm install
-   ```
+1. 检查 Node.js 版本：`node --version`（需要 20+）
+2. 在根目录重新安装：`pnpm install`
+3. 或单独启动：`pnpm --filter ai-tea-party-frontend dev`
 
 ### API 无法调用
 
@@ -423,10 +395,12 @@ MIT License
 
 ## 📚 相关文档
 
-- [版本信息](VERSION.md) - 当前版本详细信息
-- [前端文档](frontend/README.md) - Next.js 前端使用说明
-- [快速开始](frontend/QUICK_START_CN.md) - 前端快速开始指南
+- [版本信息](VERSION.md) — 当前版本 v2.2.0-ts
+- [更新日志](CHANGELOG.md) — 版本历史
+- [开发配置](CLAUDE.md) — Claude Code / 开发者工作区说明
+- [前端文档](frontend/README.md) — Next.js 前端说明
+- [产品路线图](docs/plans/agent-platform-roadmap.md) — Agent 平台规划
 
 ---
 
-**当前版本：v2.1.0** | 使用 ❤️ 和 Next.js 构建
+**当前版本：v2.2.0-ts** | TypeScript 全栈（Fastify + Pi Agent + Next.js）

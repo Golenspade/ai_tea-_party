@@ -4,7 +4,9 @@ import type {
   Character,
   CharacterFormData,
   ChatRoom,
+  DmNextSpeaker,
   Message,
+  MessagePatch,
   StreamingEvent,
   Persona,
   VariableEntry,
@@ -14,6 +16,12 @@ import type {
   RoomBarSnapshot,
   PendingAsk,
   AskAnswer,
+  RoomArchive,
+  RoomArchiveRecord,
+  RoomCompactResult,
+  RoomSummary,
+  BehaviorRule,
+  ActiveBranch,
 } from "@ai-party/shared";
 
 import { AppRepository } from "./db/repository";
@@ -29,6 +37,7 @@ import {
   buildRoomBarSnapshot,
   type WriteToBarInput,
 } from "./services/write-to-bar";
+import type { PatchRoomInput } from "./services/patch-room";
 import {
   entriesToVariableRecord,
   executeVariableCommand,
@@ -38,11 +47,27 @@ import {
 import { ResponseLength } from "./types";
 import { parseEnvAiProvider } from "./services/resolve-pi-model";
 import { bootstrapRoomsFromConfig } from "./utils/config-bootstrap";
+import { chooseNextSpeaker as selectNextSpeaker } from "./services/dm-orchestrator";
+import {
+  buildRoomArchiveSnapshot,
+  readRoomArchiveFile,
+  writeRoomArchiveFile,
+} from "./services/archive-builder";
+import {
+  createDeterministicRoomSummary,
+  selectCompactionRange,
+} from "./services/summary-compact";
+import {
+  evaluateVariableConditions,
+  normalizeConditionLogic,
+  normalizeVariableConditions,
+} from "./services/variable-conditions";
 
 const nowIso = () => new Date().toISOString();
 
 export interface AgentSessionHooks {
   onRoomMessage?: (message: Message) => void | Promise<void>;
+  onMessagePatch?: (patch: MessagePatch) => void | Promise<void>;
   onBarUpdate?: (snapshot: RoomBarSnapshot) => void | Promise<void>;
   onAskPending?: (ask: PendingAsk) => void | Promise<void>;
 }
@@ -59,6 +84,7 @@ const normalizeResponseLength = (raw: string | undefined): ResponseLength | unde
 class AppState {
   private readonly repository: AppRepository;
   private readonly autoChatState = new Map<string, boolean>();
+  private readonly designatedNextSpeakers = new Map<string, string>();
   private readonly orchestrator: ChatOrchestrator;
 
   responseLength: ResponseLength = "default";
@@ -246,6 +272,124 @@ class AppState {
     return { ...room, is_auto_chat: this.getRoomAutoChat(room.id) };
   }
 
+  listRoomSummaries(roomId: string): RoomSummary[] {
+    if (!this.repository.getRoom(roomId)) {
+      return [];
+    }
+    return this.repository.listRoomSummaries(roomId);
+  }
+
+  listRoomArchives(roomId: string): RoomArchiveRecord[] {
+    if (!this.repository.getRoom(roomId)) {
+      return [];
+    }
+    return this.repository.listRoomArchives(roomId);
+  }
+
+  compactRoom(
+    roomId: string,
+    options: {
+      mode?: "dry_run" | "commit";
+      keep_recent?: number;
+      target_messages?: number;
+    } = {},
+  ): RoomCompactResult {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      throw new Error("聊天室不存在");
+    }
+
+    const messages = this.repository.listAllRoomMessages(roomId);
+    const selection = selectCompactionRange(messages, {
+      keepRecent: options.keep_recent,
+      targetMessages: options.target_messages,
+      existingSummaries: this.repository.listRoomSummaries(roomId),
+    });
+
+    if (!selection.range || selection.messages.length === 0) {
+      return {
+        room_id: roomId,
+        status: "no_op",
+        keep_recent: selection.keepRecent,
+        reason: selection.reason || "没有可压缩消息",
+      };
+    }
+
+    const summary = createDeterministicRoomSummary({
+      id: randomUUID(),
+      roomId,
+      messages: selection.messages,
+      createdAt: nowIso(),
+    });
+
+    if (options.mode !== "commit") {
+      return {
+        room_id: roomId,
+        status: "dry_run",
+        keep_recent: selection.keepRecent,
+        range: selection.range,
+        summary,
+      };
+    }
+
+    const saved = this.repository.saveRoomSummary(summary);
+    return {
+      room_id: roomId,
+      status: "committed",
+      keep_recent: selection.keepRecent,
+      range: selection.range,
+      summary: saved,
+    };
+  }
+
+  createRoomArchive(roomId: string, title?: string): RoomArchiveRecord {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      throw new Error("聊天室不存在");
+    }
+
+    const archiveId = randomUUID();
+    const createdAt = nowIso();
+    const messages = this.repository.listAllRoomMessages(roomId);
+    const roomSnapshot: ChatRoom = {
+      ...room,
+      messages,
+    };
+    const archive = buildRoomArchiveSnapshot({
+      archiveId,
+      title: title?.trim() || `${room.name} Archive ${createdAt}`,
+      createdAt,
+      room: roomSnapshot,
+      messages,
+      summaries: this.repository.listRoomSummaries(roomId),
+      roomVariables: this.repository.listRoomVariables(roomId),
+      globalVariables: this.repository.listGlobalVariables(),
+      roomBar: this.repository.getRoomBar(roomId),
+      worldInfoBooks: this.repository.getRoomWorldInfo(roomId),
+      behaviorRules: this.repository.listBehaviorRules(roomId),
+    });
+
+    const filePath = writeRoomArchiveFile(archive);
+    const record: RoomArchiveRecord = {
+      id: archive.manifest.archive_id,
+      room_id: archive.manifest.room_id,
+      title: archive.manifest.title,
+      manifest: archive.manifest,
+      file_path: filePath,
+      created_at: archive.manifest.created_at,
+    };
+
+    return this.repository.saveRoomArchive(record);
+  }
+
+  getRoomArchive(roomId: string, archiveId: string): RoomArchive | undefined {
+    const record = this.repository.getRoomArchive(archiveId);
+    if (!record || record.room_id !== roomId) {
+      return undefined;
+    }
+    return readRoomArchiveFile(record);
+  }
+
   createRoom(name: string, description = "", options?: Partial<ChatRoom>): ChatRoom {
     const roomId = options?.id || randomUUID();
     const room = this.repository.createRoom(roomId, name, description, {
@@ -426,6 +570,57 @@ class AppState {
     return true;
   }
 
+  designateNextSpeaker(roomId: string, characterId: string): DmNextSpeaker {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      throw new Error("聊天室不存在");
+    }
+
+    const character = room.characters.find(
+      (item) => item.id === characterId && item.is_active !== false,
+    );
+    if (!character) {
+      throw new Error("角色不存在或不可用");
+    }
+
+    this.designatedNextSpeakers.set(roomId, character.id);
+    return {
+      room_id: roomId,
+      character_id: character.id,
+      character_name: character.name,
+      selected_at: nowIso(),
+      source: "user",
+      reason: "用户指定下轮发言者",
+    };
+  }
+
+  chooseNextSpeaker(roomId: string): DmNextSpeaker | undefined {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      return undefined;
+    }
+
+    const pendingCharacterId = this.designatedNextSpeakers.get(roomId);
+    const choice = selectNextSpeaker(room, pendingCharacterId);
+    if (!choice) {
+      this.designatedNextSpeakers.delete(roomId);
+      return undefined;
+    }
+
+    if (pendingCharacterId) {
+      this.designatedNextSpeakers.delete(roomId);
+    }
+
+    return {
+      room_id: roomId,
+      character_id: choice.character.id,
+      character_name: choice.character.name,
+      selected_at: nowIso(),
+      source: choice.source,
+      reason: choice.reason,
+    };
+  }
+
   setRoomStealthMode(
     roomId: string,
     stealthMode?: boolean,
@@ -503,6 +698,8 @@ class AppState {
       enabled: entry.enabled !== false,
       constant: Boolean(entry.constant),
       order: entry.order ?? 100,
+      conditions: normalizeVariableConditions(entry.conditions),
+      condition_logic: normalizeConditionLogic(entry.condition_logic),
     };
 
     return this.repository.upsertWorldInfoEntry(bookId, normalized);
@@ -520,6 +717,111 @@ class AppState {
       throw new Error("聊天室不存在");
     }
     this.repository.setRoomWorldInfo(roomId, bookIds);
+  }
+
+  listBehaviorRules(roomId: string): BehaviorRule[] {
+    if (!this.repository.getRoom(roomId)) {
+      return [];
+    }
+    return this.repository.listBehaviorRules(roomId);
+  }
+
+  upsertBehaviorRule(
+    roomId: string,
+    rule: Partial<BehaviorRule> & {
+      name: string;
+      prompt_text: string;
+    },
+  ): BehaviorRule {
+    if (!this.repository.getRoom(roomId)) {
+      throw new Error("聊天室不存在");
+    }
+
+    const createdAt = rule.created_at || nowIso();
+    const normalized: BehaviorRule = {
+      id: rule.id || randomUUID(),
+      room_id: roomId,
+      name: rule.name.trim(),
+      enabled: rule.enabled !== false,
+      priority: Number.isFinite(rule.priority) ? Math.floor(rule.priority || 0) : 100,
+      conditions: normalizeVariableConditions(rule.conditions),
+      condition_logic: normalizeConditionLogic(rule.condition_logic),
+      prompt_text: rule.prompt_text || "",
+      created_at: createdAt,
+      updated_at: nowIso(),
+    };
+
+    return this.repository.upsertBehaviorRule(normalized);
+  }
+
+  deleteBehaviorRule(roomId: string, ruleId: string): boolean {
+    return this.repository.deleteBehaviorRule(roomId, ruleId);
+  }
+
+  listActiveBranches(roomId: string): ActiveBranch[] {
+    if (!this.repository.getRoom(roomId)) {
+      return [];
+    }
+
+    const variableContext = {
+      room: entriesToVariableRecord(this.listRoomVariables(roomId)),
+      global: entriesToVariableRecord(this.listGlobalVariables()),
+    };
+    const branches: ActiveBranch[] = [];
+
+    for (const book of this.getRoomWorldInfo(roomId)) {
+      if (!book.enabled) {
+        continue;
+      }
+
+      for (const entry of book.entries) {
+        if (!entry.enabled || (entry.conditions || []).length === 0) {
+          continue;
+        }
+
+        if (
+          evaluateVariableConditions(
+            entry.conditions,
+            entry.condition_logic,
+            variableContext,
+          )
+        ) {
+          branches.push({
+            id: entry.id,
+            type: "world_info",
+            name: entry.keys[0] || "WorldInfo 条目",
+            source: book.name,
+            content: entry.content,
+            priority: entry.order,
+          });
+        }
+      }
+    }
+
+    for (const rule of this.listBehaviorRules(roomId)) {
+      if (!rule.enabled) {
+        continue;
+      }
+
+      if (
+        evaluateVariableConditions(
+          rule.conditions,
+          rule.condition_logic,
+          variableContext,
+        )
+      ) {
+        branches.push({
+          id: rule.id,
+          type: "behavior_rule",
+          name: rule.name,
+          source: "行为书",
+          content: rule.prompt_text,
+          priority: rule.priority,
+        });
+      }
+    }
+
+    return branches.sort((left, right) => (left.priority ?? 100) - (right.priority ?? 100));
   }
 
   getProviderDefs(): Record<string, ProviderDef> {
@@ -626,6 +928,35 @@ class AppState {
     });
     this.addRoomMessage(roomId, message);
     return message;
+  }
+
+  patchAgentRoomMessage(roomId: string, input: PatchRoomInput): MessagePatch {
+    const room = this.getRoom(roomId);
+    if (!room) {
+      throw new Error("聊天室不存在");
+    }
+
+    const existing = this.repository.getRoomMessage(roomId, input.message_id);
+    if (!existing) {
+      throw new Error("消息不存在");
+    }
+
+    if (existing.sender_type === "user") {
+      throw new Error("不能修改用户消息");
+    }
+
+    const updated = this.repository.updateRoomMessageContent(roomId, input.message_id, input.content);
+    if (!updated) {
+      throw new Error("消息不存在");
+    }
+
+    return {
+      room_id: roomId,
+      message_id: updated.id,
+      content: updated.content,
+      patched_at: nowIso(),
+      reason: input.reason,
+    };
   }
 
   getRoomBar(roomId: string): RoomBarSnapshot | null {
@@ -876,6 +1207,11 @@ class AppState {
         await hooks?.onRoomMessage?.(message);
         return message;
       },
+      patchRoom: async (input) => {
+        const patch = this.patchAgentRoomMessage(roomId, input);
+        await hooks?.onMessagePatch?.(patch);
+        return patch;
+      },
       writeToBar: async (input) => {
         const snapshot = this.writeAgentBar(roomId, input);
         await hooks?.onBarUpdate?.(snapshot);
@@ -893,6 +1229,8 @@ class AppState {
       incVariable: async (scope, name, value) => this.incVariable(scope, roomId, name, value),
       decVariable: async (scope, name, value) => this.decVariable(scope, roomId, name, value),
       listRoomWorldInfoBooks: async (id) => this.getRoomWorldInfo(id),
+      listRoomSummaries: async (id) => this.listRoomSummaries(id),
+      listBehaviorRules: async (id) => this.listBehaviorRules(id),
       getDefaultPersona: () => this.listPersonas().find((persona) => persona.is_default) ?? null,
     };
   }

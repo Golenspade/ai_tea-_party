@@ -4,13 +4,15 @@ import type { Character, Message } from "@/lib/types";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseMarkdownBlocks } from "@/lib/markdown-blocks";
+import { MermaidDiagram } from "@/components/chat/mermaid-diagram";
 
 interface ChatBubbleProps {
   message: Message;
   characters: Character[];
+  isPatched?: boolean;
 }
 
-function MarkdownBody({ content }: { content: string }) {
+export function MarkdownBody({ content }: { content: string }) {
   const blocks = parseMarkdownBlocks(content);
 
   return (
@@ -33,6 +35,15 @@ function MarkdownBody({ content }: { content: string }) {
           );
         }
 
+        if (block.language === "mermaid") {
+          return (
+            <MermaidDiagram
+              key={`mermaid-${index}`}
+              source={block.content}
+            />
+          );
+        }
+
         return (
           <pre
             key={`code-${index}`}
@@ -46,10 +57,17 @@ function MarkdownBody({ content }: { content: string }) {
   );
 }
 
-export function CustomChatBubble({ message }: ChatBubbleProps) {
+export function CustomChatBubble({ message, isPatched }: ChatBubbleProps) {
+  const patchClass = isPatched
+    ? "bg-[#fff7d6] ring-1 ring-[#d6a846]/50 shadow-[0_0_0_3px_rgba(214,168,70,0.12)]"
+    : "";
+
   if (message.is_system) {
     return (
-      <div className="flex justify-center py-4">
+      <div
+        data-patched={isPatched ? "true" : undefined}
+        className={`flex justify-center py-4 rounded-sm transition-all duration-500 ${patchClass}`}
+      >
         <span className="text-xs font-sans tracking-wide text-[#a35d40] px-4 py-1 border border-[#e6dec1] rounded-full bg-[#fbf8f1]">
           {message.content}
         </span>
@@ -89,7 +107,10 @@ export function CustomChatBubble({ message }: ChatBubbleProps) {
   }
 
   return (
-    <div className="group pt-2">
+    <div
+      data-patched={isPatched ? "true" : undefined}
+      className={`group pt-2 rounded-sm transition-all duration-500 ${patchClass}`}
+    >
       <div className="flex items-center gap-3 mb-4">
         <span className="font-book italic tracking-wide text-lg text-[#a35d40]">{message.character_name}</span>
         <div className="h-px bg-[#e6dec1] flex-1"></div>

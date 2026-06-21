@@ -54,6 +54,9 @@ function buildSessionHooks(roomId: string, socketManager: RoomSocketManager): Ag
     onRoomMessage: async (message) => {
       await socketManager.broadcastMessage(roomId, message);
     },
+    onMessagePatch: async (patch) => {
+      await socketManager.broadcastMessagePatch(roomId, patch);
+    },
     onBarUpdate: async (snapshot) => {
       await socketManager.broadcastBarUpdate(roomId, {
         content: snapshot.content,
