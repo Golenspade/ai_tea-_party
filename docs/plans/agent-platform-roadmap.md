@@ -1,8 +1,8 @@
 # AI Tea Party — Agent 平台开发计划
 
-**版本**：草案 v0.2  
-**日期**：2026-06-03  
-**状态**：产品决策 §3.1 已锁定；Phase 2 工作区已收尾；Phase 3 见 `phase-3-implementation-plan.md`
+**版本**：v0.3  
+**日期**：2026-06-21  
+**状态**：Phase 1–3 已交付（v2.2.0-ts）；下文保留产品决策与后续增强方向
 
 ---
 
@@ -19,8 +19,8 @@
 
 ## 1. 核心结论（一句话）
 
-**当前**：Pi Agent 已接入，本质是「带变量 Tool 的流式 Chatbot」。  
-**目标**：Pi Agent 驱动的 **叙事 Agent 平台** — DM 调度、Write/Ask/变量/Compact，房间内容为可协作、可动画、可分支的「稿本 + 消息」混合体，并尽量与 **Pi Agent 上游** 协同演进，作为未来 **云端 Chat Agent Template**。
+**当前（v2.2.0-ts）**：Pi Agent 驱动的叙事平台已落地 — Ask、Write Room/Bar、Patch、DM 选角、变量分支、Archive/Compact、Template 导出。  
+**后续**：段落级 Patch diff、完整 DM Agent、Current Scale 选型、Big Scale 归档策略深化，并与 **Pi Agent 上游** 协同演进为 **云端 Chat Agent Template**。
 
 ---
 
@@ -28,12 +28,12 @@
 
 | 能力 | 目标行为 | 当前状态 |
 |------|----------|----------|
-| **Write to Room** | Agent 通过 Tool 写入房间，前端即时展示 | ✅ Phase 1（Tool + SSE/WS） |
-| **Modify / Patch** | 删改已有段落，前端带动画 diff | ❌ 未规划实现 |
-| **Ask** | 暂停叙事，询问用户剧情走向（侧栏决策） | ✅ Phase 1（侧栏 + resume stream） |
-| **变量系统** | 行为影响变量 → 分支剧情；短期 DB + 可视化 | ⚠️ 有 setvar/getvar Tool + SQLite，无分支叙事与 **变量测量 UI** |
-| **Summary / Compact** | 压缩上下文、选择性落盘，长剧情可持续 | ❌ 未实现 |
-| **DM Orchestrator** | 像跑团 DM：只调度写手/交互 Agent，不写正文 | ❌ 单 Agent 直出 |
+| **Write to Room** | Agent 通过 Tool 写入房间，前端即时展示 | ✅ Tool + SSE/WS |
+| **Modify / Patch** | 删改已有段落，前端带动画 diff | ✅ 整条消息 patch + 高亮；段落级 diff 待增强 |
+| **Ask** | 暂停叙事，询问用户剧情走向（侧栏决策） | ✅ 侧栏 + resume stream |
+| **变量系统** | 行为影响变量 → 分支剧情；DB + 可视化 | ✅ Tool + Gauge + 条件 World Info / 行为书 |
+| **Summary / Compact** | 压缩上下文、选择性落盘，长剧情可持续 | ✅ Archive + deterministic summary |
+| **DM Orchestrator** | 像跑团 DM：只调度写手/交互 Agent，不写正文 | ✅ 用户指定 + Auto 选角；完整 DM Agent 待增强 |
 
 **Fastify 不写裸 LLM HTTP** — 正确；HTTP 由 **pi-ai** 承担，我们维护的是 **Agent 编排 + 房间语义 + 持久化**。
 
@@ -89,9 +89,9 @@
 #### Big Scale
 
 - **第一场景不拍板**；先跟社区实践。  
-- 调研结论（详见 `research-community-agent-patterns.md`）：  
+- 调研结论（2026-06 已完成，原文档已归档）：  
   - 与「Locus」最接近的公开方案为 **Oracle Locus SDK**（Orchestrator/Specialists、 durable thread）。  
-  - **建议首发**：按 room **Archive 归档**（消息 + 变量 + Bar + 可选 Compact 摘要）；**共享设定库** 归入世界书/四书持久化，不作为 Big Scale v1。  
+  - **建议首发**：按 room **Archive 归档**（消息 + 变量 + Bar + Compact 摘要）— **已在 P3 实现**；**共享设定库** 归入世界书/四书持久化，不作为 Big Scale v1。  
 - 若产品所指的 Locus 另有特指（非 Oracle），需在评审中更正名词。
 
 ---
@@ -188,11 +188,10 @@
 - **前端**：**Status Bar** 组件（顶栏或侧顶）；与消息流分离；变量 gauge 可邻接展示。  
 - **Agent 规则**（写入 system prompt / 行为书）：摘要、场景状态用 `write_to_bar`；剧情对白用 `write_to_room`。  
 
-### 7.3 前端 Wireframe（并行）
+### 7.3 前端布局（已完成）
 
-- **与 Phase 1 后端并行**，不阻塞 Tool 开发。  
-- 优先稿：**侧栏 Ask**、**Status Bar（Write to Bar）**、**变量 gauge**、DM 指定发言入口占位。  
-- 产出：`docs/plans/wireframes/` 或 Figma 链接（待补）。  
+- Phase 1 布局已在产品中实现：侧栏 Ask、Status Bar、变量 gauge、DM 指定发言入口。  
+- 窄屏 bottom sheet 等响应式增强留后续迭代。
 
 ### 7.4 变量测量模块（UI）
 
@@ -204,13 +203,10 @@
 - **问题**：Mermaid/图表类块需 **Buffer 完整块再渲染**，避免打字机半块乱码。  
 - **任务**：审计 `chat-layout.tsx` SSE 解析、`use-typewriter.ts`、消息 markdown 渲染链；在计划中标记为 **Phase 1 并行 tech spike**。  
 
-### 7.6 配置与 Chatbox 调研（Phase 1 文档任务）
+### 7.6 配置与 Chatbox 调研（已完成）
 
-- 调研 [Chatbox](https://github.com/chatboxai/chatbox)（开源，原 `Bin-Huang/chatbox`）的：  
-  - provider/model 配置存储路径与 schema  
-  - 本地持久化 vs 云端  
-  - 导入导出  
-- 输出：`docs/plans/chatbox-config-reference.md`（**初稿已完成**，见 §11 开放问题）  
+- 2026-06 已完成 Chatbox provider/model 与持久化形态调研；结论已吸收进当前 `AppState.PROVIDERS` + SQLite settings 设计。  
+- 未照搬客户端本地存 Key 模式；API Key 仍仅 `.env`。
 
 ---
 
@@ -220,12 +216,12 @@
 |------|------|------|
 | **P2** | Modify/Patch Room | ✅ `patch_room` + `message_patch`；段落级 diff 编辑器留后续增强 |
 | **P2** | DM Orchestrator | ✅ 用户指定发言 + Auto 下 DM 选角；完整 DM Agent 留后续增强 |
-| **P2** | 四书 (a)(b)(c) 产品化 | ⚠️ 提示词脚手架已落地；行为书持久化规则进入 P3 |
-| **P3** | Summary / Compact | ❌ 上下文压缩 + **Archive 落盘**（Big Scale v1，见调研 doc） |
-| **P3** | 变量 → 分支剧情 | ❌ 条件 World Info / 行为书触发 |
-| **P3** | Template 化 | ❌ 独立 template repo；跟 upstream main CI |
+| **P2** | 四书 (a)(b)(c) 产品化 | ✅ 世界书 + 行为书规则表 + prompt 脚手架 |
+| **P3** | Summary / Compact | ✅ Archive 落盘 + deterministic summary |
+| **P3** | 变量 → 分支剧情 | ✅ 条件 World Info / 行为书触发 |
+| **P3** | Template 化 | ✅ `examples/templates/` + `export-room-template.mjs` + authoring 文档 |
 | **持续** | REST audit | 按需端点审查 |
-| **持续** | 前端大改 | Wireframe → 视觉/交互重构（App Router 保留） |
+| **持续** | 前端增强 | 窄屏布局、视觉/交互迭代（App Router 保留） |
 
 ---
 
@@ -238,27 +234,28 @@
 
 ---
 
-## 10. 当前实现缺口清单（对照 Phase 1）
+## 10. 当前实现状态（v2.2.0-ts）
 
 | 项 | 状态 | 说明 |
 |----|------|------|
 | Pi Agent 接入 generate/stream | ✅ | orchestrator + Agent |
 | pi-ai 模型解析 | ✅ | resolve-pi-model |
-| 变量 Tool (set/get/list…) | ✅ | 无分支叙事 |
-| World Info 扫描 | ✅ | 世界书雏形 |
-| Presence / WS / SSE | ✅ | 需 chart buffer spike |
-| **Ask Tool + 侧栏 UI** | ✅ 工作区已实现 | 缺 Ask E2E；answer 已校验 |
-| **Write to Room Tool** | ✅ 工作区已实现 | 见 phase-1-implementation-spec.md |
-| **Write to Bar + Status Bar** | ✅ 工作区已实现 | room_bar 表 + 顶栏 |
-| **前端 wireframe（并行）** | ✅ | docs/plans/wireframes/ |
-| **变量测量 UI (gauge)** | ✅ 工作区已实现 | variables-panel 数值条 |
-| **chart/Mermaid Buffer** | ✅ 工作区已实现 | Mermaid 渲染库 + 未闭合块 buffer |
-| DM 多 Agent 调度 | ✅ 工作区已实现 | 用户指定下轮 + Auto DM 选角；完整 DM Agent 后续增强 |
-| Patch + 动画 | ✅ 工作区已实现 | 整条消息 patch + 高亮；段落级 diff 后续增强 |
-| Compact / Summary | ❌ | Phase 3 |
-| Current Scale 存储选型 | ❌ | Phase 3 首先解决 Archive / Compact |
-| 四书 (b)(c) 数据模型 | ⚠️ | 提示词脚手架完成；行为书规则表待 P3 |
-| Chatbox 配置调研文档 | ✅ 初稿 | Phase 1 文档 |
+| 变量 Tool (set/get/list…) | ✅ | room/global + 条件分支 |
+| World Info 扫描 | ✅ | 含条件过滤 |
+| Presence / WS / SSE | ✅ | 含 Mermaid buffer |
+| Ask Tool + 侧栏 UI | ✅ | SSE resume + E2E |
+| Write to Room Tool | ✅ | write-to-room.ts |
+| Write to Bar + Status Bar | ✅ | room_bar 表 + 顶栏 |
+| 变量测量 UI (gauge) | ✅ | variables-panel |
+| chart/Mermaid Buffer | ✅ | mermaid-diagram + 未闭合块 buffer |
+| DM 调度 | ✅ | 用户指定下轮 + Auto DM 选角 |
+| Patch Room | ✅ | 整条消息 patch + 高亮 |
+| Compact / Summary / Archive | ✅ | archive-builder + summary-compact |
+| 行为书规则表 | ✅ | behavior_rules + prompt 注入 |
+| Template 导出 | ✅ | export-room-template.mjs + template-authoring |
+| Current Scale 存储选型 | ⏳ | Archive 已落地；稿本级 Current Scale 方案仍待定 |
+| 完整 DM Agent（独立写手调度） | ⏳ | 后续增强 |
+| 段落级 Patch diff | ⏳ | 后续增强 |
 | REST 全面 audit | ⏸ | 按需 |
 
 ---
@@ -267,11 +264,12 @@
 
 | # | 问题 | 状态 |
 |---|------|------|
-| 1 | Ask 侧栏在窄屏是否改为 bottom sheet | ⏳ wireframe 阶段 |
-| 2 | ~~`write_to_bar` 存储表结构~~ | ✅ 独立 `room_bar` 表（每 room 一行 upsert） |
+| 1 | Ask 侧栏在窄屏是否改为 bottom sheet | ⏳ 待产品/UX 决策 |
+| 2 | ~~`write_to_bar` 存储表结构~~ | ✅ 独立 `room_bar` 表 |
 | 3 | 「Locus」是否专指 Oracle Locus SDK | ⏳ 请产品确认名词 |
-| 4 | DM 显式指定入口的 UI 文案与快捷键 | ⏳ wireframe |
+| 4 | DM 显式指定入口的 UI 文案与快捷键 | ⏳ 可继续打磨 |
 | 5 | ~~Ask resume 模式~~ | ✅ 挂起 + `POST generate/stream/resume` 新流 |
+| 6 | Current Scale 稿本存储方案（§6 A/B/C） | ⏳ Archive 已解决归档；会话内稿本层仍待定 |
 
 已关闭：Ask 用侧栏；旁白走 write_to_room；DM 指定发言者；wireframe 并行；Big Scale 先调研；bar 独立表；Ask new stream resume。
 
@@ -281,11 +279,9 @@
 
 | 文件 | 内容 |
 |------|------|
-| `docs/fixes/2026-06-03-pi-agent-connectivity.md` | 联调修复记录（非 Agent 能力） |
-| `docs/architecture-map.html` | 当前全站结构可视化（偏现状） |
-| `docs/plans/phase-1-implementation-spec.md` | Phase 1 施工规格（API/表/事件） |
-| `docs/plans/wireframes/` | Phase 1 布局 wireframe |
-| `docs/plans/research-community-agent-patterns.md` | Locus / Pi / StoryWriter / Big Scale 调研 |
+| `docs/fixes/2026-06-03-pi-agent-connectivity.md` | Pi Agent 联调修复记录 |
+| `docs/templates/template-authoring.md` | 场景预设编写与 Archive 导出 |
+| `docs/E2E_TEST_SKILL.md` | Playwright 冒烟/E2E 流程 |
 
 ---
 
@@ -293,5 +289,6 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-06-21 | v0.3 | Phase 1–3 状态同步至 v2.2.0-ts；清理历史施工/wireframe/调研文档 |
 | 2026-06-03 | v0.2 | 锁定 Ask 侧栏、Write Room/Bar、DM 指定发言、wireframe 并行；社区调研 |
 | 2026-06-03 | v0.1 | 初稿：8 条评审 + 三轮问答落盘 |

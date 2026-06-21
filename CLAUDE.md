@@ -90,7 +90,7 @@ ai_tea-_party/
 │
 ├── packages/shared/src/        # Zod 类型
 ├── scripts/                    # 如 export-room-template.mjs
-└── docs/plans/                 # 路线图与 Phase 计划
+└── docs/                       # E2E 手册、路线图、模板编写、联调修复记录
 ```
 
 ### Python 遗留代码
@@ -149,5 +149,6 @@ PORT=3004
 
 - 当前 API 版本：**v2.2.0-ts**
 - 路线图：[docs/plans/agent-platform-roadmap.md](docs/plans/agent-platform-roadmap.md)
-- Phase 3：[docs/plans/phase-3-implementation-plan.md](docs/plans/phase-3-implementation-plan.md)
+- 场景预设：[docs/templates/template-authoring.md](docs/templates/template-authoring.md)
 - E2E：[docs/E2E_TEST_SKILL.md](docs/E2E_TEST_SKILL.md)
+- Pi Agent 联调：[docs/fixes/2026-06-03-pi-agent-connectivity.md](docs/fixes/2026-06-03-pi-agent-connectivity.md)
