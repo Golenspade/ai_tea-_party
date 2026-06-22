@@ -26,6 +26,7 @@ import { ChatBottombar } from "@/components/chat/chat-bottombar";
 import { ApiConfigDialog } from "@/components/dialogs/api-config-dialog";
 import { submitAskAndStartResume } from "@/services/ask-flow";
 import { applyMessagePatch } from "@/services/message-patch";
+import { useRoomActivityActions } from "@/hooks/use-room-activity";
 import { useEffect } from "react";
 import type {
   ActiveBranch,
@@ -62,6 +63,7 @@ export function ChatLayout() {
   const [lastCompactResult, setLastCompactResult] = useState<RoomCompactResult | null>(null);
   const [patchedMessageIds, setPatchedMessageIds] = useState<Set<string>>(new Set());
   const [dmNextSpeaker, setDmNextSpeaker] = useState<DmNextSpeaker | null>(null);
+  const roomActivity = useRoomActivityActions("default");
 
   const appendRoomMessage = useCallback((msg: Message) => {
     setMessages((prev) => {
@@ -384,39 +386,63 @@ export function ChatLayout() {
         awaitingUser: { current: boolean };
       },
     ) => {
-      if (parsed.type === "delta" && typeof parsed.content === "string") {
+      const type = String(parsed.type || "");
+
+      if (type === "delta" && typeof parsed.content === "string") {
+        roomActivity.markVisibleOutput();
         enqueue(tempId, parsed.content);
-      } else if (parsed.type === "room_message" && parsed.message) {
+      } else if (type === "room_message" && parsed.message) {
+        roomActivity.markVisibleOutput();
         appendRoomMessage(parsed.message as Message);
-      } else if (parsed.type === "message_patch" && parsed.patch) {
+      } else if (type === "message_patch" && parsed.patch) {
+        roomActivity.markVisibleOutput();
         handleMessagePatch(parsed.patch as MessagePatch);
-      } else if (parsed.type === "bar_update") {
+      } else if (type === "bar_update") {
+        roomActivity.markVisibleOutput();
         setRoomBar({
           content: String(parsed.content || ""),
           label: String(parsed.label || "当前形势"),
           version: Number(parsed.version || 0),
         });
-      } else if (parsed.type === "ask_pending") {
+      } else if (type === "tool_call_start") {
+        roomActivity.setTool(
+          String(parsed.tool || "tool"),
+          (parsed.args as Record<string, unknown>) || {},
+        );
+      } else if (type === "tool_call_update" && typeof parsed.tool === "string") {
+        // Progress-only updates keep the current acting label.
+      } else if (type === "tool_call_end") {
+        roomActivity.clearTool();
+        void loadVariables();
+      } else if (type === "ask_pending") {
         void loadPendingAsk();
-      } else if (parsed.type === "awaiting_user") {
+      } else if (type === "awaiting_user") {
         ctx.awaitingUser.current = true;
+        roomActivity.setAwaitingUser();
         stopTypewriter(tempId);
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
-      } else if (parsed.type === "final" && parsed.request_id) {
+      } else if (type === "final" && parsed.request_id) {
         ctx.finalRequestId.current = String(parsed.request_id);
-      } else if (parsed.type === "tool_call_end") {
-        void loadVariables();
-      } else if (parsed.type === "error") {
+        roomActivity.endRun();
+      } else if (type === "error") {
+        roomActivity.setError(String(parsed.message || "agent 执行出错"));
         stopTypewriter(tempId);
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
       }
     },
-    [appendRoomMessage, enqueue, handleMessagePatch, stopTypewriter],
+    [
+      appendRoomMessage,
+      enqueue,
+      handleMessagePatch,
+      roomActivity,
+      stopTypewriter,
+    ],
   );
 
   const consumeSseResponse = useCallback(
     async (response: Response, tempId: string) => {
       if (!response.ok || !response.body) {
+        roomActivity.endRun();
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
         return;
       }
@@ -426,6 +452,7 @@ export function ChatLayout() {
       let buffer = "";
       const finalRequestId = { current: null as string | null };
       const awaitingUser = { current: false };
+      const errored = { current: false };
 
       const processSSELine = (line: string) => {
         if (!line.startsWith("data:")) return;
@@ -433,7 +460,11 @@ export function ChatLayout() {
         if (!payload) return;
 
         try {
-          processSseEvent(JSON.parse(payload) as Record<string, unknown>, tempId, {
+          const parsed = JSON.parse(payload) as Record<string, unknown>;
+          if (parsed.type === "error") {
+            errored.current = true;
+          }
+          processSseEvent(parsed, tempId, {
             finalRequestId,
             awaitingUser,
           });
@@ -457,8 +488,12 @@ export function ChatLayout() {
         buffer.split("\n\n").forEach((ev) => processSSELine(ev.trim()));
       }
 
-      if (awaitingUser.current) {
+      if (awaitingUser.current || errored.current) {
         return;
+      }
+
+      if (!finalRequestId.current) {
+        roomActivity.endRun();
       }
 
       flush(tempId);
@@ -470,7 +505,7 @@ export function ChatLayout() {
         );
       }
     },
-    [flush, processSseEvent],
+    [flush, processSseEvent, roomActivity],
   );
 
   const handleAISpeech = async (characterId: string) => {
@@ -486,6 +521,10 @@ export function ChatLayout() {
       sender_type: "ai",
     };
 
+    roomActivity.startRun({
+      characterId,
+      characterName: targetCharacter?.name || "AI",
+    });
     setMessages((prev) => [...prev, placeholder]);
 
     try {
@@ -493,6 +532,7 @@ export function ChatLayout() {
       await consumeSseResponse(response, tempId);
     } catch (error) {
       console.error("Error generating AI message:", error);
+      roomActivity.setError("生成失败，请重试");
       stopTypewriter(tempId);
       setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
     }
@@ -531,6 +571,10 @@ export function ChatLayout() {
       };
 
       setMessages((prev) => [...prev, placeholder]);
+      roomActivity.startRun({
+        characterId,
+        characterName: targetCharacter?.name || "AI",
+      });
       const response = await submitAskAndStartResume(
         askId,
         answer,
@@ -541,6 +585,7 @@ export function ChatLayout() {
       await consumeSseResponse(response, tempId);
     } catch (error) {
       console.error("Failed to submit ask answer:", error);
+      roomActivity.setError("恢复生成失败，请重试");
       if (tempId) {
         stopTypewriter(tempId);
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));

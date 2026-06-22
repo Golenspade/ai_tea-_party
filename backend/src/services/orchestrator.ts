@@ -28,6 +28,7 @@ import { parseAskUserInput, formatAskAnswer } from "./ask-user";
 import { parseWriteToRoomInput, type WriteToRoomInput } from "./write-to-room";
 import { parseWriteToBarInput, type WriteToBarInput } from "./write-to-bar";
 import { parsePatchRoomInput, type PatchRoomInput } from "./patch-room";
+import { mapToolExecutionToStreamingEvent } from "./tool-execution-events";
 
 export interface OrchestratorStreamSession {
   requestId: string;
@@ -459,46 +460,12 @@ export class ChatOrchestrator {
           break;
         }
 
-        case "tool_execution_start": {
-          const toolName =
-            payload.toolName ||
-            payload.toolCall?.name ||
-            payload.toolCallId ||
-            "tool";
-          queue.push({
-            type: "tool_call_start",
-            request_id: runContext.requestId,
-            tool: toolName,
-            args: normalizeToolArgs(payload.args || payload.toolCall?.arguments),
-          });
-          break;
-        }
-
-        case "tool_execution_update": {
-          const toolName = payload.toolName || payload.toolCall?.name || payload.toolCallId || "tool";
-          const partial = (payload.partialResult as { content?: unknown } | undefined)?.content;
-          queue.push({
-            type: "tool_call_update",
-            request_id: runContext.requestId,
-            tool: toolName,
-            progress:
-              partial === undefined
-                ? "processing"
-                : typeof partial === "string"
-                  ? partial
-                  : JSON.stringify(partial),
-          });
-          break;
-        }
-
+        case "tool_execution_start":
+        case "tool_execution_update":
         case "tool_execution_end": {
-          const toolName = payload.toolName || payload.toolCall?.name || payload.toolCallId || "tool";
-          queue.push({
-            type: "tool_call_end",
-            request_id: runContext.requestId,
-            tool: toolName,
-            output: normalizeToolArgs(payload.result),
-          });
+          queue.push(
+            mapToolExecutionToStreamingEvent(payload.type, payload, runContext),
+          );
           break;
         }
 
@@ -686,8 +653,12 @@ export class ChatOrchestrator {
 
         case "tool_execution_start":
         case "tool_execution_update":
-        case "tool_execution_end":
+        case "tool_execution_end": {
+          queue.push(
+            mapToolExecutionToStreamingEvent(payload.type, payload, runContext),
+          );
           break;
+        }
 
         case "error": {
           queue.push({

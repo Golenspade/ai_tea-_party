@@ -3,6 +3,8 @@
 import { useEffect, useRef } from "react";
 import type { Character, Message } from "@/lib/types";
 import { CustomChatBubble } from "@/components/chat/custom-chat-bubble";
+import { AgentActivityLine } from "@/components/chat/agent-activity-line";
+import { useRoomActivity } from "@/hooks/use-room-activity";
 
 interface ChatMessageListProps {
   messages: Message[];
@@ -11,11 +13,12 @@ interface ChatMessageListProps {
 }
 
 export function ChatMessageList({ messages, characters, patchedMessageIds }: ChatMessageListProps) {
+  const activity = useRoomActivity();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, activity.updatedAt, activity.currentToolLabel, activity.status]);
 
   return (
     <div className="flex-1 overflow-y-auto px-6 sm:px-12 pt-20 pb-40">
@@ -34,6 +37,7 @@ export function ChatMessageList({ messages, characters, patchedMessageIds }: Cha
             isPatched={patchedMessageIds?.has(message.id)}
           />
         ))}
+        <AgentActivityLine activity={activity} />
         <div ref={messagesEndRef} />
       </div>
     </div>
