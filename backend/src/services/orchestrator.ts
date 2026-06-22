@@ -49,6 +49,7 @@ export interface OrchestratorRuntime {
   roomId: string;
   provider: string;
   model: string;
+  getApiKey: (piProvider: string) => Promise<string | undefined> | string | undefined;
   listRoomVariables: (roomId: string) => Promise<VariableEntryLike[]> | VariableEntryLike[];
   listGlobalVariables: () => Promise<VariableEntryLike[]> | VariableEntryLike[];
   setVariable: (scope: VariableScope, name: string, value: unknown) => Promise<VariableEntryLike> | VariableEntryLike;
@@ -419,6 +420,7 @@ export class ChatOrchestrator {
           timestamp: Date.now(),
         })) as never,
       },
+      getApiKey: runtime.getApiKey,
       beforeToolCall: async ({ toolCall, args }) => {
         if (process.env.NODE_ENV !== "production") {
           console.info(`beforeToolCall: ${toolCall.name} ${JSON.stringify(args)}`);
@@ -620,6 +622,7 @@ export class ChatOrchestrator {
         tools,
         messages: restoredMessages as never,
       },
+      getApiKey: runtime.getApiKey,
       beforeToolCall: async () => undefined,
       afterToolCall: async () => undefined,
     });
