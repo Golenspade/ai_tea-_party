@@ -1008,6 +1008,8 @@ export function registerRestRoutes(
     appState.setConfig({
       provider: request.body.provider,
       model: request.body.model,
+      api_key: request.body.api_key,
+      api_base: request.body.api_base,
     });
 
     return {

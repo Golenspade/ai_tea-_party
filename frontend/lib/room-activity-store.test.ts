@@ -1,0 +1,67 @@
+import { beforeEach, describe, expect, it } from "vitest";
+
+import {
+  createEmptyRoomActivityRecord,
+  deriveRoomActivityStatus,
+  EMPTY_ROOM_ACTIVITY_RECORD,
+  useRoomActivityStore,
+} from "./room-activity-store";
+
+describe("room-activity-store", () => {
+  beforeEach(() => {
+    useRoomActivityStore.setState({ records: {} });
+  });
+
+  it("starts in thinking on startRun", () => {
+    useRoomActivityStore.getState().startRun("default", {
+      characterId: "c1",
+      characterName: "小明",
+    });
+
+    const record = useRoomActivityStore.getState().getRecord("default");
+    expect(record.runActive).toBe(true);
+    expect(record.status).toBe("thinking");
+    expect(record.characterName).toBe("小明");
+  });
+
+  it("moves to acting when tool args are ready", () => {
+    const store = useRoomActivityStore.getState();
+    store.startRun("default", { characterId: "c1", characterName: "小明" });
+    store.setTool("default", "write_to_room", { content: "一段旁白" });
+
+    const record = store.getRecord("default");
+    expect(record.status).toBe("acting");
+    expect(record.currentToolLabel).toContain("正在写入房间");
+  });
+
+  it("defers tool label for empty args", () => {
+    const store = useRoomActivityStore.getState();
+    store.startRun("default", { characterId: "c1", characterName: "小明" });
+    store.setTool("default", "write_to_room", {});
+
+    const record = store.getRecord("default");
+    expect(record.currentTool).toBe("write_to_room");
+    expect(record.currentToolLabel).toBeNull();
+    expect(record.status).toBe("thinking");
+  });
+
+  it("returns to idle on endRun", () => {
+    const store = useRoomActivityStore.getState();
+    store.startRun("default", { characterId: "c1", characterName: "小明" });
+    store.endRun("default");
+
+    const record = store.getRecord("default");
+    expect(record).toBe(EMPTY_ROOM_ACTIVITY_RECORD);
+    expect(record.runActive).toBe(false);
+    expect(record.status).toBe("idle");
+  });
+
+  it("derives streaming after visible output", () => {
+    const record = {
+      ...createEmptyRoomActivityRecord(),
+      runActive: true,
+      hasVisibleOutput: true,
+    };
+    expect(deriveRoomActivityStatus(record)).toBe("streaming");
+  });
+});

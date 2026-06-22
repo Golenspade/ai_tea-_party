@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Settings } from "lucide-react";
-import { fetchProviders } from "@/services/api";
+import { fetchProviders, fetchCurrentConfig } from "@/services/api";
 
 interface ApiConfigDialogProps {
   onSave: (config: ApiConfig) => void;
@@ -41,8 +41,23 @@ export function ApiConfigDialog({ onSave }: ApiConfigDialogProps) {
   // 加载 provider 列表
   useEffect(() => {
     if (open) {
-      fetchProviders()
-        .then(setProviders)
+      Promise.all([fetchProviders(), fetchCurrentConfig()])
+        .then(([providerDefs, config]) => {
+          setProviders(providerDefs);
+          const current = config.current_config as {
+            provider?: string;
+            model?: string;
+          } | null;
+          if (current?.provider && providerDefs[current.provider]) {
+            const pdef = providerDefs[current.provider];
+            setForm({
+              provider: current.provider,
+              apiKey: "",
+              model: current.model || pdef.default || "",
+              apiBase: pdef.default_api_base || "",
+            });
+          }
+        })
         .catch((err) => console.error("Failed to fetch providers:", err));
     }
   }, [open]);

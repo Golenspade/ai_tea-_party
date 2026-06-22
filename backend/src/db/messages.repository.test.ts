@@ -67,4 +67,20 @@ describe("AppRepository messages", () => {
       assert.equal(repository.updateRoomMessageContent("room-1", "missing", "新正文"), undefined);
     });
   });
+
+  it("returns the latest messages in chronological order when no since cursor", () => {
+    withRepository((repository) => {
+      for (let index = 0; index < 5; index += 1) {
+        repository.addRoomMessage("room-1", {
+          ...makeMessage(`message-${index}`, `正文-${index}`, "ai"),
+          timestamp: `2026-06-09T00:00:0${index}.000Z`,
+        });
+      }
+
+      const latestTwo = repository.getRoomMessages("room-1", undefined, 2);
+      assert.equal(latestTwo.length, 2);
+      assert.equal(latestTwo[0]?.id, "message-3");
+      assert.equal(latestTwo[1]?.id, "message-4");
+    });
+  });
 });
