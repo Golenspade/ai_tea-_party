@@ -1,3 +1,5 @@
+import "./load-env.js";
+
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -46,6 +48,11 @@ import {
 } from "./services/variables";
 import { ResponseLength } from "./types";
 import { parseEnvAiProvider } from "./services/resolve-pi-model";
+import {
+  credentialSettingKey,
+  createPiGetApiKey,
+  hasCredentialForAppProvider,
+} from "./services/pi-credentials";
 import { bootstrapRoomsFromConfig } from "./utils/config-bootstrap";
 import { chooseNextSpeaker as selectNextSpeaker } from "./services/dm-orchestrator";
 import {
@@ -832,11 +839,29 @@ class AppState {
     return {
       provider: this.currentProvider,
       model: this.currentModel,
-      has_api_key: true,
+      has_api_key: hasCredentialForAppProvider(
+        this.currentProvider,
+        (provider) => this.getStoredApiKey(provider),
+      ),
     };
   }
 
-  setConfig(payload: { provider: string; model?: string }): void {
+  getStoredApiKey(provider: string): string | undefined {
+    const value = this.repository.getSetting(credentialSettingKey(provider, "api_key"));
+    return value || undefined;
+  }
+
+  getStoredApiBase(provider: string): string | undefined {
+    const value = this.repository.getSetting(credentialSettingKey(provider, "api_base"));
+    return value || undefined;
+  }
+
+  setConfig(payload: {
+    provider: string;
+    model?: string;
+    api_key?: string;
+    api_base?: string;
+  }): void {
     if (!AppState.PROVIDERS[payload.provider]) {
       throw new Error("不支持的 Provider");
     }
@@ -849,6 +874,16 @@ class AppState {
     this.currentModel = candidate;
     this.repository.setSetting("provider", this.currentProvider);
     this.repository.setSetting("model", this.currentModel);
+
+    const trimmedKey = payload.api_key?.trim();
+    if (trimmedKey) {
+      this.repository.setSetting(credentialSettingKey(payload.provider, "api_key"), trimmedKey);
+    }
+
+    const trimmedBase = payload.api_base?.trim();
+    if (trimmedBase) {
+      this.repository.setSetting(credentialSettingKey(payload.provider, "api_base"), trimmedBase);
+    }
   }
 
   setResponseLength(next: ResponseLength): void {
@@ -860,9 +895,22 @@ class AppState {
     if (!AppState.PROVIDERS[this.currentProvider]) {
       return { success: false, message: "provider not found" };
     }
+
+    if (
+      !hasCredentialForAppProvider(this.currentProvider, (provider) =>
+        this.getStoredApiKey(provider),
+      )
+    ) {
+      const envKey = AppState.PROVIDERS[this.currentProvider].env_key;
+      return {
+        success: false,
+        message: `未配置 ${this.currentProvider} 的 API 密钥（前端设置或 ${envKey}）`,
+      };
+    }
+
     return {
       success: true,
-      message: `${this.currentModel} 连接正常`,
+      message: `${this.currentModel} 凭证已就绪`,
       latency_ms: 0,
     };
   }
@@ -1199,6 +1247,9 @@ class AppState {
       roomId,
       provider: this.currentProvider,
       model: this.currentModel,
+      getApiKey: createPiGetApiKey({
+        getStoredApiKey: (provider) => this.getStoredApiKey(provider),
+      }),
       speakingCharacterId: speakingCharacter.id,
       speakingCharacterName: speakingCharacter.name,
       listRoomCharacters: () => room?.characters ?? [],

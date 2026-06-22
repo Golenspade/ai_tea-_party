@@ -1,21 +1,14 @@
+import "./load-env.js";
+
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { config } from "dotenv";
 
 import { appState } from "./store";
 import { RoomSocketManager } from "./room-hub";
 import { registerRestRoutes } from "./routes/rest";
 import { registerSseRoutes } from "./routes/sse";
 import { registerWsRoutes } from "./routes/ws";
-
-for (const envPath of [resolve(process.cwd(), ".env"), resolve(process.cwd(), "../.env")]) {
-  if (existsSync(envPath)) {
-    config({ path: envPath });
-  }
-}
 
 const app = Fastify({ logger: true });
 const socketManager = new RoomSocketManager();

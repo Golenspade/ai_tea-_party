@@ -1,5 +1,5 @@
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
-import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -373,13 +373,22 @@ export class AppRepository {
       ? and(eq(messages.roomId, roomId), gt(messages.timestamp, sinceIso))
       : eq(messages.roomId, roomId);
 
-    const rows = this.db
-      .select()
-      .from(messages)
-      .where(whereClause)
-      .orderBy(asc(messages.timestamp))
-      .limit(limit)
-      .all();
+    const rows = sinceIso
+      ? this.db
+          .select()
+          .from(messages)
+          .where(whereClause)
+          .orderBy(asc(messages.timestamp))
+          .limit(limit)
+          .all()
+      : this.db
+          .select()
+          .from(messages)
+          .where(whereClause)
+          .orderBy(desc(messages.timestamp))
+          .limit(limit)
+          .all()
+          .reverse();
 
     return rows.map((item) => ({
       id: item.id,
