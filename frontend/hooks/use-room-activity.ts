@@ -1,11 +1,13 @@
 import { useMemo } from "react";
 
-import { useRoomActivityStore } from "@/lib/room-activity-store";
+import { EMPTY_ROOM_ACTIVITY_RECORD, useRoomActivityStore } from "@/lib/room-activity-store";
 
 export const DEFAULT_ROOM_ID = "default";
 
 export function useRoomActivity(roomId = DEFAULT_ROOM_ID) {
-  return useRoomActivityStore((state) => state.getRecord(roomId));
+  return useRoomActivityStore(
+    (state) => state.records[roomId] ?? EMPTY_ROOM_ACTIVITY_RECORD,
+  );
 }
 
 export function useRoomActivityActions(roomId = DEFAULT_ROOM_ID) {

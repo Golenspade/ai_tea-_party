@@ -50,6 +50,22 @@ export function createEmptyRoomActivityRecord(): RoomActivityRecord {
   };
 }
 
+/** Stable idle snapshot for selectors — must not allocate per render. */
+export const EMPTY_ROOM_ACTIVITY_RECORD: RoomActivityRecord = {
+  status: "idle",
+  requestId: null,
+  characterId: null,
+  characterName: null,
+  runActive: false,
+  hasVisibleOutput: false,
+  currentTool: null,
+  currentToolLabel: null,
+  toolStartedAt: null,
+  errorMessage: null,
+  toolSteps: [],
+  updatedAt: 0,
+};
+
 export function deriveRoomActivityStatus(record: RoomActivityRecord): RoomActivityStatus {
   if (record.errorMessage) return "error";
   if (!record.runActive) return "idle";
@@ -86,7 +102,7 @@ export interface RoomActivityStore {
 export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
   records: {},
 
-  getRecord: (roomId) => get().records[roomId] ?? createEmptyRoomActivityRecord(),
+  getRecord: (roomId) => get().records[roomId] ?? EMPTY_ROOM_ACTIVITY_RECORD,
 
   startRun: (roomId, input) =>
     set((state) => ({
@@ -105,7 +121,7 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
 
   setTool: (roomId, tool, args) =>
     set((state) => {
-      const prev = state.records[roomId] ?? createEmptyRoomActivityRecord();
+      const prev = state.records[roomId] ?? EMPTY_ROOM_ACTIVITY_RECORD;
       if (shouldDeferToolLabel(tool, args)) {
         return {
           records: {
@@ -134,7 +150,7 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
 
   clearTool: (roomId) =>
     set((state) => {
-      const prev = state.records[roomId] ?? createEmptyRoomActivityRecord();
+      const prev = state.records[roomId] ?? EMPTY_ROOM_ACTIVITY_RECORD;
       const step: RoomActivityToolStep | null =
         prev.currentTool && prev.toolStartedAt
           ? {
@@ -161,7 +177,7 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
 
   markVisibleOutput: (roomId) =>
     set((state) => {
-      const prev = state.records[roomId] ?? createEmptyRoomActivityRecord();
+      const prev = state.records[roomId] ?? EMPTY_ROOM_ACTIVITY_RECORD;
       if (prev.hasVisibleOutput) {
         return state;
       }
@@ -178,7 +194,7 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
 
   setAwaitingUser: (roomId) =>
     set((state) => {
-      const prev = state.records[roomId] ?? createEmptyRoomActivityRecord();
+      const prev = state.records[roomId] ?? EMPTY_ROOM_ACTIVITY_RECORD;
       return {
         records: {
           ...state.records,
@@ -197,7 +213,7 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
 
   setError: (roomId, message) =>
     set((state) => {
-      const prev = state.records[roomId] ?? createEmptyRoomActivityRecord();
+      const prev = state.records[roomId] ?? EMPTY_ROOM_ACTIVITY_RECORD;
       return {
         records: {
           ...state.records,
@@ -214,18 +230,20 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
     }),
 
   endRun: (roomId) =>
-    set((state) => ({
-      records: {
-        ...state.records,
-        [roomId]: createEmptyRoomActivityRecord(),
-      },
-    })),
+    set((state) => {
+      if (!(roomId in state.records)) {
+        return state;
+      }
+      const { [roomId]: _removed, ...records } = state.records;
+      return { records };
+    }),
 
   reset: (roomId) =>
-    set((state) => ({
-      records: {
-        ...state.records,
-        [roomId]: createEmptyRoomActivityRecord(),
-      },
-    })),
+    set((state) => {
+      if (!(roomId in state.records)) {
+        return state;
+      }
+      const { [roomId]: _removed, ...records } = state.records;
+      return { records };
+    }),
 }));

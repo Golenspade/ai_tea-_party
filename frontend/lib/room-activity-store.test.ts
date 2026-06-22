@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   createEmptyRoomActivityRecord,
   deriveRoomActivityStatus,
+  EMPTY_ROOM_ACTIVITY_RECORD,
   useRoomActivityStore,
 } from "./room-activity-store";
 
@@ -50,6 +51,7 @@ describe("room-activity-store", () => {
     store.endRun("default");
 
     const record = store.getRecord("default");
+    expect(record).toBe(EMPTY_ROOM_ACTIVITY_RECORD);
     expect(record.runActive).toBe(false);
     expect(record.status).toBe("idle");
   });
