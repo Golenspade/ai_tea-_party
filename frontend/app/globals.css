@@ -39,6 +39,15 @@
   --theme-accent: #a35d40;
   --theme-border: #e6dec1;
 
+  /*
+   * Stacking — room content above chrome labels; toast/window one step lower.
+   * Review 2026-07-13: prioritize room surface over Activity/HUD label overlays.
+   */
+  --z-toast: 1;
+  --z-chrome-label: 2;
+  --z-room-surface: 3;
+  --z-hud: 3;
+
   /* shadcn/ui overrides mapped to sepia */
   --radius: 0.3rem; /* slightly less round for academic feel */
   --background: #fdfaf5;
