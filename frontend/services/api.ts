@@ -10,6 +10,7 @@ import type {
   VariablePatchRequest,
   VariableSetRequest,
   VariableScope,
+  VariableHudResponse,
   PresenceUser,
   Message,
   DmNextSpeaker,
@@ -249,6 +250,14 @@ export async function fetchRoomVariables(roomId = "default"): Promise<VariableEn
   if (!res.ok) throw new Error("Failed to fetch room variables");
   const data = await res.json();
   return data.variables || [];
+}
+
+export async function fetchVariableHud(
+  roomId = "default",
+): Promise<VariableHudResponse> {
+  const res = await fetch(`${BASE_URL}/api/rooms/${roomId}/variable-hud`);
+  if (!res.ok) throw new Error("Failed to fetch variable HUD");
+  return res.json();
 }
 
 export async function createRoomVariable(

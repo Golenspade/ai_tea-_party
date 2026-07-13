@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { E2E_API_BASE_URL } from "./helpers/constants";
+import { assertBackendHealthy, hasLiveLlmCredentials } from "./helpers/live";
 
 interface RoomMessage {
   id: string;
@@ -57,7 +58,12 @@ async function fetchLatestMessageTimestamp(
 test.describe("AI 对话连通性", () => {
   test.describe.configure({ timeout: 180_000 });
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, request }) => {
+    test.skip(
+      !hasLiveLlmCredentials(),
+      "需要真实 LLM API Key（DEEPSEEK_API_KEY / GEMINI_API_KEY 等）",
+    );
+    await assertBackendHealthy(request);
     await page.goto("/");
     await expect(page.locator('[title="Connected"]')).toBeVisible({ timeout: 20_000 });
   });

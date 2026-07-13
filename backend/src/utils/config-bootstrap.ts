@@ -1,4 +1,5 @@
-import type { CharacterFormData } from "@ai-party/shared";
+import type { CharacterFormData, VariableDisplay } from "@ai-party/shared";
+import { VariableDisplaySchema } from "@ai-party/shared";
 
 import { loadAppConfig, toCharacterFormData, type ConfigRoom } from "./config-loader";
 
@@ -16,6 +17,8 @@ export interface ConfigBootstrapAdapter {
     },
   ) => void;
   addCharacterToRoom: (roomId: string, data: CharacterFormData) => void;
+  setVariable?: (scope: "room", roomId: string, name: string, value: unknown) => void;
+  setRoomVariableDisplays?: (roomId: string, displays: VariableDisplay[]) => void;
 }
 
 export function bootstrapRoomsFromConfig(
@@ -59,5 +62,18 @@ function bootstrapRoom(
       continue;
     }
     adapter.addCharacterToRoom(roomId, toCharacterFormData(characterConfig));
+  }
+
+  for (const variable of roomConfig.room_variables || []) {
+    const name = String(variable.name || "").trim();
+    if (!name || !adapter.setVariable) continue;
+    adapter.setVariable("room", roomId, name, variable.value);
+  }
+
+  if (roomConfig.variable_displays && adapter.setRoomVariableDisplays) {
+    const parsed = VariableDisplaySchema.array().safeParse(roomConfig.variable_displays);
+    if (parsed.success) {
+      adapter.setRoomVariableDisplays(roomId, parsed.data);
+    }
   }
 }

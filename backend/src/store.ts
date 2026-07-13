@@ -12,6 +12,10 @@ import type {
   StreamingEvent,
   Persona,
   VariableEntry,
+  VariableDisplay,
+  VariableHudResponse,
+  VariableUpdateOp,
+  VariableUpdatePayload,
   WorldInfoBook,
   WorldInfoEntry,
   ProviderDef,
@@ -39,6 +43,11 @@ import {
   buildRoomBarSnapshot,
   type WriteToBarInput,
 } from "./services/write-to-bar";
+import {
+  buildVariableUpdatePayload,
+  isNoOpVariableChange,
+} from "./services/variable-events";
+import { resolveHudDisplays } from "@ai-party/shared";
 import type { PatchRoomInput } from "./services/patch-room";
 import {
   entriesToVariableRecord,
@@ -93,11 +102,35 @@ class AppState {
   private readonly autoChatState = new Map<string, boolean>();
   private readonly designatedNextSpeakers = new Map<string, string>();
   private readonly orchestrator: ChatOrchestrator;
+  private variableChangeNotifier?: (
+    payload: VariableUpdatePayload,
+  ) => void | Promise<void>;
 
   responseLength: ResponseLength = "default";
   currentProvider = "openai";
   currentModel = "gpt-4o-mini";
   autoChatTimers = new Map<string, NodeJS.Timeout>();
+
+  setVariableChangeNotifier(
+    notifier: (payload: VariableUpdatePayload) => void | Promise<void>,
+  ): void {
+    this.variableChangeNotifier = notifier;
+  }
+
+  private async emitVariableChange(input: {
+    roomId: string;
+    scope: "room" | "global";
+    name: string;
+    op: VariableUpdateOp;
+    previousValue?: unknown;
+    value: unknown;
+  }): Promise<void> {
+    if (!this.variableChangeNotifier) return;
+    if (isNoOpVariableChange(input.previousValue, input.value) && input.op !== "delete") {
+      return;
+    }
+    await this.variableChangeNotifier(buildVariableUpdatePayload(input));
+  }
 
   static readonly PROVIDERS: Record<string, ProviderDef> = {
     openai: {
@@ -261,6 +294,12 @@ class AppState {
         addCharacterToRoom: (roomId, data) => {
           this.addCharacterToRoom(roomId, data);
         },
+        setVariable: (scope, roomId, name, value) => {
+          this.setVariable(scope, roomId, name, value);
+        },
+        setRoomVariableDisplays: (roomId, displays) => {
+          this.setRoomVariableDisplays(roomId, displays);
+        },
       },
       undefined,
       nowIso,
@@ -419,6 +458,35 @@ class AppState {
     return this.repository.listGlobalVariables();
   }
 
+  getRoomVariableDisplays(roomId: string): VariableDisplay[] {
+    if (!this.repository.getRoom(roomId)) {
+      return [];
+    }
+    return this.repository.getRoomVariableDisplays(roomId);
+  }
+
+  setRoomVariableDisplays(roomId: string, displays: VariableDisplay[]): VariableDisplay[] {
+    if (!this.repository.getRoom(roomId)) {
+      throw new Error("聊天室不存在");
+    }
+    this.repository.setRoomVariableDisplays(roomId, displays);
+    return this.repository.getRoomVariableDisplays(roomId);
+  }
+
+  getVariableHud(roomId: string): VariableHudResponse {
+    if (!this.repository.getRoom(roomId)) {
+      throw new Error("聊天室不存在");
+    }
+    const roomVariables = this.listRoomVariables(roomId);
+    const explicit = this.getRoomVariableDisplays(roomId);
+    const displays = resolveHudDisplays(explicit, roomVariables);
+    const values: Record<string, unknown> = {};
+    for (const entry of roomVariables) {
+      values[entry.name] = entry.value;
+    }
+    return { displays, values };
+  }
+
   setVariable(scope: "room" | "global", roomIdOrName: string, name: string, value: unknown): VariableEntry {
     const key = String(name || "").trim();
     if (!key) {
@@ -426,13 +494,33 @@ class AppState {
     }
 
     if (scope === "global") {
-      return this.repository.setGlobalVariable(key, value);
+      const previousValue = this.repository.getGlobalVariable(key);
+      const result = this.repository.setGlobalVariable(key, value);
+      void this.emitVariableChange({
+        roomId: roomIdOrName,
+        scope: "global",
+        name: key,
+        op: "set",
+        previousValue,
+        value: result.value,
+      });
+      return result;
     }
 
     if (!this.repository.getRoom(roomIdOrName)) {
       throw new Error("聊天室不存在");
     }
-    return this.repository.setRoomVariable(roomIdOrName, key, value);
+    const previousValue = this.repository.getRoomVariable(roomIdOrName, key);
+    const result = this.repository.setRoomVariable(roomIdOrName, key, value);
+    void this.emitVariableChange({
+      roomId: roomIdOrName,
+      scope: "room",
+      name: key,
+      op: "set",
+      previousValue,
+      value: result.value,
+    });
+    return result;
   }
 
   addVariable(scope: "room" | "global", roomIdOrName: string, name: string, value: unknown): VariableEntry {
@@ -454,14 +542,38 @@ class AppState {
     }
 
     if (scope === "global") {
-      return this.repository.deleteGlobalVariable(key);
+      const previousValue = this.repository.getGlobalVariable(key);
+      const deleted = this.repository.deleteGlobalVariable(key);
+      if (deleted) {
+        void this.emitVariableChange({
+          roomId: roomIdOrName,
+          scope: "global",
+          name: key,
+          op: "delete",
+          previousValue,
+          value: undefined,
+        });
+      }
+      return deleted;
     }
 
     const room = this.getRoom(roomIdOrName);
     if (!room) {
       return false;
     }
-    return this.repository.deleteRoomVariable(room.id, key);
+    const previousValue = this.repository.getRoomVariable(room.id, key);
+    const deleted = this.repository.deleteRoomVariable(room.id, key);
+    if (deleted) {
+      void this.emitVariableChange({
+        roomId: room.id,
+        scope: "room",
+        name: key,
+        op: "delete",
+        previousValue,
+        value: undefined,
+      });
+    }
+    return deleted;
   }
 
   private _getVariableMap(
@@ -492,33 +604,45 @@ class AppState {
     }
 
     const ctx = this._getVariableMap(scope, roomIdOrName);
+    const previousValue =
+      ctx.scope === "global"
+        ? this.repository.getGlobalVariable(key)
+        : this.repository.getRoomVariable(ctx.roomId!, key);
 
+    let result: VariableEntry;
     if (mode === "add") {
       if (ctx.scope === "global") {
-        return this.repository.addGlobalVariable(key, value);
+        result = this.repository.addGlobalVariable(key, value);
+      } else {
+        if (!ctx.roomId) {
+          throw new Error("聊天室不存在");
+        }
+        result = this.repository.addRoomVariable(ctx.roomId, key, value);
       }
+    } else if (ctx.scope === "global") {
+      result =
+        mode === "inc"
+          ? this.repository.incGlobalVariable(key, value)
+          : this.repository.decGlobalVariable(key, value);
+    } else {
       if (!ctx.roomId) {
         throw new Error("聊天室不存在");
       }
-      return this.repository.addRoomVariable(ctx.roomId, key, value);
+      result =
+        mode === "inc"
+          ? this.repository.incRoomVariable(ctx.roomId, key, value)
+          : this.repository.decRoomVariable(ctx.roomId, key, value);
     }
 
-    if (ctx.scope === "global") {
-      if (mode === "inc") {
-        return this.repository.incGlobalVariable(key, value);
-      }
-      return this.repository.decGlobalVariable(key, value);
-    }
-
-    if (!ctx.roomId) {
-      throw new Error("聊天室不存在");
-    }
-
-    if (mode === "inc") {
-      return this.repository.incRoomVariable(ctx.roomId, key, value);
-    }
-
-    return this.repository.decRoomVariable(ctx.roomId, key, value);
+    void this.emitVariableChange({
+      roomId: ctx.roomId ?? roomIdOrName,
+      scope: ctx.scope,
+      name: key,
+      op: mode,
+      previousValue,
+      value: result.value,
+    });
+    return result;
   }
 
   addCharacterToRoom(roomId: string, data: Character | CharacterFormData): Character {
@@ -1282,6 +1406,7 @@ class AppState {
       listRoomWorldInfoBooks: async (id) => this.getRoomWorldInfo(id),
       listRoomSummaries: async (id) => this.listRoomSummaries(id),
       listBehaviorRules: async (id) => this.listBehaviorRules(id),
+      listRoomVariableDisplays: async (id) => this.getRoomVariableDisplays(id),
       getDefaultPersona: () => this.listPersonas().find((persona) => persona.is_default) ?? null,
     };
   }

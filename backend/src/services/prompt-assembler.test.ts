@@ -245,8 +245,17 @@ describe("PromptAssembler", () => {
       },
       behaviorRules: rules,
       variableContext: { room: { danger: 9 }, global: {} },
+      variableDisplays: [
+        {
+          name: "danger",
+          label: "危险",
+          hint: "场景危险程度；明显危机时上升",
+        },
+      ],
     });
 
+    assert.match(assembled.systemPrompt, /房间状态变量/);
+    assert.match(assembled.systemPrompt, /danger（危险）：场景危险程度/);
     assert.match(assembled.systemPrompt, /\[行为书命中规则\]/);
     assert.match(assembled.systemPrompt, /高风险：进入高风险叙事/);
     assert.doesNotMatch(assembled.systemPrompt, /这条不应该出现/);

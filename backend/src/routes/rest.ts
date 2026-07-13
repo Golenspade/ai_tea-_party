@@ -8,6 +8,7 @@ import type {
   CharacterFormData,
   Message,
   Persona,
+  VariableDisplay,
   VariableEntry,
   WorldInfoBook,
   WorldInfoEntry,
@@ -16,6 +17,7 @@ import type {
   VariableConditionLogic,
   BehaviorRule,
 } from "@ai-party/shared";
+import { VariableDisplaySchema } from "@ai-party/shared";
 import { parseWriteToRoomInput } from "../services/write-to-room";
 import { pendingAskToPublic, validateAskAnswer } from "../services/ask-user";
 import {
@@ -554,6 +556,35 @@ export function registerRestRoutes(
       variables: appState.listRoomVariables(roomId),
     };
   });
+
+  app.get<{ Params: RoomIdParams }>("/api/rooms/:room_id/variable-hud", (request, reply) => {
+    const roomId = request.params.room_id;
+    const room = appState.getRoom(roomId);
+    if (!room) {
+      return sendFailure(reply, 404, "聊天室不存在");
+    }
+
+    return appState.getVariableHud(roomId);
+  });
+
+  app.put<{ Params: RoomIdParams; Body: { displays?: VariableDisplay[] } }>(
+    "/api/rooms/:room_id/variable-displays",
+    (request, reply) => {
+      const roomId = request.params.room_id;
+      const room = appState.getRoom(roomId);
+      if (!room) {
+        return sendFailure(reply, 404, "聊天室不存在");
+      }
+
+      const parsed = VariableDisplaySchema.array().safeParse(request.body?.displays ?? []);
+      if (!parsed.success) {
+        return sendFailure(reply, 400, "variable_displays 格式无效");
+      }
+
+      const displays = appState.setRoomVariableDisplays(roomId, parsed.data);
+      return { room_id: roomId, displays };
+    },
+  );
 
   app.post<{ Params: RoomIdParams; Body: VariableSetRequest }>(
     "/api/rooms/:room_id/variables",

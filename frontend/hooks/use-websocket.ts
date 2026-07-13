@@ -10,6 +10,7 @@ import type {
   RoomBarSnapshot,
   PendingAskPublic,
   AskAnswer,
+  VariableUpdatePayload,
 } from "@/lib/types";
 
 function generateUserId(): string {
@@ -31,6 +32,7 @@ interface UseWebSocketOptions {
   onBarUpdate?: (bar: Pick<RoomBarSnapshot, "content" | "label" | "version">) => void;
   onAskPending?: (ask: PendingAskPublic) => void;
   onAskResolved?: (askId: string, answer: AskAnswer) => void;
+  onVariableUpdate?: (update: VariableUpdatePayload) => void;
   roomId?: string;
   preferredNickname?: string;
   preferredUserId?: string;
@@ -46,6 +48,7 @@ export function useWebSocket({
   onBarUpdate,
   onAskPending,
   onAskResolved,
+  onVariableUpdate,
   roomId = "default",
   preferredNickname,
   preferredUserId,
@@ -66,6 +69,7 @@ export function useWebSocket({
     onBarUpdate,
     onAskPending,
     onAskResolved,
+    onVariableUpdate,
   });
   callbacksRef.current = {
     onMessage,
@@ -77,6 +81,7 @@ export function useWebSocket({
     onBarUpdate,
     onAskPending,
     onAskResolved,
+    onVariableUpdate,
   };
 
   useEffect(() => {
@@ -147,6 +152,8 @@ export function useWebSocket({
         callbacksRef.current.onAskPending?.(data.ask);
       } else if (data.type === "ask_resolved") {
         callbacksRef.current.onAskResolved?.(data.ask_id, data.answer);
+      } else if (data.type === "variable_update") {
+        callbacksRef.current.onVariableUpdate?.(data);
       }
     };
 

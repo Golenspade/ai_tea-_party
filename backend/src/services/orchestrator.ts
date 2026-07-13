@@ -59,6 +59,7 @@ export interface OrchestratorRuntime {
   listRoomWorldInfoBooks: (roomId: string) => Promise<WorldInfoBook[]> | WorldInfoBook[];
   listRoomSummaries: (roomId: string) => Promise<RoomSummary[]> | RoomSummary[];
   listBehaviorRules: (roomId: string) => Promise<BehaviorRule[]> | BehaviorRule[];
+  listRoomVariableDisplays?: (roomId: string) => Promise<import("@ai-party/shared").VariableDisplay[]> | import("@ai-party/shared").VariableDisplay[];
   getDefaultPersona?: () => Persona | null | undefined;
   speakingCharacterId: string;
   speakingCharacterName: string;
@@ -368,6 +369,9 @@ export class ChatOrchestrator {
     const worldInfoBooks = await Promise.resolve(runtime.listRoomWorldInfoBooks(runtime.roomId));
     const summaries = await Promise.resolve(runtime.listRoomSummaries(runtime.roomId));
     const behaviorRules = await Promise.resolve(runtime.listBehaviorRules(runtime.roomId));
+    const variableDisplays = runtime.listRoomVariableDisplays
+      ? await Promise.resolve(runtime.listRoomVariableDisplays(runtime.roomId))
+      : [];
     updateCharacterMemoryFromHistory(this.characterMemory, room.messages);
 
     const assembled = this.promptAssembler.assemble({
@@ -378,6 +382,7 @@ export class ChatOrchestrator {
       behaviorRules,
       responseLength,
       variableContext,
+      variableDisplays,
       persona: runtime.getDefaultPersona?.() ?? null,
     });
 

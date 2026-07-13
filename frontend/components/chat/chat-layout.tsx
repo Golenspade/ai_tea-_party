@@ -15,6 +15,7 @@ import type {
   RoomArchiveRecord,
   RoomCompactResult,
   RoomSummary,
+  VariableDisplay,
 } from "@/lib/types";
 import { RoomStatusBar } from "@/components/chat/room-status-bar";
 import { useWebSocket } from "@/hooks/use-websocket";
@@ -65,12 +66,13 @@ export function ChatLayout() {
   const [lastCompactResult, setLastCompactResult] = useState<RoomCompactResult | null>(null);
   const [patchedMessageIds, setPatchedMessageIds] = useState<Set<string>>(new Set());
   const [dmNextSpeaker, setDmNextSpeaker] = useState<DmNextSpeaker | null>(null);
+  const [variableDisplays, setVariableDisplays] = useState<VariableDisplay[]>([]);
   const roomActivity = useRoomActivityActions("default");
 
-  // Spec §4.1 — until GET /variable-hud (Phase 4.2), resolve via local inference.
+  // Spec Phase 4.2 — explicit displays from API + inferred room numerics.
   const hudDisplays = useMemo(
-    () => resolveHudDisplays([], roomVariables),
-    [roomVariables],
+    () => resolveHudDisplays(variableDisplays, roomVariables),
+    [variableDisplays, roomVariables],
   );
   const hudValues = useMemo(() => {
     const values: Record<string, unknown> = {};
@@ -157,6 +159,45 @@ export function ChatLayout() {
     setPendingAsk((prev) => (prev?.id === askId ? null : prev));
   }, []);
 
+  const handleVariableUpdate = useCallback(
+    (update: {
+      scope: "room" | "global";
+      name: string;
+      value: unknown;
+      op: string;
+    }) => {
+      const apply = (prev: VariableEntry[]): VariableEntry[] => {
+        if (update.op === "delete") {
+          return prev.filter((item) => item.name !== update.name);
+        }
+        const next: VariableEntry = {
+          name: update.name,
+          value: update.value,
+          scope: update.scope,
+        };
+        const index = prev.findIndex((item) => item.name === update.name);
+        if (index < 0) {
+          return [...prev, next].sort((a, b) => a.name.localeCompare(b.name));
+        }
+        const copy = [...prev];
+        copy[index] = next;
+        return copy;
+      };
+
+      if (update.scope === "room") {
+        setRoomVariables(apply);
+      } else {
+        setGlobalVariables(apply);
+      }
+
+      // Branches may change after room variable updates.
+      if (update.scope === "room") {
+        void api.fetchActiveBranches().then(setActiveBranches).catch(() => undefined);
+      }
+    },
+    [],
+  );
+
   const { isConnected, userId } = useWebSocket({
     onMessage: handleWsMessage,
     onMessagePatch: handleMessagePatch,
@@ -167,6 +208,7 @@ export function ChatLayout() {
     onBarUpdate: handleBarUpdate,
     onAskPending: handleAskPending,
     onAskResolved: (askId) => handleAskResolved(askId),
+    onVariableUpdate: handleVariableUpdate,
     preferredNickname: displayNickname,
   });
 
@@ -213,14 +255,25 @@ export function ChatLayout() {
   const loadVariables = async () => {
     setVariablesLoading(true);
     try {
-      const [roomVars, globalVars, branches] = await Promise.all([
+      const [roomVars, globalVars, branches, hud] = await Promise.all([
         api.fetchRoomVariables(),
         api.fetchGlobalVariables(),
         api.fetchActiveBranches(),
+        api.fetchVariableHud().catch(() => null),
       ]);
       setRoomVariables(roomVars);
       setGlobalVariables(globalVars);
       setActiveBranches(branches);
+      if (hud) {
+        setVariableDisplays(
+          hud.displays
+            .filter((item) => item.source === "explicit")
+            .map(({ source, ...rest }) => {
+              void source;
+              return rest;
+            }),
+        );
+      }
     } catch (error) {
       console.error("Failed to fetch variables:", error);
     } finally {

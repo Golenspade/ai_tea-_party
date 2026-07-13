@@ -403,7 +403,30 @@ export const WsMessageSchema = z.discriminatedUnion("type", [
     ask_id: z.string(),
     answer: AskAnswerSchema,
   }),
+  z.object({
+    type: z.literal("variable_update"),
+    room_id: z.string(),
+    scope: z.enum(["room", "global"]),
+    name: z.string(),
+    value: z.unknown(),
+    previous_value: z.unknown().optional(),
+    delta: z.number().optional(),
+    op: z.enum(["set", "inc", "dec", "add", "delete"]),
+  }),
 ]);
+
+export const VariableUpdateOpSchema = z.enum(["set", "inc", "dec", "add", "delete"]);
+
+export const VariableUpdatePayloadSchema = z.object({
+  type: z.literal("variable_update"),
+  room_id: z.string(),
+  scope: z.enum(["room", "global"]),
+  name: z.string(),
+  value: z.unknown(),
+  previous_value: z.unknown().optional(),
+  delta: z.number().optional(),
+  op: VariableUpdateOpSchema,
+});
 
 export type ExampleDialogue = z.infer<typeof ExampleDialogueSchema>;
 export type Character = z.infer<typeof CharacterSchema>;
@@ -445,7 +468,28 @@ export type VariablePatchRequest = {
 
 export type StreamingEvent = z.infer<typeof StreamingEventSchema>;
 export type WsMessage = z.infer<typeof WsMessageSchema>;
+export type VariableUpdateOp = z.infer<typeof VariableUpdateOpSchema>;
+export type VariableUpdatePayload = z.infer<typeof VariableUpdatePayloadSchema>;
 export type RoomBarSnapshot = z.infer<typeof RoomBarSnapshotSchema>;
 export type AskAnswer = z.infer<typeof AskAnswerSchema>;
 export type PendingAsk = z.infer<typeof PendingAskSchema>;
 export type RoomArchive = z.infer<typeof RoomArchiveSchema>;
+
+export {
+  VariablePolaritySchema,
+  VariableDisplaySchema,
+  ResolvedVariableDisplaySchema,
+  VariableHudResponseSchema,
+  normalizeRatio,
+  inferVariableDisplay,
+  resolveHudDisplays,
+  parseVariableDisplaysJson,
+} from "./variable-hud";
+
+export type {
+  VariablePolarity,
+  VariableDisplay,
+  ResolvedVariableDisplay,
+  VariableHudResponse,
+  VariableEntryLike,
+} from "./variable-hud";
