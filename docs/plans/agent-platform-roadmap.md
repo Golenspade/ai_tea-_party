@@ -197,6 +197,10 @@
 
 - 侧栏或独立 panel：**room/global 变量** 数值条、标签、变更高亮。  
 - 与现有 `variables-panel` 演进，而非重写 REST。  
+- **下一步**：右侧 Galgame 风格 **Variable HUD**（仅 room）— 规格/计划与落地分析见：  
+  - [`docs/superpowers/specs/2026-06-22-variable-hud-design.md`](../superpowers/specs/2026-06-22-variable-hud-design.md)  
+  - [`docs/superpowers/plans/2026-06-22-variable-hud.md`](../superpowers/plans/2026-06-22-variable-hud.md)  
+  - [`docs/plans/variable-hud-analysis.md`](variable-hud-analysis.md)  
 
 ### 7.5 流式 / 图表 Buffer
 
@@ -246,7 +250,8 @@
 | Ask Tool + 侧栏 UI | ✅ | SSE resume + E2E |
 | Write to Room Tool | ✅ | write-to-room.ts |
 | Write to Bar + Status Bar | ✅ | room_bar 表 + 顶栏 |
-| 变量测量 UI (gauge) | ✅ | variables-panel |
+| 变量测量 UI (gauge) | ✅ | 侧栏 `variables-panel` 简易 gauge |
+| Variable HUD（右侧） | ⏳ | 规格/计划已齐；落地分析见 `variable-hud-analysis.md`；实现未开始 |
 | chart/Mermaid Buffer | ✅ | mermaid-diagram + 未闭合块 buffer |
 | Agent Activity UI | ✅ | P1–P2：状态机 + Card/Line + 空占位优化 + 角色活动指示 |
 | DM 调度 | ✅ | 用户指定下轮 + Auto DM 选角 |
@@ -280,6 +285,8 @@
 
 | 文件 | 内容 |
 |------|------|
+| `docs/plans/variable-hud-analysis.md` | Variable HUD 相对 main 的落地分析（缺口/风险/切片） |
+| `docs/superpowers/specs/2026-06-22-variable-hud-design.md` | Variable HUD 设计规格 |
 | `docs/plans/agent-activity-ui.md` | Agent Activity 状态机与 UI 规格（OpenWork 对标） |
 | `docs/fixes/2026-06-03-pi-agent-connectivity.md` | Pi Agent 联调修复记录 |
 | `docs/templates/template-authoring.md` | 场景预设编写与 Archive 导出 |
@@ -291,6 +298,7 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-13 | v0.3.3 | 纳入 Variable HUD 规格链接与落地分析 |
 | 2026-07-13 | v0.3.2 | Agent Activity P2：Card / 空占位 / 侧栏指示标记为已落地 |
 | 2026-06-21 | v0.3.1 | 增加 Agent Activity UI 规格链接与缺口项 |
 | 2026-06-21 | v0.3 | Phase 1–3 状态同步至 v2.2.0-ts；清理历史施工/wireframe/调研文档 |
