@@ -251,7 +251,7 @@
 | Write to Room Tool | ✅ | write-to-room.ts |
 | Write to Bar + Status Bar | ✅ | room_bar 表 + 顶栏 |
 | 变量测量 UI (gauge) | ✅ | 侧栏 `variables-panel` 简易 gauge |
-| Variable HUD（右侧） | ⏳ | 前端 Slice A 进行中；WS/后端另 PR；见 `variable-hud-analysis.md` |
+| Variable HUD（右侧） | ⏳ | 前端 Slice A + 后端 WS Slice B；4.2 schema/API 未开始 |
 | chart/Mermaid Buffer | ✅ | mermaid-diagram + 未闭合块 buffer |
 | Agent Activity UI | ✅ | P1–P2：状态机 + Card/Line + 空占位优化 + 角色活动指示 |
 | DM 调度 | ✅ | 用户指定下轮 + Auto DM 选角 |

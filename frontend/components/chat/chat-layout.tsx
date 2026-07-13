@@ -157,6 +157,45 @@ export function ChatLayout() {
     setPendingAsk((prev) => (prev?.id === askId ? null : prev));
   }, []);
 
+  const handleVariableUpdate = useCallback(
+    (update: {
+      scope: "room" | "global";
+      name: string;
+      value: unknown;
+      op: string;
+    }) => {
+      const apply = (prev: VariableEntry[]): VariableEntry[] => {
+        if (update.op === "delete") {
+          return prev.filter((item) => item.name !== update.name);
+        }
+        const next: VariableEntry = {
+          name: update.name,
+          value: update.value,
+          scope: update.scope,
+        };
+        const index = prev.findIndex((item) => item.name === update.name);
+        if (index < 0) {
+          return [...prev, next].sort((a, b) => a.name.localeCompare(b.name));
+        }
+        const copy = [...prev];
+        copy[index] = next;
+        return copy;
+      };
+
+      if (update.scope === "room") {
+        setRoomVariables(apply);
+      } else {
+        setGlobalVariables(apply);
+      }
+
+      // Branches may change after room variable updates.
+      if (update.scope === "room") {
+        void api.fetchActiveBranches().then(setActiveBranches).catch(() => undefined);
+      }
+    },
+    [],
+  );
+
   const { isConnected, userId } = useWebSocket({
     onMessage: handleWsMessage,
     onMessagePatch: handleMessagePatch,
@@ -167,6 +206,7 @@ export function ChatLayout() {
     onBarUpdate: handleBarUpdate,
     onAskPending: handleAskPending,
     onAskResolved: (askId) => handleAskResolved(askId),
+    onVariableUpdate: handleVariableUpdate,
     preferredNickname: displayNickname,
   });
 

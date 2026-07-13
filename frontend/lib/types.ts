@@ -28,6 +28,8 @@ export type {
   AskAnswer,
 } from "@ai-party/shared";
 
+export type { VariableUpdatePayload } from "@ai-party/shared";
+
 export type PendingAskPublic = {
   id: string;
   room_id: string;

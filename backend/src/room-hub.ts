@@ -1,4 +1,4 @@
-import type { DmNextSpeaker, Message as WsPayloadMessage, MessagePatch } from "@ai-party/shared";
+import type { DmNextSpeaker, Message as WsPayloadMessage, MessagePatch, VariableUpdatePayload } from "@ai-party/shared";
 import type { PresenceUser } from "./types";
 import type { WebSocket } from "ws";
 
@@ -143,6 +143,26 @@ export class RoomSocketManager {
       label: payload.label,
       version: payload.version,
     });
+  }
+
+  /**
+   * Spec §3.2 — room updates go to that room; global updates fan out so every
+   * connected room can refresh the left Variables panel (HUD still ignores global).
+   */
+  async broadcastVariableUpdate(
+    roomId: string,
+    payload: VariableUpdatePayload,
+  ): Promise<void> {
+    if (payload.scope === "global") {
+      const roomIds = Array.from(this.rooms.keys());
+      if (roomIds.length === 0) {
+        return;
+      }
+      await Promise.all(roomIds.map((id) => this.send(id, payload)));
+      return;
+    }
+
+    await this.send(roomId, payload);
   }
 
   async broadcastAskPending(

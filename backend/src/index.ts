@@ -13,6 +13,10 @@ import { registerWsRoutes } from "./routes/ws";
 const app = Fastify({ logger: true });
 const socketManager = new RoomSocketManager();
 
+appState.setVariableChangeNotifier(async (payload) => {
+  await socketManager.broadcastVariableUpdate(payload.room_id, payload);
+});
+
 app.register(cors, {
   origin: [
     "http://localhost:3000",
