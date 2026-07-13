@@ -394,6 +394,14 @@ export function ChatLayout() {
       } else if (type === "room_message" && parsed.message) {
         roomActivity.markVisibleOutput();
         appendRoomMessage(parsed.message as Message);
+        // Tool-written messages replace the empty stream placeholder.
+        setMessages((prev) => {
+          const placeholder = prev.find((msg) => msg.id === tempId);
+          if (placeholder && !placeholder.content?.trim()) {
+            return prev.filter((msg) => msg.id !== tempId);
+          }
+          return prev;
+        });
       } else if (type === "message_patch" && parsed.patch) {
         roomActivity.markVisibleOutput();
         handleMessagePatch(parsed.patch as MessagePatch);
@@ -410,7 +418,10 @@ export function ChatLayout() {
           (parsed.args as Record<string, unknown>) || {},
         );
       } else if (type === "tool_call_update" && typeof parsed.tool === "string") {
-        // Progress-only updates keep the current acting label.
+        roomActivity.setToolProgress(
+          parsed.tool,
+          (parsed.progress as string | number) ?? "processing",
+        );
       } else if (type === "tool_call_end") {
         roomActivity.clearTool();
         void loadVariables();
@@ -442,7 +453,7 @@ export function ChatLayout() {
   const consumeSseResponse = useCallback(
     async (response: Response, tempId: string) => {
       if (!response.ok || !response.body) {
-        roomActivity.endRun();
+        roomActivity.setError("生成失败，请重试");
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
         return;
       }
@@ -498,11 +509,24 @@ export function ChatLayout() {
 
       flush(tempId);
       if (finalRequestId.current) {
-        setMessages((prev) =>
-          prev.map((msg) =>
+        setMessages((prev) => {
+          const placeholder = prev.find((msg) => msg.id === tempId);
+          // Empty stream placeholders were only for optimistic UI — drop them.
+          if (placeholder && !placeholder.content?.trim()) {
+            return prev.filter((msg) => msg.id !== tempId);
+          }
+          return prev.map((msg) =>
             msg.id === tempId ? { ...msg, id: finalRequestId.current! } : msg,
-          ),
-        );
+          );
+        });
+      } else {
+        setMessages((prev) => {
+          const placeholder = prev.find((msg) => msg.id === tempId);
+          if (placeholder && !placeholder.content?.trim()) {
+            return prev.filter((msg) => msg.id !== tempId);
+          }
+          return prev;
+        });
       }
     },
     [flush, processSseEvent, roomActivity],
@@ -521,6 +545,7 @@ export function ChatLayout() {
       sender_type: "ai",
     };
 
+    roomActivity.clearError();
     roomActivity.startRun({
       characterId,
       characterName: targetCharacter?.name || "AI",
@@ -571,6 +596,7 @@ export function ChatLayout() {
       };
 
       setMessages((prev) => [...prev, placeholder]);
+      roomActivity.clearError();
       roomActivity.startRun({
         characterId,
         characterName: targetCharacter?.name || "AI",

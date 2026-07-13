@@ -248,7 +248,7 @@
 | Write to Bar + Status Bar | ✅ | room_bar 表 + 顶栏 |
 | 变量测量 UI (gauge) | ✅ | variables-panel |
 | chart/Mermaid Buffer | ✅ | mermaid-diagram + 未闭合块 buffer |
-| Agent Activity UI | ⏳ | 规格见 `docs/plans/agent-activity-ui.md`；前端状态机待实现 |
+| Agent Activity UI | ✅ | P1–P2：状态机 + Card/Line + 空占位优化 + 角色活动指示 |
 | DM 调度 | ✅ | 用户指定下轮 + Auto DM 选角 |
 | Patch Room | ✅ | 整条消息 patch + 高亮 |
 | Compact / Summary / Archive | ✅ | archive-builder + summary-compact |
@@ -291,6 +291,7 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-13 | v0.3.2 | Agent Activity P2：Card / 空占位 / 侧栏指示标记为已落地 |
 | 2026-06-21 | v0.3.1 | 增加 Agent Activity UI 规格链接与缺口项 |
 | 2026-06-21 | v0.3 | Phase 1–3 状态同步至 v2.2.0-ts；清理历史施工/wireframe/调研文档 |
 | 2026-06-03 | v0.2 | 锁定 Ask 侧栏、Write Room/Bar、DM 指定发言、wireframe 并行；社区调研 |

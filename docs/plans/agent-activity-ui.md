@@ -1,8 +1,8 @@
 # Agent Activity UI — 设计规格
 
-**版本**：v0.1  
-**日期**：2026-06-21  
-**状态**：待实现（本 PR 仅落盘规格，不含代码）  
+**版本**：v0.2  
+**日期**：2026-07-13  
+**状态**：P1 MVP + P1.5 已落地；P2（Card / 空占位优化 / 侧栏指示）进行中  
 **参考**：[different-ai/openwork](https://github.com/different-ai/openwork)（Electron + React Activity 方案）、Pi Agent TUI / coding-agent `renderCall`
 
 ---
@@ -414,9 +414,9 @@ case "error":
 | Phase | 内容 | 验收 |
 |-------|------|------|
 | **P0 规格** | 本文档 | PR review |
-| **P1 MVP** | Store + `processSseEvent` + `AgentActivityLine` + 乐观 `thinking` | Speak 时可见「正在写入房间…」 |
-| **P1.5** | Resume 路径 `tool_call_*` | Ask 恢复后 Activity 正常 |
-| **P2** | `AgentActivityCard`、空占位优化、侧边栏指示 | 无空气泡困惑 |
+| **P1 MVP** | Store + `processSseEvent` + `AgentActivityLine` + 乐观 `thinking` | ✅ Speak 时可见「正在写入房间…」 |
+| **P1.5** | Resume 路径 `tool_call_*` | ✅ Ask 恢复后 Activity 正常 |
+| **P2** | `AgentActivityCard`、空占位优化、侧边栏指示 | ✅ 无空气泡困惑；角色行活动点 |
 | **P3** | `RoundActivityTimeline`、developer 展开 args | 可选 |
 | **P4** | `thinking_*` SSE、`compacting` 状态 | 推理模型 / Compact 时 |
 
@@ -452,4 +452,5 @@ E2E：可在 `frontend/e2e` 断言 `data-testid="agent-activity-line"` 文案变
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-13 | v0.2 | P2：Card / 空占位 / 侧栏指示 / setToolProgress；状态同步 |
 | 2026-06-21 | v0.1 | 初稿：状态机、转移表、OpenWork/Pi 对照、实施阶段 |

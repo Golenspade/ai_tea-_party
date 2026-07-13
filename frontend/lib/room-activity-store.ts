@@ -91,10 +91,13 @@ export interface RoomActivityStore {
     input: { requestId?: string; characterId: string; characterName: string },
   ) => void;
   setTool: (roomId: string, tool: string, args: Record<string, unknown>) => void;
+  /** Soft progress update — may promote a deferred tool label via progress text. */
+  setToolProgress: (roomId: string, tool: string, progress: string | number) => void;
   clearTool: (roomId: string) => void;
   markVisibleOutput: (roomId: string) => void;
   setAwaitingUser: (roomId: string) => void;
   setError: (roomId: string, message: string) => void;
+  clearError: (roomId: string) => void;
   endRun: (roomId: string) => void;
   reset: (roomId: string) => void;
 }
@@ -129,6 +132,7 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
             [roomId]: withDerivedStatus({
               ...prev,
               currentTool: tool,
+              toolStartedAt: prev.toolStartedAt ?? Date.now(),
             }),
           },
         };
@@ -148,6 +152,60 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
       };
     }),
 
+  setToolProgress: (roomId, tool, progress) =>
+    set((state) => {
+      const prev = state.records[roomId] ?? EMPTY_ROOM_ACTIVITY_RECORD;
+      if (!prev.runActive) {
+        return state;
+      }
+
+      const progressText =
+        typeof progress === "string"
+          ? progress.trim()
+          : typeof progress === "number"
+            ? String(progress)
+            : "";
+
+      // Promote deferred tool label once we have meaningful progress text.
+      if (
+        progressText &&
+        progressText !== "processing" &&
+        prev.currentTool &&
+        !prev.currentToolLabel
+      ) {
+        const summary =
+          progressText.length > 24 ? `${progressText.slice(0, 24)}…` : progressText;
+        return {
+          records: {
+            ...state.records,
+            [roomId]: withDerivedStatus({
+              ...prev,
+              currentTool: tool || prev.currentTool,
+              currentToolLabel: getToolActivityLabel(tool || prev.currentTool, {
+                content: summary,
+              }),
+              toolStartedAt: prev.toolStartedAt ?? Date.now(),
+            }),
+          },
+        };
+      }
+
+      if (tool && tool !== prev.currentTool) {
+        return {
+          records: {
+            ...state.records,
+            [roomId]: withDerivedStatus({
+              ...prev,
+              currentTool: tool,
+              toolStartedAt: prev.toolStartedAt ?? Date.now(),
+            }),
+          },
+        };
+      }
+
+      return state;
+    }),
+
   clearTool: (roomId) =>
     set((state) => {
       const prev = state.records[roomId] ?? EMPTY_ROOM_ACTIVITY_RECORD;
@@ -155,11 +213,14 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
         prev.currentTool && prev.toolStartedAt
           ? {
               tool: prev.currentTool,
-              label: prev.currentToolLabel || prev.currentTool,
+              label: prev.currentToolLabel || getToolActivityLabel(prev.currentTool),
               startedAt: prev.toolStartedAt,
               endedAt: Date.now(),
             }
           : null;
+
+      // Keep a short rolling window of completed steps for the footer hint.
+      const nextSteps = step ? [...prev.toolSteps, step].slice(-6) : prev.toolSteps;
 
       return {
         records: {
@@ -169,7 +230,7 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
             currentTool: null,
             currentToolLabel: null,
             toolStartedAt: null,
-            toolSteps: step ? [...prev.toolSteps, step] : prev.toolSteps,
+            toolSteps: nextSteps,
           }),
         },
       };
@@ -229,12 +290,30 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
       };
     }),
 
+  clearError: (roomId) =>
+    set((state) => {
+      const prev = state.records[roomId];
+      if (!prev?.errorMessage) {
+        return state;
+      }
+      return {
+        records: {
+          ...state.records,
+          [roomId]: withDerivedStatus({
+            ...prev,
+            errorMessage: null,
+          }),
+        },
+      };
+    }),
+
   endRun: (roomId) =>
     set((state) => {
       if (!(roomId in state.records)) {
         return state;
       }
-      const { [roomId]: _removed, ...records } = state.records;
+      const records = { ...state.records };
+      delete records[roomId];
       return { records };
     }),
 
@@ -243,7 +322,8 @@ export const useRoomActivityStore = create<RoomActivityStore>((set, get) => ({
       if (!(roomId in state.records)) {
         return state;
       }
-      const { [roomId]: _removed, ...records } = state.records;
+      const records = { ...state.records };
+      delete records[roomId];
       return { records };
     }),
 }));

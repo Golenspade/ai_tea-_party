@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import type { Character, Message } from "@/lib/types";
 import { CustomChatBubble } from "@/components/chat/custom-chat-bubble";
+import { AgentActivityCard } from "@/components/chat/agent-activity-card";
 import { AgentActivityLine } from "@/components/chat/agent-activity-line";
 import { useRoomActivity } from "@/hooks/use-room-activity";
 
@@ -10,6 +11,14 @@ interface ChatMessageListProps {
   messages: Message[];
   characters: Character[];
   patchedMessageIds?: Set<string>;
+}
+
+function isEmptyStreamPlaceholder(message: Message): boolean {
+  return (
+    typeof message.id === "string" &&
+    message.id.startsWith("stream-") &&
+    !message.content?.trim()
+  );
 }
 
 export function ChatMessageList({ messages, characters, patchedMessageIds }: ChatMessageListProps) {
@@ -20,6 +29,8 @@ export function ChatMessageList({ messages, characters, patchedMessageIds }: Cha
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, activity.updatedAt, activity.currentToolLabel, activity.status]);
 
+  const visibleMessages = messages.filter((message) => !isEmptyStreamPlaceholder(message));
+
   return (
     <div className="flex-1 overflow-y-auto px-6 sm:px-12 pt-20 pb-40">
       <div className="space-y-12 max-w-3xl mx-auto">
@@ -29,7 +40,7 @@ export function ChatMessageList({ messages, characters, patchedMessageIds }: Cha
           <div className="w-12 h-px bg-[var(--theme-accent)] mx-auto opacity-50"></div>
         </div>
         
-        {messages.map((message) => (
+        {visibleMessages.map((message) => (
           <CustomChatBubble
             key={message.id}
             message={message}
@@ -37,6 +48,7 @@ export function ChatMessageList({ messages, characters, patchedMessageIds }: Cha
             isPatched={patchedMessageIds?.has(message.id)}
           />
         ))}
+        <AgentActivityCard activity={activity} />
         <AgentActivityLine activity={activity} />
         <div ref={messagesEndRef} />
       </div>
