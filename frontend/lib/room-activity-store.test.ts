@@ -64,4 +64,40 @@ describe("room-activity-store", () => {
     };
     expect(deriveRoomActivityStatus(record)).toBe("streaming");
   });
+
+  it("promotes deferred tool label from progress updates", () => {
+    const store = useRoomActivityStore.getState();
+    store.startRun("default", { characterId: "c1", characterName: "小明" });
+    store.setTool("default", "write_to_room", {});
+    expect(store.getRecord("default").currentToolLabel).toBeNull();
+
+    store.setToolProgress("default", "write_to_room", "众人行至破庙门前");
+    const record = store.getRecord("default");
+    expect(record.status).toBe("acting");
+    expect(record.currentToolLabel).toContain("众人行至破庙门前");
+  });
+
+  it("keeps completed tool steps for footer hints", () => {
+    const store = useRoomActivityStore.getState();
+    store.startRun("default", { characterId: "c1", characterName: "小明" });
+    store.setTool("default", "write_to_bar", { content: "雨势渐大" });
+    store.clearTool("default");
+
+    const record = store.getRecord("default");
+    expect(record.toolSteps).toHaveLength(1);
+    expect(record.toolSteps[0]?.label).toContain("形势");
+    expect(record.toolSteps[0]?.endedAt).toBeTypeOf("number");
+  });
+
+  it("clears sticky error before a new run", () => {
+    const store = useRoomActivityStore.getState();
+    store.startRun("default", { characterId: "c1", characterName: "小明" });
+    store.setError("default", "生成失败");
+    expect(store.getRecord("default").status).toBe("error");
+
+    store.clearError("default");
+    store.startRun("default", { characterId: "c1", characterName: "小明" });
+    expect(store.getRecord("default").status).toBe("thinking");
+    expect(store.getRecord("default").errorMessage).toBeNull();
+  });
 });
