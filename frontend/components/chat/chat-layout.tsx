@@ -23,10 +23,12 @@ import * as api from "@/services/api";
 import { SidebarMain } from "@/components/sidebar/sidebar-main";
 import { ChatMessageList } from "@/components/chat/chat-message-list";
 import { ChatBottombar } from "@/components/chat/chat-bottombar";
+import { VariableHudPanel } from "@/components/chat/variable-hud-panel";
 import { ApiConfigDialog } from "@/components/dialogs/api-config-dialog";
 import { submitAskAndStartResume } from "@/services/ask-flow";
 import { applyMessagePatch } from "@/services/message-patch";
 import { useRoomActivityActions } from "@/hooks/use-room-activity";
+import { resolveHudDisplays } from "@/lib/variable-viz";
 import { useEffect } from "react";
 import type {
   ActiveBranch,
@@ -64,6 +66,19 @@ export function ChatLayout() {
   const [patchedMessageIds, setPatchedMessageIds] = useState<Set<string>>(new Set());
   const [dmNextSpeaker, setDmNextSpeaker] = useState<DmNextSpeaker | null>(null);
   const roomActivity = useRoomActivityActions("default");
+
+  // Spec §4.1 — until GET /variable-hud (Phase 4.2), resolve via local inference.
+  const hudDisplays = useMemo(
+    () => resolveHudDisplays([], roomVariables),
+    [roomVariables],
+  );
+  const hudValues = useMemo(() => {
+    const values: Record<string, unknown> = {};
+    for (const entry of roomVariables) {
+      values[entry.name] = entry.value;
+    }
+    return values;
+  }, [roomVariables]);
 
   const appendRoomMessage = useCallback((msg: Message) => {
     setMessages((prev) => {
@@ -720,89 +735,93 @@ export function ChatLayout() {
           onCreateArchive={handleCreateArchive}
         />
 
-        {/* Chat Area */}
-        <main className="flex-1 bg-white page-shadow relative overflow-hidden flex flex-col">
-          {/* Top Navbar / Controls */}
-          <div className="absolute top-6 right-8 z-10 flex items-center gap-5">
-            {isAutoChat && (
-              <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold animate-pulse">
-                [Auto-Dialogue]
-              </span>
-            )}
-            {dmNextSpeaker && (
-              <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold">
-                [Next: {dmNextSpeaker.character_name}]
-              </span>
-            )}
-            {onlineUsers.length > 0 ? (
-              <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold">
-                [{onlineUsers.length} 人在场: {onlineUsers.map((user) => user.nickname || user.user_id).slice(0, 3).join(", ")}
-                {onlineUsers.length > 3 ? " ..." : ""}
-                ]
-              </span>
-            ) : (
-              <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-muted)]">
-                [无人连接]
-              </span>
-            )}
-            {isRenaming ? (
-              <div className="flex items-center gap-2 text-[12px]">
-                <input
-                  value={nicknameDraft}
-                  onChange={(event) => setNicknameDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
+        {/* Chat Area — Spec §4.1: room column + optional Variable HUD rail */}
+        <div className="flex-1 flex flex-row min-w-0 overflow-hidden">
+          <main className="relative z-[var(--z-room-surface)] flex-1 bg-white page-shadow overflow-hidden flex flex-col min-w-0">
+            {/* Top Navbar / Controls — chrome labels below room surface */}
+            <div className="absolute top-6 right-8 z-[var(--z-chrome-label)] flex items-center gap-5">
+              {isAutoChat && (
+                <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold animate-pulse">
+                  [Auto-Dialogue]
+                </span>
+              )}
+              {dmNextSpeaker && (
+                <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold">
+                  [Next: {dmNextSpeaker.character_name}]
+                </span>
+              )}
+              {onlineUsers.length > 0 ? (
+                <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold">
+                  [{onlineUsers.length} 人在场: {onlineUsers.map((user) => user.nickname || user.user_id).slice(0, 3).join(", ")}
+                  {onlineUsers.length > 3 ? " ..." : ""}
+                  ]
+                </span>
+              ) : (
+                <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-muted)]">
+                  [无人连接]
+                </span>
+              )}
+              {isRenaming ? (
+                <div className="flex items-center gap-2 text-[12px]">
+                  <input
+                    value={nicknameDraft}
+                    onChange={(event) => setNicknameDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void handleRename();
+                      }
+                      if (event.key === "Escape") {
+                        setIsRenaming(false);
+                        setNicknameDraft(normalizedNickname);
+                      }
+                    }}
+                    onBlur={() => handleRename()}
+                    className="w-28 rounded-sm border border-[var(--theme-border)] px-2 py-1 bg-white text-[var(--text)]"
+                    autoFocus
+                  />
+                  <button
+                    className="px-2 py-1 rounded-sm border border-[var(--theme-border)]"
+                    onClick={() => {
                       void handleRename();
-                    }
-                    if (event.key === "Escape") {
-                      setIsRenaming(false);
-                      setNicknameDraft(normalizedNickname);
-                    }
-                  }}
-                  onBlur={() => handleRename()}
-                  className="w-28 rounded-sm border border-[var(--theme-border)] px-2 py-1 bg-white text-[var(--text)]"
-                  autoFocus
-                />
+                    }}
+                  >
+                    保存
+                  </button>
+                </div>
+              ) : (
                 <button
-                  className="px-2 py-1 rounded-sm border border-[var(--theme-border)]"
+                  className="text-xs px-3 py-1 rounded-sm border border-[var(--theme-border)] hover:bg-white"
                   onClick={() => {
-                    void handleRename();
+                    setNicknameDraft(normalizedNickname);
+                    setIsRenaming(true);
                   }}
                 >
-                  保存
+                  {normalizedNickname}
                 </button>
-              </div>
-            ) : (
-              <button
-                className="text-xs px-3 py-1 rounded-sm border border-[var(--theme-border)] hover:bg-white"
-                onClick={() => {
-                  setNicknameDraft(normalizedNickname);
-                  setIsRenaming(true);
-                }}
-              >
-                {normalizedNickname}
-              </button>
-            )}
-            <ApiConfigDialog onSave={handleSaveApiConfig} />
-            <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? "bg-green-700/70" : "bg-red-700/70"} shadow-[0_0_8px_rgba(0,0,0,0.1)]`} title={isConnected ? "Connected" : "Disconnected"} />
-          </div>
+              )}
+              <ApiConfigDialog onSave={handleSaveApiConfig} />
+              <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? "bg-green-700/70" : "bg-red-700/70"} shadow-[0_0_8px_rgba(0,0,0,0.1)]`} title={isConnected ? "Connected" : "Disconnected"} />
+            </div>
 
-          <RoomStatusBar bar={roomBar} />
+            <RoomStatusBar bar={roomBar} />
 
-          <ChatMessageList
-            messages={messages}
-            characters={characters}
-            patchedMessageIds={patchedMessageIds}
-          />
+            <ChatMessageList
+              messages={messages}
+              characters={characters}
+              patchedMessageIds={patchedMessageIds}
+            />
 
-          <ChatBottombar
-            characters={characters}
-            roomVariables={roomVariables}
-            globalVariables={globalVariables}
-            onSendMessage={handleSendMessage}
-          />
-        </main>
+            <ChatBottombar
+              characters={characters}
+              roomVariables={roomVariables}
+              globalVariables={globalVariables}
+              onSendMessage={handleSendMessage}
+            />
+          </main>
+
+          <VariableHudPanel displays={hudDisplays} values={hudValues} />
+        </div>
       </div>
     </div>
   );
