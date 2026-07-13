@@ -12,6 +12,8 @@ import type {
   StreamingEvent,
   Persona,
   VariableEntry,
+  VariableDisplay,
+  VariableHudResponse,
   VariableUpdateOp,
   VariableUpdatePayload,
   WorldInfoBook,
@@ -45,6 +47,7 @@ import {
   buildVariableUpdatePayload,
   isNoOpVariableChange,
 } from "./services/variable-events";
+import { resolveHudDisplays } from "@ai-party/shared";
 import type { PatchRoomInput } from "./services/patch-room";
 import {
   entriesToVariableRecord,
@@ -291,6 +294,12 @@ class AppState {
         addCharacterToRoom: (roomId, data) => {
           this.addCharacterToRoom(roomId, data);
         },
+        setVariable: (scope, roomId, name, value) => {
+          this.setVariable(scope, roomId, name, value);
+        },
+        setRoomVariableDisplays: (roomId, displays) => {
+          this.setRoomVariableDisplays(roomId, displays);
+        },
       },
       undefined,
       nowIso,
@@ -447,6 +456,35 @@ class AppState {
 
   listGlobalVariables(): VariableEntry[] {
     return this.repository.listGlobalVariables();
+  }
+
+  getRoomVariableDisplays(roomId: string): VariableDisplay[] {
+    if (!this.repository.getRoom(roomId)) {
+      return [];
+    }
+    return this.repository.getRoomVariableDisplays(roomId);
+  }
+
+  setRoomVariableDisplays(roomId: string, displays: VariableDisplay[]): VariableDisplay[] {
+    if (!this.repository.getRoom(roomId)) {
+      throw new Error("聊天室不存在");
+    }
+    this.repository.setRoomVariableDisplays(roomId, displays);
+    return this.repository.getRoomVariableDisplays(roomId);
+  }
+
+  getVariableHud(roomId: string): VariableHudResponse {
+    if (!this.repository.getRoom(roomId)) {
+      throw new Error("聊天室不存在");
+    }
+    const roomVariables = this.listRoomVariables(roomId);
+    const explicit = this.getRoomVariableDisplays(roomId);
+    const displays = resolveHudDisplays(explicit, roomVariables);
+    const values: Record<string, unknown> = {};
+    for (const entry of roomVariables) {
+      values[entry.name] = entry.value;
+    }
+    return { displays, values };
   }
 
   setVariable(scope: "room" | "global", roomIdOrName: string, name: string, value: unknown): VariableEntry {
@@ -1368,6 +1406,7 @@ class AppState {
       listRoomWorldInfoBooks: async (id) => this.getRoomWorldInfo(id),
       listRoomSummaries: async (id) => this.listRoomSummaries(id),
       listBehaviorRules: async (id) => this.listBehaviorRules(id),
+      listRoomVariableDisplays: async (id) => this.getRoomVariableDisplays(id),
       getDefaultPersona: () => this.listPersonas().find((persona) => persona.is_default) ?? null,
     };
   }

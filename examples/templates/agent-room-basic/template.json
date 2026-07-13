@@ -27,6 +27,17 @@
           "scope": "room"
         }
       ],
+      "variable_displays": [
+        {
+          "name": "danger",
+          "label": "危险",
+          "min": 0,
+          "max": 100,
+          "polarity": "higher_is_worse",
+          "order": 1,
+          "hint": "场景危险程度；明显危机或压迫感上升时请 inc_variable"
+        }
+      ],
       "global_variables": [],
       "world_info_books": [
         {

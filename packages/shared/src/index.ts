@@ -474,3 +474,22 @@ export type RoomBarSnapshot = z.infer<typeof RoomBarSnapshotSchema>;
 export type AskAnswer = z.infer<typeof AskAnswerSchema>;
 export type PendingAsk = z.infer<typeof PendingAskSchema>;
 export type RoomArchive = z.infer<typeof RoomArchiveSchema>;
+
+export {
+  VariablePolaritySchema,
+  VariableDisplaySchema,
+  ResolvedVariableDisplaySchema,
+  VariableHudResponseSchema,
+  normalizeRatio,
+  inferVariableDisplay,
+  resolveHudDisplays,
+  parseVariableDisplaysJson,
+} from "./variable-hud";
+
+export type {
+  VariablePolarity,
+  VariableDisplay,
+  ResolvedVariableDisplay,
+  VariableHudResponse,
+  VariableEntryLike,
+} from "./variable-hud";

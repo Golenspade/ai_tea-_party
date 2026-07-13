@@ -5,6 +5,7 @@ import type {
   Persona,
   BehaviorRule,
   RoomSummary,
+  VariableDisplay,
   WorldInfoBook,
 } from "@ai-party/shared";
 
@@ -75,6 +76,7 @@ export interface PromptAssemblerInput {
     room: Record<string, unknown>;
     global: Record<string, unknown>;
   };
+  variableDisplays?: VariableDisplay[];
 }
 
 export function prepareChatHistoryForAi(room: ChatRoom, chatHistory: Message[]): Message[] {
@@ -123,6 +125,7 @@ export class PromptAssembler {
       roomScenario = room.description || "",
       responseLength = "default",
       variableContext = { room: {}, global: {} },
+      variableDisplays = [],
     } = input;
 
     const sourceHistory = input.chatHistory ?? room.messages;
@@ -149,6 +152,7 @@ export class PromptAssembler {
       variableContext,
       visibleSummaries,
       activeBehaviorRules,
+      variableDisplays,
     );
     const messages = this.buildConversationMessages(character, chatHistory, scanResult);
 
@@ -189,6 +193,7 @@ export class PromptAssembler {
     variableContext: { room: Record<string, unknown>; global: Record<string, unknown> },
     summaries: RoomSummary[],
     behaviorRules: BehaviorRule[],
+    variableDisplays: VariableDisplay[],
   ): string[] {
     const parts: string[] = [];
 
@@ -249,6 +254,11 @@ export class PromptAssembler {
     const renderedVariables = this.formatVariableContext(variableContext);
     if (renderedVariables) {
       parts.push(renderedVariables);
+    }
+
+    const renderedHudHints = this.formatVariableHudHints(variableDisplays);
+    if (renderedHudHints) {
+      parts.push(renderedHudHints);
     }
 
     const lengthText = LENGTH_GUIDANCE[responseLength] || LENGTH_GUIDANCE.default;
@@ -425,6 +435,25 @@ export class PromptAssembler {
     }
 
     return emitted > 0 ? lines.join("\n") : "";
+  }
+
+  /** Spec Phase 4.2 Task 12 — HUD variable semantics for Agent tools. */
+  private formatVariableHudHints(displays: VariableDisplay[]): string {
+    const lines = displays
+      .filter((display) => display.show_in_hud !== false)
+      .map((display) => {
+        const label = display.label ? `（${display.label}）` : "";
+        const hint = display.hint ? `：${display.hint}` : "";
+        return `- ${display.name}${label}${hint}`;
+      });
+    if (!lines.length) {
+      return "";
+    }
+    return [
+      "## 房间状态变量",
+      "剧情发展时请用 set_variable / inc_variable 更新：",
+      ...lines,
+    ].join("\n");
   }
 
   private formatSummaries(summaries: RoomSummary[]): string {

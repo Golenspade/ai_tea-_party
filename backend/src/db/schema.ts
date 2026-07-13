@@ -11,6 +11,7 @@ export const rooms = sqliteTable(
     personaId: text("persona_id"),
     createdAt: text("created_at").notNull(),
     maxHistory: integer("max_history").notNull().default(50),
+    variableDisplaysJson: text("variable_displays_json").notNull().default("[]"),
   },
   (table) => ({}),
 );

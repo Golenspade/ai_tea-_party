@@ -66,7 +66,8 @@ export function ensureSchema(client: Database.Database): void {
       user_description TEXT DEFAULT '',
       persona_id TEXT DEFAULT NULL,
       created_at TEXT NOT NULL,
-      max_history INTEGER NOT NULL DEFAULT 50
+      max_history INTEGER NOT NULL DEFAULT 50,
+      variable_displays_json TEXT NOT NULL DEFAULT '[]'
     );
 
     CREATE TABLE IF NOT EXISTS characters (
@@ -257,6 +258,7 @@ export function ensureSchema(client: Database.Database): void {
   `);
 
   ensureColumn(client, "rooms", "max_history", "INTEGER DEFAULT 50");
+  ensureColumn(client, "rooms", "variable_displays_json", "TEXT NOT NULL DEFAULT '[]'");
   ensureColumn(client, "characters", "avatar", "TEXT");
   ensureColumn(client, "messages", "sender_type", "TEXT");
   ensureColumn(client, "messages", "sender_user_id", "TEXT");

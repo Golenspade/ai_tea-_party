@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import type { CharacterFormData } from "@ai-party/shared";
+import type { CharacterFormData, VariableDisplay } from "@ai-party/shared";
 
 export interface ConfigRoomCharacter {
   name: string;
@@ -12,6 +12,12 @@ export interface ConfigRoomCharacter {
   scenario?: string;
 }
 
+export interface ConfigRoomVariable {
+  name: string;
+  value: unknown;
+  scope?: "room" | "global";
+}
+
 export interface ConfigRoom {
   id: string;
   name: string;
@@ -19,6 +25,8 @@ export interface ConfigRoom {
   stealth_mode?: boolean;
   user_description?: string;
   characters?: ConfigRoomCharacter[];
+  room_variables?: ConfigRoomVariable[];
+  variable_displays?: VariableDisplay[];
 }
 
 export interface AppConfigFile {

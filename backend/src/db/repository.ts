@@ -7,6 +7,7 @@ import type {
   ChatRoom,
   Message,
   Persona,
+  VariableDisplay,
   VariableEntry,
   WorldInfoBook,
   WorldInfoEntry,
@@ -18,6 +19,7 @@ import type {
   RoomSummary,
   BehaviorRule,
 } from "@ai-party/shared";
+import { parseVariableDisplaysJson } from "@ai-party/shared";
 import {
   normalizeConditionLogic,
   normalizeVariableConditions,
@@ -219,6 +221,7 @@ export class AppRepository {
       personaId: undefined,
       createdAt,
       maxHistory: 50,
+      variableDisplaysJson: "[]",
     };
 
     const normalizedMaxHistory = asNumber(options?.max_history);
@@ -244,6 +247,27 @@ export class AppRepository {
     return {
       ...this.getRoom(roomId)!,
     };
+  }
+
+  getRoomVariableDisplays(roomId: string): VariableDisplay[] {
+    const row = this.db
+      .select({ variableDisplaysJson: rooms.variableDisplaysJson })
+      .from(rooms)
+      .where(eq(rooms.id, roomId))
+      .get();
+    if (!row) return [];
+    return parseVariableDisplaysJson(row.variableDisplaysJson);
+  }
+
+  setRoomVariableDisplays(roomId: string, displays: VariableDisplay[]): void {
+    if (!this.getRoom(roomId)) {
+      throw new Error("聊天室不存在");
+    }
+    this.db
+      .update(rooms)
+      .set({ variableDisplaysJson: JSON.stringify(displays) })
+      .where(eq(rooms.id, roomId))
+      .run();
   }
 
   setRoomMeta(
