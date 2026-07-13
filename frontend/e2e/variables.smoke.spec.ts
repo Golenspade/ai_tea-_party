@@ -20,14 +20,22 @@ test("变量命令冒烟：支持变量新增与 getvar 宏渲染", async ({ pag
   await composer.fill(`/setvar ${variableName} 12`);
   await submitBtn.click();
 
-  // 变量列表应出现该变量（room scope）
-  const variablesPanel = page.getByRole("complementary");
+  // 左侧 Variables 调试面板（勿与右侧 Variable HUD 的 complementary 混淆）
+  const variablesSidebar = page
+    .locator("aside")
+    .filter({ has: page.getByRole("heading", { name: "Variables" }) });
   await expect(
-    variablesPanel.getByRole("listitem").filter({ hasText: variableName }),
+    variablesSidebar.getByRole("listitem").filter({ hasText: variableName }),
   ).toBeVisible({ timeout: 15_000 });
   await expect(
     page.getByText(`已设置变量 ${variableName}`),
   ).toBeVisible({ timeout: 15_000 });
+
+  // 右侧 HUD 同步出现该数值变量
+  await expect(page.getByTestId(`variable-hud-${variableName}`)).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId(`variable-hud-${variableName}`)).toContainText("12");
 
   // 3) 通过 getvar 宏确认读取变量
   await composer.fill(`当前值 {{getvar::${variableName}}}`);
