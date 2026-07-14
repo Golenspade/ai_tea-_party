@@ -23,7 +23,8 @@ export function hasLiveLlmCredentials(): boolean {
   if (process.env.E2E_LIVE_LLM === "0") return false;
   return LIVE_LLM_ENV_KEYS.some((key) => {
     const value = process.env[key]?.trim();
-    return Boolean(value) && !value.startsWith("your_") && value !== "changeme";
+    if (!value) return false;
+    return !value.startsWith("your_") && value !== "changeme";
   });
 }
 
