@@ -8,6 +8,11 @@ import type {
   VariableSetRequest,
   VariableScope,
 } from "@/lib/types";
+import {
+  getVariableSeverityColor,
+  inferVariableDisplay,
+  normalizeRatio,
+} from "@/lib/variable-viz";
 
 interface VariablesPanelProps {
   roomVariables: VariableEntry[];
@@ -48,17 +53,7 @@ function formatValue(value: unknown): string {
 }
 
 function isGaugeVariable(name: string, value: unknown): value is number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return false;
-  }
-  return name.endsWith("_pct") || (value >= 0 && value <= 100);
-}
-
-function gaugeBounds(name: string, value: number): { min: number; max: number } {
-  if (name.endsWith("_pct")) {
-    return { min: 0, max: 100 };
-  }
-  return { min: 0, max: Math.max(100, value) };
+  return inferVariableDisplay(name, value) !== null;
 }
 
 function scopeTitle(scope: VariableScope): string {
@@ -167,14 +162,23 @@ export function VariablesPanel({
                 {isGaugeVariable(item.name, item.value) ? (
                   <div className="mt-2">
                     {(() => {
-                      const { min, max } = gaugeBounds(item.name, item.value);
-                      const pct = max > min ? ((item.value - min) / (max - min)) * 100 : 0;
+                      const display = inferVariableDisplay(item.name, item.value)!;
+                      const min = display.min ?? 0;
+                      const max = display.max ?? 100;
+                      const ratio = normalizeRatio(item.value, min, max);
+                      const color = getVariableSeverityColor(
+                        ratio,
+                        display.polarity ?? "higher_is_worse",
+                      );
                       return (
                         <>
                           <div className="h-1.5 rounded-full bg-[#ece6d8] overflow-hidden">
                             <div
-                              className="h-full bg-[#a35d40]/80 transition-all duration-300"
-                              style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                              className="h-full transition-all duration-300"
+                              style={{
+                                width: `${ratio * 100}%`,
+                                backgroundColor: color,
+                              }}
                             />
                           </div>
                           <p className="mt-1 text-[var(--theme-accent)]">{item.value}</p>

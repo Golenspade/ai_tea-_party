@@ -20,6 +20,18 @@ describe("tool-activity", () => {
     );
   });
 
+  it("summarizes variable tool names", () => {
+    expect(summarizeToolArgs("inc_variable", { name: "danger", delta: 3 })).toBe(
+      "danger +3",
+    );
+    expect(getToolActivityLabel("inc_variable", { name: "danger", delta: 3 })).toBe(
+      "正在提升变量…「danger +3」",
+    );
+    expect(getToolActivityLabel("delete_variable", { name: "tmp" })).toBe(
+      "正在删除变量…「tmp」",
+    );
+  });
+
   it("uses base label when args are deferred", () => {
     expect(getToolActivityLabel("write_to_bar", {})).toBe("正在更新当前形势…");
   });

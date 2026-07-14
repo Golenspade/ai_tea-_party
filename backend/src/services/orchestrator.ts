@@ -30,6 +30,23 @@ import { parseWriteToBarInput, type WriteToBarInput } from "./write-to-bar";
 import { parsePatchRoomInput, type PatchRoomInput } from "./patch-room";
 import { mapToolExecutionToStreamingEvent } from "./tool-execution-events";
 
+/** Canonical Agent tool catalog — keep in sync with `createTools()`. */
+export const AGENT_TOOL_NAMES = [
+  "write_to_room",
+  "patch_room",
+  "write_to_bar",
+  "ask_user",
+  "get_variable",
+  "set_variable",
+  "add_variable",
+  "inc_variable",
+  "dec_variable",
+  "delete_variable",
+  "list_variables",
+] as const;
+
+export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
+
 export interface OrchestratorStreamSession {
   requestId: string;
   messageId: string;
@@ -56,6 +73,7 @@ export interface OrchestratorRuntime {
   addVariable: (scope: VariableScope, name: string, value: unknown) => Promise<VariableEntryLike> | VariableEntryLike;
   incVariable: (scope: VariableScope, name: string, value: unknown) => Promise<VariableEntryLike> | VariableEntryLike;
   decVariable: (scope: VariableScope, name: string, value: unknown) => Promise<VariableEntryLike> | VariableEntryLike;
+  deleteVariable: (scope: VariableScope, name: string) => Promise<boolean> | boolean;
   listRoomWorldInfoBooks: (roomId: string) => Promise<WorldInfoBook[]> | WorldInfoBook[];
   listRoomSummaries: (roomId: string) => Promise<RoomSummary[]> | RoomSummary[];
   listBehaviorRules: (roomId: string) => Promise<BehaviorRule[]> | BehaviorRule[];
@@ -1042,6 +1060,24 @@ export class ChatOrchestrator {
           return {
             content: [{ type: "text", text: `${name}=${normalizeVariableValue(saved.value)}` }],
             details: { name, scope, delta, value: saved.value },
+          } as ToolResult;
+        },
+      },
+      {
+        name: "delete_variable",
+        label: "删除变量",
+        description: "删除房间变量或全局变量。用于清理临时开关、过期状态或错误创建的键。",
+        parameters: Type.Object({
+          name: Type.String(),
+          scope: Type.Optional(Type.Union([Type.Literal("room"), Type.Literal("global")])),
+        }),
+        execute: async (_toolCallId: string, args: Record<string, unknown>) => {
+          const name = parseName(args);
+          const scope = parseScope(args.scope);
+          const deleted = await Promise.resolve(runtime.deleteVariable(scope, name));
+          return {
+            content: [{ type: "text", text: deleted ? `已删除 ${scope}:${name}` : `${scope}:${name} 不存在` }],
+            details: { name, scope, deleted },
           } as ToolResult;
         },
       },

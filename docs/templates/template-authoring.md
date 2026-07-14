@@ -17,8 +17,40 @@ examples/templates/agent-room-basic/template.json
 - `rooms`: 一个或多个房间模板。
 - `rooms[].characters`: 初始角色。
 - `rooms[].room_variables` / `rooms[].global_variables`: 初始变量。
+- `rooms[].variable_displays`: HUD 展示配置（中文 label、量程、极性、hint）。
 - `rooms[].world_info_books`: 世界书，可包含 `conditions`。
 - `rooms[].behavior_rules`: 行为书规则，命中后进入 prompt。
+
+## 变量与 HUD
+
+房间变量驱动分支与右侧状态条。模板可同时声明初始值与展示：
+
+```json
+{
+  "room_variables": [
+    { "name": "danger", "value": 0, "scope": "room" }
+  ],
+  "global_variables": [
+    { "name": "chapter", "value": 1, "scope": "global" }
+  ],
+  "variable_displays": [
+    {
+      "name": "danger",
+      "label": "危险",
+      "min": 0,
+      "max": 100,
+      "polarity": "higher_is_worse",
+      "order": 1,
+      "hint": "威胁升高、冲突升级时递增"
+    }
+  ]
+}
+```
+
+- `variable_displays` 仅作用于 **room** 变量 HUD；未声明的有限数值会自动推断展示。
+- `polarity`：`higher_is_worse`（默认用于 danger/corruption 等）或 `higher_is_better`。
+- Agent 可通过 `set_variable` / `inc_variable` / `dec_variable` / `delete_variable` 等工具改写变量；前端经 WS `variable_update` 实时刷新。
+- `global_variables` 会在房间 bootstrap 时写入全局表，可供条件分支引用。
 
 ## 条件格式
 

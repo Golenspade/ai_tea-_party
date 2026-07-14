@@ -26,6 +26,7 @@ export interface ConfigRoom {
   user_description?: string;
   characters?: ConfigRoomCharacter[];
   room_variables?: ConfigRoomVariable[];
+  global_variables?: ConfigRoomVariable[];
   variable_displays?: VariableDisplay[];
 }
 

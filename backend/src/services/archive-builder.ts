@@ -10,6 +10,7 @@ import type {
   RoomArchiveRecord,
   RoomBarSnapshot,
   RoomSummary,
+  VariableDisplay,
   VariableEntry,
   WorldInfoBook,
 } from "@ai-party/shared";
@@ -28,6 +29,7 @@ export interface BuildRoomArchiveSnapshotInput {
   roomBar: RoomBarSnapshot | null;
   worldInfoBooks: WorldInfoBook[];
   behaviorRules?: BehaviorRule[];
+  variableDisplays?: VariableDisplay[];
 }
 
 export function buildRoomArchiveSnapshot(input: BuildRoomArchiveSnapshotInput): RoomArchive {
@@ -65,6 +67,7 @@ export function buildRoomArchiveSnapshot(input: BuildRoomArchiveSnapshotInput): 
     room_bar: input.roomBar,
     world_info_books: input.worldInfoBooks,
     behavior_rules: input.behaviorRules || [],
+    variable_displays: input.variableDisplays || [],
   };
 }
 

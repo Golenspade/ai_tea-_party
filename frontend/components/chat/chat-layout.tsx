@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import type {
   Character,
   Message,
@@ -16,6 +16,7 @@ import type {
   RoomCompactResult,
   RoomSummary,
   VariableDisplay,
+  VariableUpdatePayload,
 } from "@/lib/types";
 import { RoomStatusBar } from "@/components/chat/room-status-bar";
 import { useWebSocket } from "@/hooks/use-websocket";
@@ -25,12 +26,17 @@ import { SidebarMain } from "@/components/sidebar/sidebar-main";
 import { ChatMessageList } from "@/components/chat/chat-message-list";
 import { ChatBottombar } from "@/components/chat/chat-bottombar";
 import { VariableHudPanel } from "@/components/chat/variable-hud-panel";
+import { VariableChangeToast } from "@/components/chat/variable-change-toast";
 import { ApiConfigDialog } from "@/components/dialogs/api-config-dialog";
 import { submitAskAndStartResume } from "@/services/ask-flow";
 import { applyMessagePatch } from "@/services/message-patch";
 import { useRoomActivityActions } from "@/hooks/use-room-activity";
 import { resolveHudDisplays } from "@/lib/variable-viz";
-import { useEffect } from "react";
+import {
+  deriveVariableChangeEffects,
+  VARIABLE_EFFECT_TTL,
+  type VariableChangeToastItem,
+} from "@/lib/variable-change-effects";
 import type {
   ActiveBranch,
   VariableEntry,
@@ -67,6 +73,10 @@ export function ChatLayout() {
   const [patchedMessageIds, setPatchedMessageIds] = useState<Set<string>>(new Set());
   const [dmNextSpeaker, setDmNextSpeaker] = useState<DmNextSpeaker | null>(null);
   const [variableDisplays, setVariableDisplays] = useState<VariableDisplay[]>([]);
+  const [variableToasts, setVariableToasts] = useState<VariableChangeToastItem[]>([]);
+  const [pulseTarget, setPulseTarget] = useState<string | null>(null);
+  const [vignetteClass, setVignetteClass] = useState<string>("");
+  const [compactHud, setCompactHud] = useState(false);
   const roomActivity = useRoomActivityActions("default");
 
   // Spec Phase 4.2 — explicit displays from API + inferred room numerics.
@@ -81,6 +91,50 @@ export function ChatLayout() {
     }
     return values;
   }, [roomVariables]);
+
+  const hudDisplaysRef = useRef(hudDisplays);
+  hudDisplaysRef.current = hudDisplays;
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const media = window.matchMedia("(max-width: 767px)");
+    const sync = () => setCompactHud(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  const applyVariableEffects = useCallback((update: VariableUpdatePayload) => {
+    const effects = deriveVariableChangeEffects(update, hudDisplaysRef.current);
+    if (!effects) return;
+
+    if (effects.toast) {
+      const toast = effects.toast;
+      setVariableToasts((prev) => [...prev, toast]);
+      window.setTimeout(() => {
+        setVariableToasts((prev) => prev.filter((item) => item.id !== toast.id));
+      }, VARIABLE_EFFECT_TTL.toast);
+    }
+
+    if (effects.pulseTarget) {
+      const target = effects.pulseTarget;
+      setPulseTarget(target);
+      window.setTimeout(() => {
+        setPulseTarget((current) => (current === target ? null : current));
+      }, VARIABLE_EFFECT_TTL.pulse);
+    }
+
+    if (effects.vignette) {
+      const nextClass =
+        effects.vignette === "worse"
+          ? "variable-vignette-worse"
+          : "variable-vignette-better";
+      setVignetteClass(nextClass);
+      window.setTimeout(() => {
+        setVignetteClass((current) => (current === nextClass ? "" : current));
+      }, VARIABLE_EFFECT_TTL.vignette);
+    }
+  }, []);
 
   const appendRoomMessage = useCallback((msg: Message) => {
     setMessages((prev) => {
@@ -160,12 +214,7 @@ export function ChatLayout() {
   }, []);
 
   const handleVariableUpdate = useCallback(
-    (update: {
-      scope: "room" | "global";
-      name: string;
-      value: unknown;
-      op: string;
-    }) => {
+    (update: VariableUpdatePayload) => {
       const apply = (prev: VariableEntry[]): VariableEntry[] => {
         if (update.op === "delete") {
           return prev.filter((item) => item.name !== update.name);
@@ -190,12 +239,11 @@ export function ChatLayout() {
         setGlobalVariables(apply);
       }
 
-      // Branches may change after room variable updates.
-      if (update.scope === "room") {
-        void api.fetchActiveBranches().then(setActiveBranches).catch(() => undefined);
-      }
+      // Room and global conditions can both light behavior rules / world info.
+      void api.fetchActiveBranches().then(setActiveBranches).catch(() => undefined);
+      applyVariableEffects(update);
     },
-    [],
+    [applyVariableEffects],
   );
 
   const { isConnected, userId } = useWebSocket({
@@ -789,10 +837,12 @@ export function ChatLayout() {
         />
 
         {/* Chat Area — Spec §4.1: room column + optional Variable HUD rail */}
-        <div className="flex-1 flex flex-row min-w-0 overflow-hidden">
-          <main className="relative z-[var(--z-room-surface)] flex-1 bg-white page-shadow overflow-hidden flex flex-col min-w-0">
-            {/* Top Navbar / Controls — chrome labels below room surface */}
-            <div className="absolute top-6 right-8 z-[var(--z-chrome-label)] flex items-center gap-5">
+        <div className="relative flex-1 flex flex-col min-w-0 overflow-hidden">
+          <div className="flex-1 flex flex-row min-w-0 overflow-hidden">
+            <main className={`relative z-[var(--z-room-surface)] flex-1 bg-white page-shadow overflow-hidden flex flex-col min-w-0 ${compactHud ? "pb-20" : ""} ${vignetteClass}`}>
+              <VariableChangeToast toasts={variableToasts} />
+              {/* Top Navbar / Controls — chrome labels below room surface */}
+              <div className="absolute top-6 right-8 z-[var(--z-chrome-label)] flex items-center gap-5">
               {isAutoChat && (
                 <span className="text-xs uppercase tracking-[0.1em] text-[var(--theme-accent)] font-semibold animate-pulse">
                   [Auto-Dialogue]
@@ -873,7 +923,22 @@ export function ChatLayout() {
             />
           </main>
 
-          <VariableHudPanel displays={hudDisplays} values={hudValues} />
+          {!compactHud ? (
+            <VariableHudPanel
+              displays={hudDisplays}
+              values={hudValues}
+              pulseTarget={pulseTarget}
+            />
+          ) : null}
+          </div>
+          {compactHud ? (
+            <VariableHudPanel
+              displays={hudDisplays}
+              values={hudValues}
+              pulseTarget={pulseTarget}
+              compact
+            />
+          ) : null}
         </div>
       </div>
     </div>

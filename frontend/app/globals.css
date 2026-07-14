@@ -80,6 +80,57 @@
   font-family: var(--font-book), serif;
 }
 
+/* Variable HUD Phase 4.3 — instantaneous change effects */
+@keyframes variable-toast-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes variable-hud-pulse {
+  0% {
+    transform: scaleY(1);
+  }
+  40% {
+    transform: scaleY(1.15);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+.variable-change-toast {
+  animation: variable-toast-rise 1.5s ease-out forwards;
+}
+
+.variable-hud-pulse {
+  animation: variable-hud-pulse 200ms ease-out;
+}
+
+.variable-vignette-worse {
+  box-shadow: inset 0 0 80px rgba(192, 57, 43, 0.15);
+  transition: box-shadow 800ms ease-out;
+}
+
+.variable-vignette-better {
+  box-shadow: inset 0 0 80px rgba(143, 188, 143, 0.18);
+  transition: box-shadow 800ms ease-out;
+}
+
+
 .page-shadow {
   box-shadow: -20px 0 30px -10px rgba(163, 93, 64, 0.05);
 }

@@ -33,7 +33,12 @@ describe("inferVariableDisplay", () => {
       show_in_hud: true,
       min: 0,
       max: 100,
+      polarity: "higher_is_worse",
     });
+  });
+
+  it("defaults non-worse names to higher_is_better", () => {
+    expect(inferVariableDisplay("trust", 12)?.polarity).toBe("higher_is_better");
   });
 
   it("returns null for non-finite number", () => {

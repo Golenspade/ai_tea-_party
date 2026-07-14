@@ -101,6 +101,15 @@ describe("buildRoomArchiveSnapshot", () => {
       roomBar,
       worldInfoBooks,
       behaviorRules,
+      variableDisplays: [
+        {
+          name: "danger",
+          label: "危险",
+          min: 0,
+          max: 100,
+          polarity: "higher_is_worse",
+        },
+      ],
     });
 
     assert.equal(archive.manifest.schema_version, 1);
@@ -116,5 +125,6 @@ describe("buildRoomArchiveSnapshot", () => {
     assert.equal(archive.room_bar?.content, "茶室入夜。");
     assert.equal(archive.world_info_books[0]?.name, "世界书");
     assert.equal(archive.behavior_rules[0]?.prompt_text, "角色应优先自保。");
+    assert.equal(archive.variable_displays[0]?.label, "危险");
   });
 });

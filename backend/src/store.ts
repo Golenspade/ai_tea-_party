@@ -413,6 +413,7 @@ class AppState {
       roomBar: this.repository.getRoomBar(roomId),
       worldInfoBooks: this.repository.getRoomWorldInfo(roomId),
       behaviorRules: this.repository.listBehaviorRules(roomId),
+      variableDisplays: this.repository.getRoomVariableDisplays(roomId),
     });
 
     const filePath = writeRoomArchiveFile(archive);
@@ -1403,6 +1404,7 @@ class AppState {
       addVariable: async (scope, name, value) => this.addVariable(scope, roomId, name, value),
       incVariable: async (scope, name, value) => this.incVariable(scope, roomId, name, value),
       decVariable: async (scope, name, value) => this.decVariable(scope, roomId, name, value),
+      deleteVariable: async (scope, name) => this.deleteVariable(scope, roomId, name),
       listRoomWorldInfoBooks: async (id) => this.getRoomWorldInfo(id),
       listRoomSummaries: async (id) => this.listRoomSummaries(id),
       listBehaviorRules: async (id) => this.listBehaviorRules(id),
