@@ -33,6 +33,48 @@ describe("pi-credentials", () => {
     );
   });
 
+  it("treats whitespace-only stored key as missing and continues lookup", async () => {
+    const previous = process.env.DEEPSEEK_API_KEY;
+    delete process.env.DEEPSEEK_API_KEY;
+    try {
+      const key = await resolveApiKeyForPiProvider("deepseek", {
+        getStoredApiKey: () => "   ",
+      });
+      assert.equal(key, undefined);
+      assert.equal(
+        hasCredentialForAppProvider("deepseek", () => "   "),
+        false,
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.DEEPSEEK_API_KEY;
+      } else {
+        process.env.DEEPSEEK_API_KEY = previous;
+      }
+    }
+  });
+
+  it("reads env key when stored key is absent", async () => {
+    const previous = process.env.OPENAI_API_KEY;
+    process.env.OPENAI_API_KEY = "sk-from-env";
+    try {
+      const key = await resolveApiKeyForPiProvider("openai", {
+        getStoredApiKey: () => undefined,
+      });
+      assert.equal(key, "sk-from-env");
+      assert.equal(
+        hasCredentialForAppProvider("openai", () => undefined),
+        true,
+      );
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPENAI_API_KEY;
+      } else {
+        process.env.OPENAI_API_KEY = previous;
+      }
+    }
+  });
+
   it("builds stable credential setting keys", () => {
     assert.equal(credentialSettingKey("deepseek", "api_key"), "cred:deepseek:api_key");
   });

@@ -28,4 +28,18 @@ describe("resolvePiModel", () => {
       model: "deepseek-reasoner",
     });
   });
+
+  it("returns null for empty or unknown AI_PROVIDER values", () => {
+    assert.equal(parseEnvAiProvider(undefined), null);
+    assert.equal(parseEnvAiProvider(""), null);
+    assert.equal(parseEnvAiProvider("totally_unknown_provider"), null);
+  });
+
+  it("parses provider/model slash form", () => {
+    // parseEnvAiProvider normalizes '-' → '_' before splitting.
+    assert.deepEqual(parseEnvAiProvider("deepseek/deepseek-chat"), {
+      provider: "deepseek",
+      model: "deepseek_chat",
+    });
+  });
 });
