@@ -1,6 +1,12 @@
-import { getModel, getModels, type KnownProvider, type Model } from "@earendil-works/pi-ai";
+import { type KnownProvider, type Model } from "@earendil-works/pi-ai";
+import { getModel, getModels } from "@earendil-works/pi-ai/compat";
 
-/** App 内 provider id → pi-ai KnownProvider */
+/**
+ * App 内 provider id → pi-ai KnownProvider
+ *
+ * Model lookup uses `@earendil-works/pi-ai/compat` (`getModel` / `getModels`)
+ * after the Pi 0.80 root entrypoint became core-only.
+ */
 export const APP_PROVIDER_TO_PI: Record<string, KnownProvider> = {
   openai: "openai",
   deepseek: "deepseek",

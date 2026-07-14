@@ -64,7 +64,7 @@ pnpm build
 ### 后端（`backend/`）
 
 - Fastify 4 + `@fastify/cors` + `@fastify/websocket`
-- Pi Agent（`@earendil-works/pi-agent-core`、`@earendil-works/pi-ai`）
+- Pi Agent（`@earendil-works/pi-agent-core`、`@earendil-works/pi-ai`，当前跟踪 **0.80.6**；`getModel`/`getEnvApiKey` 经 `/compat`）
 - Drizzle ORM + better-sqlite3 → `data/tea_party.db`
 - REST + SSE + WebSocket
 
