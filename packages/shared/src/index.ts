@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { VariableDisplaySchema } from "./variable-hud";
+
 export const MessageSchema = z.object({
   id: z.string(),
   character_id: z.string(),
@@ -347,6 +349,7 @@ export const RoomArchiveSchema = z.object({
   room_bar: RoomBarSnapshotSchema.nullable(),
   world_info_books: z.array(WorldInfoBookSchema),
   behavior_rules: z.array(BehaviorRuleSchema).optional().default([]),
+  variable_displays: z.array(VariableDisplaySchema).optional().default([]),
 });
 
 export const WsMessageSchema = z.discriminatedUnion("type", [

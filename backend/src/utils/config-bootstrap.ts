@@ -17,7 +17,7 @@ export interface ConfigBootstrapAdapter {
     },
   ) => void;
   addCharacterToRoom: (roomId: string, data: CharacterFormData) => void;
-  setVariable?: (scope: "room", roomId: string, name: string, value: unknown) => void;
+  setVariable?: (scope: "room" | "global", roomId: string, name: string, value: unknown) => void;
   setRoomVariableDisplays?: (roomId: string, displays: VariableDisplay[]) => void;
 }
 
@@ -68,6 +68,12 @@ function bootstrapRoom(
     const name = String(variable.name || "").trim();
     if (!name || !adapter.setVariable) continue;
     adapter.setVariable("room", roomId, name, variable.value);
+  }
+
+  for (const variable of roomConfig.global_variables || []) {
+    const name = String(variable.name || "").trim();
+    if (!name || !adapter.setVariable) continue;
+    adapter.setVariable("global", roomId, name, variable.value);
   }
 
   if (roomConfig.variable_displays && adapter.setRoomVariableDisplays) {

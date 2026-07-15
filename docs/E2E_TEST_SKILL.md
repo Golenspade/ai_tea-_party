@@ -5,7 +5,9 @@
 
 ## 适用场景
 - 变量命令链路回归（`/setvar` → `/getvar` / HUD）
-- Variable HUD（displays API、WS `variable_update`）
+- Variable HUD（displays API、WS `variable_update`、变化 toast）
+- Active Branches / 行为书条件命中（prompt 效果面）
+- Agent 面板与轨迹（Activity Card、工具标签、Ask / Write / Patch）
 - 前后端联调冒烟
 - 有 API Key 时的真实对话 / Agent 工具改值
 
@@ -29,7 +31,18 @@ npx playwright install chromium   # 首次
 npm run e2e:smoke
 ```
 
-### 2. 全栈 live（推荐）
+### 2. Mocked Agent / 面板 / 轨迹（不依赖 backend）
+
+```bash
+cd frontend
+pnpm e2e:mocked
+# 或仅 Agent 轨迹套件
+pnpm e2e:agent
+```
+
+覆盖：`agent-panels-trajectory`（Variables/HUD/Ask/Branches + Activity Card + 工具副作用）、`ask-mermaid`、`patch-room`。
+
+### 3. 全栈 live（推荐）
 
 不 mock API；Playwright 自动拉起 frontend `:3001`，对接 backend `:3004`。
 
@@ -40,9 +53,9 @@ bash scripts/e2e-live.sh
 pnpm --filter ai-tea-party-frontend e2e:live
 ```
 
-包含：rooms / presence / websocket / variables smoke、`variable-hud`、dialogue（无 Key 则 skip）、live-llm（无 Key 则 skip）。
+包含：rooms / presence / websocket / variables smoke、`variable-hud`、`variable-effects-branches`（toast + Active Branches）、dialogue（无 Key 则 skip）、live-llm（无 Key 则 skip）。
 
-### 3. 仅真实 LLM 套件
+### 4. 仅真实 LLM 套件
 
 ```bash
 # .env 已配置 Key 并重启 backend 后

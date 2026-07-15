@@ -16,7 +16,7 @@ test.describe("Variable HUD (live backend)", () => {
   });
 
   test("HUD shows danger after /setvar", async ({ page }) => {
-    const variableName = "danger";
+    const variableName = `danger_${Date.now()}`;
     const composer = page.getByPlaceholder("Type your inquiry here...");
     const submitBtn = page.getByRole("button", { name: "Submit" });
 
@@ -30,11 +30,12 @@ test.describe("Variable HUD (live backend)", () => {
   });
 
   test("HUD shows explicit Chinese label from variable-hud API", async ({ page, request }) => {
+    const variableName = `label_danger_${Date.now()}`;
     const put = await request.put(`${E2E_API_BASE_URL}/api/rooms/default/variable-displays`, {
       data: {
         displays: [
           {
-            name: "danger",
+            name: variableName,
             label: "危险",
             min: 0,
             max: 100,
@@ -48,14 +49,14 @@ test.describe("Variable HUD (live backend)", () => {
     expect(put.ok()).toBeTruthy();
 
     const set = await request.post(`${E2E_API_BASE_URL}/api/rooms/default/variables/set`, {
-      data: { name: "danger", value: 22 },
+      data: { name: variableName, value: 22 },
     });
     expect(set.ok()).toBeTruthy();
 
     await page.reload();
     await expect(page.locator('[title="Connected"]')).toBeVisible({ timeout: 20_000 });
 
-    const hudItem = page.getByTestId("variable-hud-danger");
+    const hudItem = page.getByTestId(`variable-hud-${variableName}`);
     await expect(hudItem).toBeVisible({ timeout: 15_000 });
     await expect(hudItem).toContainText("危险");
     await expect(hudItem).toContainText("22");
@@ -66,10 +67,10 @@ test.describe("Variable HUD (live backend)", () => {
       displays: Array<{ name: string; label: string; source: string }>;
       values: Record<string, unknown>;
     };
-    const danger = payload.displays.find((d) => d.name === "danger");
+    const danger = payload.displays.find((d) => d.name === variableName);
     expect(danger?.label).toBe("危险");
     expect(danger?.source).toBe("explicit");
-    expect(payload.values.danger).toBe(22);
+    expect(payload.values[variableName]).toBe(22);
   });
 
   test("HUD updates after /incvar without manual refresh", async ({ page }) => {

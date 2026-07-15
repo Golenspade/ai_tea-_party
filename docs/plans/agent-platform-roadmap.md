@@ -197,7 +197,7 @@
 
 - 侧栏或独立 panel：**room/global 变量** 数值条、标签、变更高亮。  
 - 与现有 `variables-panel` 演进，而非重写 REST。  
-- **下一步**：右侧 Galgame 风格 **Variable HUD**（仅 room）— 规格/计划与落地分析见：  
+- **Variable HUD（4.1–4.4 已交付）**：右侧 Galgame 风格状态条（仅 room）+ WS 实时 + 变化特效 + 窄屏横条 — 规格见：  
   - [`docs/superpowers/specs/2026-06-22-variable-hud-design.md`](../superpowers/specs/2026-06-22-variable-hud-design.md)  
   - [`docs/superpowers/plans/2026-06-22-variable-hud.md`](../superpowers/plans/2026-06-22-variable-hud.md)  
   - [`docs/plans/variable-hud-analysis.md`](variable-hud-analysis.md)  
@@ -244,14 +244,14 @@
 |----|------|------|
 | Pi Agent 接入 generate/stream | ✅ | orchestrator + Agent |
 | pi-ai 模型解析 | ✅ | resolve-pi-model |
-| 变量 Tool (set/get/list…) | ✅ | room/global + 条件分支 |
+| 变量 Tool (set/get/list…) | ✅ | room/global + 条件分支 + `delete_variable` |
 | World Info 扫描 | ✅ | 含条件过滤 |
 | Presence / WS / SSE | ✅ | 含 Mermaid buffer |
 | Ask Tool + 侧栏 UI | ✅ | SSE resume + E2E |
 | Write to Room Tool | ✅ | write-to-room.ts |
 | Write to Bar + Status Bar | ✅ | room_bar 表 + 顶栏 |
-| 变量测量 UI (gauge) | ✅ | 侧栏 `variables-panel` 简易 gauge |
-| Variable HUD（右侧） | ⏳ | 前端 Slice A + 后端 WS Slice B；4.2 schema/API 未开始 |
+| 变量测量 UI (gauge) | ✅ | 侧栏与 HUD 共用 severity 色阶 |
+| Variable HUD（右侧） | ✅ | 4.1–4.4：WS 实时、schema/API、变化特效、窄屏 + 文档 |
 | chart/Mermaid Buffer | ✅ | mermaid-diagram + 未闭合块 buffer |
 | Agent Activity UI | ✅ | P1–P2：状态机 + Card/Line + 空占位优化 + 角色活动指示 |
 | DM 调度 | ✅ | 用户指定下轮 + Auto DM 选角 |

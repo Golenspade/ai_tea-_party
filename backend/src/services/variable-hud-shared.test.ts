@@ -26,6 +26,11 @@ describe("shared variable-hud", () => {
     });
   });
 
+  it("defaults non-worse names to higher_is_better", () => {
+    const inferred = inferVariableDisplay("trust", 10);
+    assert.equal(inferred?.polarity, "higher_is_better");
+  });
+
   it("prefers explicit config", () => {
     const result = resolveHudDisplays(
       [{ name: "danger", label: "危险", min: 0, max: 50 }],

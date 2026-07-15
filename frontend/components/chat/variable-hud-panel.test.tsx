@@ -46,4 +46,52 @@ describe("VariableHudPanel", () => {
     render(<VariableHudPanel displays={displays} values={{ danger: 120 }} />);
     expect(screen.getByTitle("超出量程")).toHaveTextContent("!");
   });
+
+  it("marks the pulsing gauge when pulseTarget matches", () => {
+    const displays: ResolvedVariableDisplay[] = [
+      {
+        name: "danger",
+        label: "危险",
+        min: 0,
+        max: 100,
+        polarity: "higher_is_worse",
+        show_in_hud: true,
+        source: "inferred",
+      },
+    ];
+
+    render(
+      <VariableHudPanel
+        displays={displays}
+        values={{ danger: 12 }}
+        pulseTarget="danger"
+      />,
+    );
+    expect(screen.getByTestId("variable-hud-danger")).toHaveAttribute(
+      "data-pulsing",
+      "true",
+    );
+  });
+
+  it("renders compact bottom strip mode", () => {
+    const displays: ResolvedVariableDisplay[] = [
+      {
+        name: "danger",
+        label: "危险",
+        min: 0,
+        max: 100,
+        polarity: "higher_is_worse",
+        show_in_hud: true,
+        source: "inferred",
+      },
+    ];
+
+    render(
+      <VariableHudPanel displays={displays} values={{ danger: 4 }} compact />,
+    );
+    expect(screen.getByTestId("variable-hud-panel")).toHaveAttribute(
+      "data-compact",
+      "true",
+    );
+  });
 });

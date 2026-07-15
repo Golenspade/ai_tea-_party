@@ -43,7 +43,9 @@ export function normalizeRatio(value: number, min: number, max: number): number 
 }
 
 function defaultPolarity(name: string): VariablePolarity {
-  return WORSE_NAME_RE.test(name) ? "higher_is_worse" : "higher_is_worse";
+  // Spec peer review: inference is conservative — only known "worse" names
+  // get higher_is_worse; everything else defaults to higher_is_better.
+  return WORSE_NAME_RE.test(name) ? "higher_is_worse" : "higher_is_better";
 }
 
 function defaultBounds(name: string, value: number): { min: number; max: number } {

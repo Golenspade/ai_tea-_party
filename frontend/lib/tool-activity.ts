@@ -41,6 +41,25 @@ export function summarizeToolArgs(
     const t = args.question.trim();
     return t ? t.slice(0, 24) + (t.length > 24 ? "…" : "") : null;
   }
+  if (
+    (tool === "set_variable" ||
+      tool === "inc_variable" ||
+      tool === "dec_variable" ||
+      tool === "add_variable" ||
+      tool === "get_variable" ||
+      tool === "delete_variable") &&
+    typeof args.name === "string"
+  ) {
+    const name = args.name.trim();
+    if (!name) return null;
+    if (typeof args.delta === "number" && Number.isFinite(args.delta)) {
+      return `${name} ${args.delta > 0 ? "+" : ""}${args.delta}`;
+    }
+    if (args.value !== undefined) {
+      return `${name}=${String(args.value).slice(0, 16)}`;
+    }
+    return name;
+  }
   return null;
 }
 
@@ -49,6 +68,13 @@ const TOOL_BASE_LABELS: Record<string, string> = {
   patch_room: "正在修订文稿…",
   write_to_bar: "正在更新当前形势…",
   ask_user: "等待你的抉择…",
+  get_variable: "正在读取变量…",
+  set_variable: "正在设置变量…",
+  add_variable: "正在追加变量…",
+  inc_variable: "正在提升变量…",
+  dec_variable: "正在降低变量…",
+  delete_variable: "正在删除变量…",
+  list_variables: "正在列出变量…",
 };
 
 export function getToolActivityLabel(
@@ -72,6 +98,16 @@ export function getToolActivityLabel(
   }
   if (tool === "ask_user") {
     return `等待你的抉择…「${summary}」`;
+  }
+  if (
+    tool === "set_variable" ||
+    tool === "inc_variable" ||
+    tool === "dec_variable" ||
+    tool === "add_variable" ||
+    tool === "get_variable" ||
+    tool === "delete_variable"
+  ) {
+    return `${base}「${summary}」`;
   }
   return `${base}「${summary}」`;
 }

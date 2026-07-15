@@ -36,7 +36,7 @@ export const AGENT_TOOL_GUIDANCE = `[Agent 工具规则]
 - patch_room：修改已有 AI/旁白消息；必须提供目标 message_id 与修改后的完整正文，不要修改用户消息。
 - write_to_bar：当前形势、场景摘要、地点/时间等外在状态（不要写入消息流）。
 - ask_user：需要用户做剧情抉择时使用；提供 question 与 choices。
-- 变量变更请使用 set_variable / inc_variable 等变量工具。`;
+- 变量变更请使用 get_variable / set_variable / add_variable / inc_variable / dec_variable / delete_variable / list_variables。`;
 
 export const FOUR_BOOK_GUIDANCE = `[四书分层]
 (a) 世界书：World Info 命中内容提供设定、规则和背景。

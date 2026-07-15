@@ -51,8 +51,17 @@ function ensureColumn(
   column: string,
   definition: string,
 ): void {
-  if (!hasColumn(client, table, column)) {
+  if (hasColumn(client, table, column)) {
+    return;
+  }
+  try {
     client.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+  } catch (error) {
+    // Parallel test processes (and rare concurrent boots) can race past hasColumn.
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/duplicate column name/i.test(message)) {
+      throw error;
+    }
   }
 }
 
@@ -105,6 +114,7 @@ export function ensureSchema(client: Database.Database): void {
       timestamp TEXT NOT NULL,
       sender_type TEXT DEFAULT NULL,
       sender_user_id TEXT DEFAULT NULL,
+      sender_user_name TEXT DEFAULT NULL,
       FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
     );
 
