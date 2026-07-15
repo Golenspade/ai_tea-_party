@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
 
 import {
   clickSpeak,
@@ -10,9 +10,10 @@ import {
 /**
  * Mocked E2E covering:
  * 1) Frontend panels (Variables / HUD / Ask / Status Bar / Active Branches)
- * 2) Agent tool behavior (write_to_room / write_to_bar / inc_variable / ask_user)
+ * 2) Agent tool behavior (write_to_room / write_to_bar / patch_room / inc_variable / ask_user)
  * 3) Agent trajectory (Activity Card → tool labels → step hint)
  * 4) Prompt-effect surface (Active Branches lit by variable-gated rules)
+ * 5) Paragraph-level patch diff flash
  */
 
 async function fulfillSse(route: Route, events: unknown[]) {
@@ -318,6 +319,72 @@ test.describe("Frontend panels + Agent trajectory (mocked API)", () => {
     await expect(page.getByRole("main").getByText("门轴轻响，冷气扑面。")).toBeVisible({
       timeout: 15_000,
     });
+  });
+
+  test("Agent patch_room：段落级 diff 闪现删改与插入", async ({ page }) => {
+    await installMockRoomApi(page, {
+      initial: {
+        messages: [
+          {
+            id: "msg-patch-1",
+            character_id: "char-1",
+            character_name: "Narrator",
+            content: "保留段\n\n将被替换的旧段\n\n尾段",
+            timestamp: "2026-07-14T00:00:00.000Z",
+            is_system: false,
+            sender_type: "ai",
+          },
+        ],
+      },
+      onGenerateStream: async (_state, route) => {
+        await fulfillSse(route, [
+          {
+            type: "tool_call_start",
+            request_id: "request-patch",
+            tool: "patch_room",
+            args: {
+              message_id: "msg-patch-1",
+              content: "保留段\n\n修订后的新段\n\n尾段",
+              reason: "去重润色",
+            },
+          },
+          {
+            type: "message_patch",
+            request_id: "request-patch",
+            patch: {
+              room_id: "default",
+              message_id: "msg-patch-1",
+              content: "保留段\n\n修订后的新段\n\n尾段",
+              previous_content: "保留段\n\n将被替换的旧段\n\n尾段",
+              patched_at: "2026-07-14T00:00:02.000Z",
+              reason: "去重润色",
+            },
+          },
+          {
+            type: "tool_call_end",
+            request_id: "request-patch",
+            tool: "patch_room",
+          },
+          {
+            type: "final",
+            request_id: "request-patch",
+            content: "",
+          },
+        ]);
+      },
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("main").getByText("将被替换的旧段")).toBeVisible();
+
+    await clickSpeak(page, "Narrator");
+
+    await expect(page.locator("[data-patched='true']")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("[data-paragraph-diff='true']")).toBeVisible();
+    await expect(page.locator("[data-patch-variant='delete']")).toContainText("将被替换的旧段");
+    await expect(page.locator("[data-patch-variant='insert']")).toContainText("修订后的新段");
+    await expect(page.getByRole("main").getByText("保留段")).toBeVisible();
+    await expect(page.getByRole("main").getByText("尾段")).toBeVisible();
   });
 
   test("Agent 错误轨迹：SSE error 展示 Activity Card 错误态", async ({ page }) => {
