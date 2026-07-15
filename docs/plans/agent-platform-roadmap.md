@@ -20,7 +20,7 @@
 ## 1. 核心结论（一句话）
 
 **当前（v2.2.0-ts）**：Pi Agent 驱动的叙事平台已落地 — Ask、Write Room/Bar、Patch、DM 选角、变量分支、Archive/Compact、Template 导出。  
-**后续**：段落级 Patch diff、完整 DM Agent、Current Scale 选型、Big Scale 归档策略深化，并与 **Pi Agent 上游** 协同演进为 **云端 Chat Agent Template**。
+**后续**：完整 DM Agent、Current Scale 选型、Big Scale 归档策略深化，并与 **Pi Agent 上游** 协同演进为 **云端 Chat Agent Template**。
 
 ---
 
@@ -29,7 +29,7 @@
 | 能力 | 目标行为 | 当前状态 |
 |------|----------|----------|
 | **Write to Room** | Agent 通过 Tool 写入房间，前端即时展示 | ✅ Tool + SSE/WS |
-| **Modify / Patch** | 删改已有段落，前端带动画 diff | ✅ 整条消息 patch + 高亮；段落级 diff 待增强 |
+| **Modify / Patch** | 删改已有段落，前端带动画 diff | ✅ 整条消息 patch + 段落级 diff 闪现 |
 | **Ask** | 暂停叙事，询问用户剧情走向（侧栏决策） | ✅ 侧栏 + resume stream |
 | **变量系统** | 行为影响变量 → 分支剧情；DB + 可视化 | ✅ Tool + Gauge + 条件 World Info / 行为书 |
 | **Summary / Compact** | 压缩上下文、选择性落盘，长剧情可持续 | ✅ Archive + deterministic summary |
@@ -218,7 +218,7 @@
 
 | 阶段 | 主题 | 要点 |
 |------|------|------|
-| **P2** | Modify/Patch Room | ✅ `patch_room` + `message_patch`；段落级 diff 编辑器留后续增强 |
+| **P2** | Modify/Patch Room | ✅ `patch_room` + `message_patch`；段落级 diff 闪现（`previous_content` + 前端 LCS） |
 | **P2** | DM Orchestrator | ✅ 用户指定发言 + Auto 下 DM 选角；完整 DM Agent 留后续增强 |
 | **P2** | 四书 (a)(b)(c) 产品化 | ✅ 世界书 + 行为书规则表 + prompt 脚手架 |
 | **P3** | Summary / Compact | ✅ Archive 落盘 + deterministic summary |
@@ -255,13 +255,12 @@
 | chart/Mermaid Buffer | ✅ | mermaid-diagram + 未闭合块 buffer |
 | Agent Activity UI | ✅ | P1–P2：状态机 + Card/Line + 空占位优化 + 角色活动指示 |
 | DM 调度 | ✅ | 用户指定下轮 + Auto DM 选角 |
-| Patch Room | ✅ | 整条消息 patch + 高亮 |
+| Patch Room | ✅ | 整条消息 patch + 段落级 diff 闪现（删改/插入高亮） |
 | Compact / Summary / Archive | ✅ | archive-builder + summary-compact |
 | 行为书规则表 | ✅ | behavior_rules + prompt 注入 |
 | Template 导出 | ✅ | export-room-template.mjs + template-authoring |
 | Current Scale 存储选型 | ⏳ | Archive 已落地；稿本级 Current Scale 方案仍待定 |
 | 完整 DM Agent（独立写手调度） | ⏳ | 后续增强 |
-| 段落级 Patch diff | ⏳ | 后续增强 |
 | REST 全面 audit | ⏸ | 按需 |
 
 ---
@@ -298,6 +297,7 @@
 
 | 日期 | 版本 | 说明 |
 |------|------|------|
+| 2026-07-15 | v0.3.4 | 段落级 Patch diff：`previous_content` + 前端段落 LCS 闪现 |
 | 2026-07-13 | v0.3.3 | 纳入 Variable HUD 规格链接与落地分析 |
 | 2026-07-13 | v0.3.2 | Agent Activity P2：Card / 空占位 / 侧栏指示标记为已落地 |
 | 2026-06-21 | v0.3.1 | 增加 Agent Activity UI 规格链接与缺口项 |

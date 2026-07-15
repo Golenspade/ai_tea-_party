@@ -13,7 +13,7 @@ const initialMessage = {
   id: "message-1",
   character_id: character.id,
   character_name: character.name,
-  content: "旧正文",
+  content: "保留段\n\n旧段",
   timestamp: "2026-06-09T00:00:00.000Z",
   is_system: false,
   sender_type: "ai",
@@ -82,7 +82,7 @@ async function mockPatchApi(page: Page) {
           "Cache-Control": "no-cache",
         },
         body: [
-          'data: {"type":"message_patch","request_id":"request-1","patch":{"room_id":"default","message_id":"message-1","content":"新正文","patched_at":"2026-06-09T00:00:02.000Z","reason":"修正"}}',
+          'data: {"type":"message_patch","request_id":"request-1","patch":{"room_id":"default","message_id":"message-1","content":"保留段\\n\\n新段","previous_content":"保留段\\n\\n旧段","patched_at":"2026-06-09T00:00:02.000Z","reason":"修正"}}',
           "",
           'data: {"type":"final","request_id":"request-1","message_id":"message-final","content":""}',
           "",
@@ -101,13 +101,16 @@ test("Phase 2: Patch Room 更新已有消息并高亮", async ({ page }) => {
   const apiState = await mockPatchApi(page);
 
   await page.goto("/");
-  await expect(page.getByRole("main").getByText("旧正文")).toBeVisible();
+  await expect(page.getByRole("main").getByText("保留段")).toBeVisible();
+  await expect(page.getByRole("main").getByText("旧段")).toBeVisible();
 
   await page.getByText("I. Editor").hover();
   await page.locator('button[title="Speak"]').click();
 
   await expect.poll(() => apiState.streamCalled).toBe(true);
-  await expect(page.getByRole("main").getByText("新正文")).toBeVisible();
-  await expect(page.getByRole("main").getByText("旧正文")).toHaveCount(0);
-  await expect(page.getByText("新正文").locator("xpath=ancestor::*[@data-patched='true']")).toBeVisible();
+  await expect(page.getByRole("main").getByText("新段")).toBeVisible();
+  await expect(page.locator("[data-patched='true']")).toBeVisible();
+  await expect(page.locator("[data-paragraph-diff='true']")).toBeVisible();
+  await expect(page.locator("[data-patch-variant='delete']")).toContainText("旧段");
+  await expect(page.locator("[data-patch-variant='insert']")).toContainText("新段");
 });

@@ -49,6 +49,7 @@ describe("AppState patchAgentRoomMessage", () => {
       assert.equal(patch.room_id, "room-1");
       assert.equal(patch.message_id, "message-1");
       assert.equal(patch.content, "新正文");
+      assert.equal(patch.previous_content, "旧正文");
       assert.equal(patch.reason, "去重");
       assert.match(patch.patched_at, /^20\d\d-/);
       assert.equal(state.getMessagesSince("room-1").find((item) => item.id === "message-1")?.content, "新正文");

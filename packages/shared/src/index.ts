@@ -18,6 +18,8 @@ export const MessagePatchSchema = z.object({
   room_id: z.string(),
   message_id: z.string(),
   content: z.string(),
+  /** Pre-patch body so clients can render paragraph-level diff without local history. */
+  previous_content: z.string().optional(),
   patched_at: z.string(),
   reason: z.string().optional(),
 });

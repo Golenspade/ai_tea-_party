@@ -1118,6 +1118,7 @@ class AppState {
       throw new Error("不能修改用户消息");
     }
 
+    const previousContent = existing.content;
     const updated = this.repository.updateRoomMessageContent(roomId, input.message_id, input.content);
     if (!updated) {
       throw new Error("消息不存在");
@@ -1127,6 +1128,7 @@ class AppState {
       room_id: roomId,
       message_id: updated.id,
       content: updated.content,
+      previous_content: previousContent,
       patched_at: nowIso(),
       reason: input.reason,
     };

@@ -30,6 +30,7 @@ import { VariableChangeToast } from "@/components/chat/variable-change-toast";
 import { ApiConfigDialog } from "@/components/dialogs/api-config-dialog";
 import { submitAskAndStartResume } from "@/services/ask-flow";
 import { applyMessagePatch } from "@/services/message-patch";
+import { computeParagraphDiff, type ParagraphDiffOp } from "@/services/paragraph-diff";
 import { useRoomActivityActions } from "@/hooks/use-room-activity";
 import { resolveHudDisplays } from "@/lib/variable-viz";
 import {
@@ -44,6 +45,8 @@ import type {
   VariableScope,
   VariableSetRequest,
 } from "@/lib/types";
+
+const PATCH_FLASH_MS = 2800;
 
 export function ChatLayout() {
   // --- 核心状态 ---
@@ -71,6 +74,8 @@ export function ChatLayout() {
   const [isArchiving, setIsArchiving] = useState(false);
   const [lastCompactResult, setLastCompactResult] = useState<RoomCompactResult | null>(null);
   const [patchedMessageIds, setPatchedMessageIds] = useState<Set<string>>(new Set());
+  const [paragraphDiffs, setParagraphDiffs] = useState<Map<string, ParagraphDiffOp[]>>(new Map());
+  const messagesRef = useRef<Message[]>([]);
   const [dmNextSpeaker, setDmNextSpeaker] = useState<DmNextSpeaker | null>(null);
   const [variableDisplays, setVariableDisplays] = useState<VariableDisplay[]>([]);
   const [variableToasts, setVariableToasts] = useState<VariableChangeToastItem[]>([]);
@@ -94,6 +99,7 @@ export function ChatLayout() {
 
   const hudDisplaysRef = useRef(hudDisplays);
   hudDisplaysRef.current = hudDisplays;
+  messagesRef.current = messages;
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -169,15 +175,30 @@ export function ChatLayout() {
   }, [appendRoomMessage]);
 
   const handleMessagePatch = useCallback((patch: MessagePatch) => {
+    const existing = messagesRef.current.find((message) => message.id === patch.message_id);
+    const previous = patch.previous_content ?? existing?.content ?? "";
+    const ops = computeParagraphDiff(previous, patch.content);
+
     setMessages((prev) => applyMessagePatch(prev, patch));
     setPatchedMessageIds((prev) => new Set(prev).add(patch.message_id));
+    setParagraphDiffs((prev) => {
+      const next = new Map(prev);
+      next.set(patch.message_id, ops);
+      return next;
+    });
+
     window.setTimeout(() => {
       setPatchedMessageIds((prev) => {
         const next = new Set(prev);
         next.delete(patch.message_id);
         return next;
       });
-    }, 2400);
+      setParagraphDiffs((prev) => {
+        const next = new Map(prev);
+        next.delete(patch.message_id);
+        return next;
+      });
+    }, PATCH_FLASH_MS);
   }, []);
 
   const handleDmNextSpeaker = useCallback((choice: DmNextSpeaker) => {
@@ -913,6 +934,7 @@ export function ChatLayout() {
               messages={messages}
               characters={characters}
               patchedMessageIds={patchedMessageIds}
+              paragraphDiffs={paragraphDiffs}
             />
 
             <ChatBottombar
