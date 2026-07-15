@@ -5,11 +5,13 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseMarkdownBlocks } from "@/lib/markdown-blocks";
 import { MermaidDiagram } from "@/components/chat/mermaid-diagram";
+import type { ParagraphDiffOp } from "@/services/paragraph-diff";
 
 interface ChatBubbleProps {
   message: Message;
   characters: Character[];
   isPatched?: boolean;
+  paragraphDiff?: ParagraphDiffOp[];
 }
 
 export function MarkdownBody({ content }: { content: string }) {
@@ -57,8 +59,56 @@ export function MarkdownBody({ content }: { content: string }) {
   );
 }
 
-export function CustomChatBubble({ message, isPatched }: ChatBubbleProps) {
-  const patchClass = isPatched
+function PatchParagraph({
+  op,
+  text,
+  variant,
+}: {
+  op: ParagraphDiffOp["type"];
+  text: string;
+  variant: "equal" | "insert" | "delete";
+}) {
+  const className =
+    variant === "insert"
+      ? "patch-para patch-para-insert"
+      : variant === "delete"
+        ? "patch-para patch-para-delete"
+        : "patch-para";
+
+  return (
+    <div data-patch-op={op} data-patch-variant={variant} className={className}>
+      <MarkdownBody content={text} />
+    </div>
+  );
+}
+
+export function ParagraphDiffBody({ ops }: { ops: ParagraphDiffOp[] }) {
+  return (
+    <div className="space-y-3" data-paragraph-diff="true">
+      {ops.map((op, index) => {
+        if (op.type === "equal") {
+          return <PatchParagraph key={`eq-${index}`} op="equal" text={op.text} variant="equal" />;
+        }
+        if (op.type === "insert") {
+          return <PatchParagraph key={`ins-${index}`} op="insert" text={op.text} variant="insert" />;
+        }
+        if (op.type === "delete") {
+          return <PatchParagraph key={`del-${index}`} op="delete" text={op.text} variant="delete" />;
+        }
+        return (
+          <div key={`rep-${index}`} className="space-y-2" data-patch-op="replace">
+            <PatchParagraph op="replace" text={op.before} variant="delete" />
+            <PatchParagraph op="replace" text={op.after} variant="insert" />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function CustomChatBubble({ message, isPatched, paragraphDiff }: ChatBubbleProps) {
+  const showParagraphDiff = Boolean(isPatched && paragraphDiff && paragraphDiff.length > 0);
+  const patchClass = isPatched && !showParagraphDiff
     ? "bg-[#fff7d6] ring-1 ring-[#d6a846]/50 shadow-[0_0_0_3px_rgba(214,168,70,0.12)]"
     : "";
 
@@ -121,7 +171,11 @@ export function CustomChatBubble({ message, isPatched }: ChatBubbleProps) {
       
       <div className="font-book text-[1.05rem] leading-8 text-[#3b3631] text-justify">
         <div className="prose prose-sm md:prose-base lg:prose-lg max-w-none text-inherit leading-8 drop-cap marker:text-[#a35d40] prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-headings:font-book prose-headings:text-[#3b3631]">
-          <MarkdownBody content={message.content} />
+          {showParagraphDiff && paragraphDiff ? (
+            <ParagraphDiffBody ops={paragraphDiff} />
+          ) : (
+            <MarkdownBody content={message.content} />
+          )}
         </div>
       </div>
     </div>

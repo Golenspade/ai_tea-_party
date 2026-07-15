@@ -6,11 +6,13 @@ import { CustomChatBubble } from "@/components/chat/custom-chat-bubble";
 import { AgentActivityCard } from "@/components/chat/agent-activity-card";
 import { AgentActivityLine } from "@/components/chat/agent-activity-line";
 import { useRoomActivity } from "@/hooks/use-room-activity";
+import type { ParagraphDiffOp } from "@/services/paragraph-diff";
 
 interface ChatMessageListProps {
   messages: Message[];
   characters: Character[];
   patchedMessageIds?: Set<string>;
+  paragraphDiffs?: Map<string, ParagraphDiffOp[]>;
 }
 
 function isEmptyStreamPlaceholder(message: Message): boolean {
@@ -21,7 +23,12 @@ function isEmptyStreamPlaceholder(message: Message): boolean {
   );
 }
 
-export function ChatMessageList({ messages, characters, patchedMessageIds }: ChatMessageListProps) {
+export function ChatMessageList({
+  messages,
+  characters,
+  patchedMessageIds,
+  paragraphDiffs,
+}: ChatMessageListProps) {
   const activity = useRoomActivity();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -46,6 +53,7 @@ export function ChatMessageList({ messages, characters, patchedMessageIds }: Cha
             message={message}
             characters={characters}
             isPatched={patchedMessageIds?.has(message.id)}
+            paragraphDiff={paragraphDiffs?.get(message.id)}
           />
         ))}
         <AgentActivityCard activity={activity} />

@@ -66,4 +66,24 @@ describe("CustomChatBubble", () => {
 
     expect(screen.getByText("修订后的正文").closest("[data-patched='true']")).toBeInTheDocument();
   });
+
+  it("renders paragraph-level insert/delete segments while flashing", () => {
+    render(
+      <CustomChatBubble
+        message={{ ...message, content: "保留段\n\n新段" }}
+        characters={[]}
+        isPatched
+        paragraphDiff={[
+          { type: "equal", text: "保留段" },
+          { type: "delete", text: "旧段" },
+          { type: "insert", text: "新段" },
+        ]}
+      />,
+    );
+
+    expect(document.querySelector("[data-paragraph-diff='true']")).toBeInTheDocument();
+    expect(document.querySelector("[data-patch-variant='delete']")).toHaveTextContent("旧段");
+    expect(document.querySelector("[data-patch-variant='insert']")).toHaveTextContent("新段");
+    expect(screen.getByText("保留段")).toBeInTheDocument();
+  });
 });
