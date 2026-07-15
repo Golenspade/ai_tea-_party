@@ -176,5 +176,10 @@ describe("orchestrator variable tools", () => {
 
     const missing = await byName.delete_variable.execute("tc-9", { name: "danger" });
     assert.equal(missing.details?.deleted, false);
+
+    await assert.rejects(
+      () => byName.delete_variable.execute("tc-10", { name: "   " }),
+      /变量名不能为空/,
+    );
   });
 });

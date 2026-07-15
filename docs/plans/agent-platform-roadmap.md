@@ -231,7 +231,7 @@
 
 ## 9. 与 Pi Agent 上游协同原则
 
-1. **跟踪 upstream main**，小步 bump `@earendil-works/pi-agent-core` / `pi-ai`。  
+1. **跟踪 upstream main**，小步 bump `@earendil-works/pi-agent-core` / `pi-ai`（当前 **0.80.6**；`getModel`/`getEnvApiKey` 走 `/compat`，后续再迁 `createModels()`）。  
 2. **扩展放 adapter 层**：`backend/src/services/orchestrator.ts`、`tools/`、事件映射；少 fork 上游。  
 3. **Tool 命名与语义**优先查 upstream 是否已有 `ask` / file write 类 Tool，再决定 wrap 还是自研。  
 4. **Template 目标**：本仓库可抽「最小 Agent Room 宿主」；业务（茶话会、四书）为 sample app。  

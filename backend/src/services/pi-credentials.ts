@@ -2,7 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { getEnvApiKey, type KnownProvider } from "@earendil-works/pi-ai";
+import { type KnownProvider } from "@earendil-works/pi-ai";
+import { getEnvApiKey } from "@earendil-works/pi-ai/compat";
 import { getOAuthApiKey } from "@earendil-works/pi-ai/oauth";
 
 import { APP_PROVIDER_TO_PI } from "./resolve-pi-model";
@@ -86,8 +87,11 @@ export interface PiCredentialResolverOptions {
 /**
  * 解析 pi-ai provider 的 API Key，优先级：
  * 1. 前端/DB 持久化的应用层 provider 密钥
- * 2. process.env（pi-ai getEnvApiKey）
+ * 2. process.env（pi-ai/compat getEnvApiKey）
  * 3. ~/.pi/agent/auth.json（Pi CLI 登录态，含 OAuth）
+ *
+ * Note: Pi 0.80+ moved getEnvApiKey / getModel off the root package onto
+ * `@earendil-works/pi-ai/compat` (temporary bridge toward createModels()).
  */
 export async function resolveApiKeyForPiProvider(
   piProvider: string,

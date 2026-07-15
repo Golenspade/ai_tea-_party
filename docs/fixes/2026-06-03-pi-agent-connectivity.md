@@ -60,7 +60,7 @@ UI / API 配置 (AppState.currentProvider + currentModel)
         ↓
 resolvePiModel(appProvider, appModelId)   ← backend/src/services/resolve-pi-model.ts
         ↓
-@earendil-works/pi-ai  getModel(piProvider, piModelId)
+@earendil-works/pi-ai/compat  getModel(piProvider, piModelId)
         ↓
 @earendil-works/pi-agent-core  Agent({ model, systemPrompt, messages, tools })
         ↓
