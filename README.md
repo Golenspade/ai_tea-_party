@@ -1,5 +1,7 @@
 # AI Tea Party
 
+[文档中心](https://fankex.com/docs)
+
 基于 **Pi Agent** 的多角色 **RolePlay 对话平台**。在聊天室中编排角色、变量与世界书，由 Agent 通过 Tool 推进叙事；支持 Ask 分支、形势栏、归档与可复用的场景预设。
 
 > 项目处于**开发阶段**，当前提供网页版；后续计划 Release 打包，并考虑 Electron 桌面封装。模型接入将复用 **Pi Agent** 的授权流程（含 LiteLLM OAuth 等），无需用户手动粘贴 API Key。
