@@ -1,6 +1,6 @@
 # AI Tea Party
 
-[文档中心](https://fankex.com/docs)
+[使用文档](https://fankex.com/zh-cn/docs/ai-tea-party)
 
 基于 **Pi Agent** 的多角色 **RolePlay 对话平台**。在聊天室中编排角色、变量与世界书，由 Agent 通过 Tool 推进叙事；支持 Ask 分支、形势栏、归档与可复用的场景预设。
 
